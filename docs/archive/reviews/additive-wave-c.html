@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Additive Plan · Wave C — applied changes</title>
+<style>
+  :root{--proof:#0f7d5a;--proof-soft:#e6f4ee;--proof-deep:#0a5c42;--ink:#1a1c1a;--muted:#5c6360;--hair:#e3e6e4;--canvas:#f7f9f8;--surface:#fff;--amber:#b7791f;--amber-soft:#fdf6e7}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:32px 16px}
+  .wrap{max-width:860px;margin:0 auto}
+  header{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+  .badge{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:11px;background:var(--proof);color:#fff;font-weight:800}
+  h1{font-size:23px;margin:0;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin:2px 0 24px;font-size:13.5px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+  .pill.ok{background:var(--proof-soft);color:var(--proof-deep)}
+  .pill.flag{background:var(--amber-soft);color:var(--amber)}
+  .card{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:20px 22px;margin:16px 0;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .card h2{font-size:15px;margin:0 0 12px}
+  .row{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--hair)}
+  .row:last-child{border-bottom:0}
+  .tick{color:var(--proof);font-weight:800}
+  .num{display:inline-grid;place-items:center;width:26px;height:22px;flex:0 0 26px;border-radius:6px;background:var(--proof-soft);color:var(--proof-deep);font-size:11px;font-weight:800}
+  code{background:#f0f2f1;border-radius:5px;padding:1px 6px;font-size:12.5px;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+  .ledger{border:1px solid var(--hair);border-radius:10px;overflow:hidden}
+  .lrow{display:flex;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--hair);font-size:12.5px}
+  .lrow:last-child{border-bottom:0}
+  .lrow.head{background:#fafbfb;font-weight:700;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  .ref{font-family:"JetBrains Mono",monospace;font-size:10.5px;font-weight:700;color:var(--proof-deep);background:var(--proof-soft);border:1px solid #cfe7dd;border-radius:5px;padding:2px 6px;white-space:nowrap}
+  .grow{flex:1}
+  .meta{color:var(--muted);font-size:12px}
+  .foot{color:var(--muted);font-size:12.5px;text-align:center;margin-top:24px}
+  ul.tight{margin:6px 0 0;padding-left:20px}
+  ul.tight li{margin:2px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="badge">C</div>
+    <div>
+      <h1>Additive Plan · Wave C — new capability</h1>
+      <div class="sub">The differentiation wave, still additive · <span class="pill ok">✓ Applied</span> <span class="pill flag">⚑ flag-gated</span></div>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>✨ The one-line</h2>
+    <p style="margin:0">Four genuinely new capabilities land beside the shipped app — a <b>Story</b> through-line generated from your
+    evidence, a <b>Discover</b> surface that mirrors who you are and opens adjacent doors, an <b>Excavation</b> coach session that
+    digs up buried history, and an opt-in public <b>Proof Link</b>. Each reuses existing machinery (the LLM choke point, the B6
+    scorer, the coach queue, the strength meter) rather than inventing new pipelines.</p>
+  </div>
+
+  <div class="card">
+    <h2>✅ What shipped (Wave C)</h2>
+    <div class="row"><span class="num">C1</span><div><b>"Your story" — the through-line.</b> One LLM pass over your approved evidence (via the same <code>runStructured</code>
+      choke point) writes a career arc plus copy-out <b>cover-letter</b> and <b>LinkedIn</b> drafts; versions are append-only. Quietly pilots the
+      cover-letter step the manual process had but the app never did. <span class="meta">Nothing invented — same anti-fabrication guard as the CV steps.</span></div></div>
+    <div class="row"><span class="num">C2</span><div><b>Mirror + Unexpected Doors.</b> A curated set of role archetypes scored against your graph with the <b>existing B6
+      requirement-alignment formula</b> (same maths, new inputs). Mirror reflects who your evidence says you are; doors are adjacent families you
+      score well on. A door's <b>"flag as target"</b> reuses B3 — it materialises a real target lead with its requirements.</div></div>
+    <div class="row"><span class="num">C3</span><div><b>Excavation sessions.</b> A fifth coach engine (<code>engine5Prompts</code>) seeds era-targeted invitations from thinly-documented
+      roles. Lowest value in the system, so they <b>never queue ahead</b> of real work — an optional "dig here" card (⛏), gated by <code>NEXT_EXCAVATION</code>.</div></div>
+    <div class="row"><span class="num">C4</span><div><b>Proof Link.</b> An opt-in, per-user public page at <code>/p/&lt;token&gt;</code> (default <b>OFF</b>) showing a read-only proof
+      summary — strength, evidence depth, targets — and <b>no contact details or raw evidence</b>. Ships last: it's the only surface that leaves the authenticated app.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>📡 Reaction signals emitted</h2>
+    <div class="ledger">
+      <div class="lrow head"><span class="grow">surface · event</span><span>answers the fold question</span></div>
+      <div class="lrow"><span class="ref">story · generate / copy</span><span class="grow"></span><span class="meta">Is the apply moment or the story moment where users invest?</span></div>
+      <div class="lrow"><span class="ref">discover · open / disagree / flag_target</span><span class="grow"></span><span class="meta">Do doors get tested and flagged? Does Mirror ring true?</span></div>
+      <div class="lrow"><span class="ref">coach · excavation prompts</span><span class="grow"></span><span class="meta">Invitations accepted; finds approved (via existing coach signals).</span></div>
+      <div class="lrow"><span class="ref">proof_link · create / visit</span><span class="grow"></span><span class="meta">Links created; links visited by third parties.</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🗂️ Code changed</h2>
+    <div class="row"><span class="tick">✓</span><div><b>Schema:</b> <code>story_versions</code> table + <code>profiles.public_enabled/public_token</code> (migration <code>0014_dazzling_ulik.sql</code>).</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>New libs:</b> <code>lib/story.ts</code>, <code>lib/archetypes.ts</code>, <code>lib/discover.ts</code>, <code>lib/proof-link.ts</code>; <code>STORY</code> tool in <code>anthropic/schemas.ts</code>.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>New routes:</b> <code>/profile/story</code>, <code>/discover</code>, <code>/p/[token]</code> (public); tabs on <code>/profile</code>; nav <b>Discover</b>.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Coach:</b> <code>engine5Prompts</code> + <code>'excavation'</code> source, wired into <code>generatePrompts</code> behind the flag; ⛏ glyph.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Security:</b> <code>/p/</code> added to the middleware public allowlist (trailing slash avoids matching <code>/profile</code>); public page uses no auth and no <code>AppShell</code>.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Flags:</b> <code>NEXT_STORY / NEXT_DISCOVER / NEXT_EXCAVATION / NEXT_PROOF_LINK</code> (default on; Proof Link is additionally per-user opt-in, default off).</div></div>
+  </div>
+
+  <div class="card">
+    <h2>🧪 Verification</h2>
+    <div class="row"><span class="tick">✓</span><div><code>npm run typecheck</code> — clean.</div></div>
+    <div class="row"><span class="tick">✓</span><div><code>vitest run</code> — <b>65 / 65</b> passing (added discover + excavation unit tests).</div></div>
+    <div class="row"><span class="tick">✓</span><div><code>npm run build</code> — all routes compile, including the public <code>/p/[token]</code>.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Real-data check:</b> against the demo graph, Mirror = CFO (5/5), Controller, Chief of Staff, COO; Doors = Product Ops, Risk, Transformation; 3 excavation invitations.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>🔭 How to see it yourself</h2>
+    <ol style="margin:0;padding-left:20px">
+      <li><b>Story:</b> <b>Career Graph → Your story</b> → Generate → copy the cover-letter / LinkedIn drafts.</li>
+      <li><b>Discover:</b> <b>Discover</b> in the nav → Mirror + doors; flag a door to make it a target.</li>
+      <li><b>Excavation:</b> open the coach — the ⛏ invitations sit at the bottom of "up next" (never ahead of real prompts).</li>
+      <li><b>Proof Link:</b> <b>Career Graph</b> → enable the public proof link → open <code>/p/&lt;token&gt;</code> in a private window.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>🎬 The Additive Plan, complete</h2>
+    <p style="margin:0 0 4px">All three waves are in. What remains is the plan's own next phase: <b>fold decisions</b> — read the <code>ux_events</code>
+    reactions and decide which additive surfaces become the default and which retire (<code>NEXT_*=0</code>).</p>
+    <ul class="tight">
+      <li><b>Parked by design</b> — queue re-ranking (M2), screen-first onboarding default (M4), dashboard demotion: these <em>modify</em> existing behaviour, so they wait for reactions.</li>
+      <li><b>Deferred infra</b> — Statement email + Returns nudge-timer (Wave B), any scheduled jobs: need email/cron not present locally.</li>
+    </ul>
+  </div>
+
+  <div class="foot">RoleProof · Additive Plan Wave C · add first, fold later · generated for review</div>
+</div>
+</body>
+</html>

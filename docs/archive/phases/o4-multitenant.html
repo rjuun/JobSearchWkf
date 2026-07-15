@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>O4 · Multi-tenant — JobSearch Camunda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --canvas:#f7f8fb;--surface:#fff;--raised:#f8fafc;--hairline:#e2e6ec;
+    --ink:#111827;--muted:#475467;--subtle:#94a1b3;
+    --b50:#eef2ff;--b200:#c7d2fe;--b500:#6366f1;--b600:#4f46e5;--b700:#4338ca;--b900:#312e81;
+    --emerald:#059669;--amber:#f59e0b;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06);
+    --elevated:0 2px 4px -1px rgba(16,24,40,.04),0 12px 28px -8px rgba(16,24,40,.14);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);line-height:1.55;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(1200px 520px at 50% -260px,rgba(99,102,241,.06),transparent 70%);}
+  .wrap{max-width:1000px;margin:0 auto;padding:30px 22px 90px}
+  a{color:var(--b600);text-decoration:none}
+  code,.mono{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:.92em}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--subtle)}
+  .backlink{display:inline-block;margin-bottom:18px;font-size:13px;color:var(--muted)}
+  .hero{position:relative;overflow:hidden;border-radius:22px;padding:44px;color:#fff;
+    background:linear-gradient(120deg,#0f172a 0%,#334155 50%,#4f46e5 100%);box-shadow:var(--elevated)}
+  .hero:after{content:"";position:absolute;right:-60px;top:-90px;width:340px;height:340px;border-radius:50%;background:rgba(255,255,255,.07)}
+  .hero .eyebrow{color:rgba(255,255,255,.85)}
+  .hero h1{margin:.35em 0 .3em;font-size:36px;letter-spacing:-.025em;line-height:1.1}
+  .hero p{margin:0;max-width:64ch;opacity:.95}
+  .pills{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+  .pill{font-size:12.5px;font-weight:600;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:5px 12px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:46px 0 16px;display:flex;align-items:center;gap:12px}
+  h2:after{content:"";height:1px;flex:1;background:var(--hairline)}
+  .lead{font-size:15px;color:var(--muted);max-width:76ch}
+  .card{background:var(--surface);border:1px solid var(--hairline);border-radius:14px;box-shadow:var(--shadow)}
+  .pad{padding:20px}
+  figure{margin:0 0 6px}
+  .shot{width:100%;border-radius:12px;border:1px solid var(--hairline);box-shadow:var(--elevated);display:block}
+  figcaption{margin-top:10px;font-size:13.5px;color:var(--muted)}
+  figcaption b{color:var(--ink)}
+  .why{display:flex;gap:10px;align-items:flex-start;border-left:3px solid var(--b500);background:var(--b50);border-radius:0 10px 10px 0;padding:12px 14px;margin-top:14px;font-size:13.5px;color:var(--b900)}
+  .why .t{font-weight:700;margin-right:4px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .gap{display:flex;gap:12px;padding:13px 0;border-bottom:1px solid var(--hairline)}
+  .gap:last-child{border-bottom:0}
+  .tag{flex-shrink:0;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:6px;padding:3px 8px;height:max-content}
+  .t-now{background:#fff7ed;color:#c2410c}.t-later{background:#f1f5f9;color:#475569}
+  .gap b{font-size:14px}.gap p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+  .foot{margin-top:46px;border-top:1px solid var(--hairline);padding-top:20px;color:var(--subtle);font-size:13px}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr;display:block}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="backlink" href="index.html">← Build review hub</a>
+
+  <div class="hero">
+    <div class="eyebrow">JobSearch Camunda · Phase O4</div>
+    <h1>Sign up — and get your own Career Graph</h1>
+    <p>O1–O3 built the graph for one person. O4 opens it to everyone: anyone can create an account
+       and lands on their own, empty, fully isolated graph. It's real multi-tenancy — the exact
+       <code>owner_id</code> model that becomes Supabase RLS on deploy.</p>
+    <div class="pills">
+      <span class="pill">Real users + sign up</span>
+      <span class="pill">Every read &amp; write scoped</span>
+      <span class="pill">owner_id = auth.uid()</span>
+      <span class="pill">RLS-ready</span>
+    </div>
+  </div>
+
+  <h2>Create an account</h2>
+  <figure class="card pad">
+    <img class="shot" src="img/o4-signup.png" alt="The sign-up page: name, email and password fields with a Create account button" />
+    <figcaption><b>Anyone can start.</b> Name, email, a password — and you're in, straight into onboarding to build your graph. The demo account still works exactly as before; it's just one user among many now.</figcaption>
+  </figure>
+
+  <h2>Isolation, proven</h2>
+  <div class="grid2">
+    <figure class="card pad">
+      <img class="shot" src="img/o4-new-user.png" alt="A brand-new user's Career Graph: their own name, strength 'Getting started', and every section empty" />
+      <figcaption><b>A new user — empty &amp; private.</b> “Alex Rivera” signs up and sees <b>their own</b> graph: strength <b>Getting started</b>, every section “nothing here yet.” None of anyone else's evidence is visible.</figcaption>
+    </figure>
+    <figure class="card pad">
+      <img class="shot" src="img/o4-demo.png" alt="The demo user's full Career Graph at 100/Comprehensive, untouched" />
+      <figcaption><b>The demo — full &amp; untouched.</b> The original account still shows its complete 100/Comprehensive graph. Two users, two completely separate worlds.</figcaption>
+    </figure>
+  </div>
+  <div class="why" style="margin-top:16px"><span><span class="t">How —</span> one primitive: <code>currentOwnerId()</code> returns the logged-in user's id, and <b>every query is scoped to it</b> while every write stamps it. <code>getLead(id)</code> is scoped too, so you can't load someone else's lead by guessing its id. This is literally <code>owner_id = auth.uid()</code> — so on Supabase, <code>drizzle/rls.sql</code> turns it into database-enforced, defence-in-depth isolation.</div>
+
+  <h2>How it maps to Supabase</h2>
+  <div class="card pad">
+    <p class="lead">Built and verified on local Postgres — real users, real sign-up, real isolation. The
+      deployment swap is auth-provider + RLS, not a re-architecture: the local <code>users</code> table becomes
+      Supabase's managed <code>auth.users</code>, <code>auth.uid()</code> returns our <code>owner_id</code>, and one
+      generated policy (<code>drizzle/rls.sql</code>) enables <code>owner_id = auth.uid()</code> on every owner-scoped
+      table. Password hashing uses Node's <code>crypto</code> (scrypt) — no new dependency.</p>
+  </div>
+
+  <h2>Gaps · missing · future</h2>
+  <div class="card pad">
+    <div class="gap"><span class="tag t-now">Deploy</span><div><b>Supabase Auth.</b><p>Swap the local password flow for magic-link / SSO and apply <code>drizzle/rls.sql</code>. Email verification, password reset and rate-limiting come with it.</p></div></div>
+    <div class="gap"><span class="tag t-now">Now</span><div><b>Pipeline-internal writes default to demo.</b><p>Screening/tailoring inserts (requirements, tailoring, usage) still use the <code>DEMO_OWNER_ID</code> backstop — a new user running the full pipeline would pool those rows to the demo (minor cosmetic effects). Scope them to the lead's owner next.</p></div></div>
+    <div class="gap"><span class="tag t-later">Later</span><div><b>No teams / orgs.</b><p>One graph per user today; shared workspaces are a later tenancy model.</p></div></div>
+    <div class="gap"><span class="tag t-later">Later</span><div><b>Bookmarklet capture.</b><p><code>/api/ingest</code> captures to whoever's session cookie is present (else the demo); a per-user capture token would be cleaner.</p></div></div>
+  </div>
+
+  <div class="foot">
+    Detailed record: <code>docs/phases/O4.md</code> · code in <code>lib/auth.ts</code>, <code>lib/queries.ts</code>,
+    the action files, and <code>drizzle/rls.sql</code>. Screenshots are live captures; the test user was removed afterwards.
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>O3 · Coach &amp; enrich — JobSearch Camunda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --canvas:#f7f8fb;--surface:#fff;--raised:#f8fafc;--hairline:#e2e6ec;
+    --ink:#111827;--muted:#475467;--subtle:#94a1b3;
+    --b50:#eef2ff;--b200:#c7d2fe;--b500:#6366f1;--b600:#4f46e5;--b700:#4338ca;--b900:#312e81;
+    --emerald:#059669;--amber:#f59e0b;--violet:#7c3aed;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06);
+    --elevated:0 2px 4px -1px rgba(16,24,40,.04),0 12px 28px -8px rgba(16,24,40,.14);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);line-height:1.55;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(1200px 520px at 50% -260px,rgba(99,102,241,.06),transparent 70%);}
+  .wrap{max-width:1000px;margin:0 auto;padding:30px 22px 90px}
+  a{color:var(--b600);text-decoration:none}
+  code,.mono{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:.92em}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--subtle)}
+  .backlink{display:inline-block;margin-bottom:18px;font-size:13px;color:var(--muted)}
+  .hero{position:relative;overflow:hidden;border-radius:22px;padding:44px;color:#fff;
+    background:linear-gradient(120deg,#0f172a 0%,#0d9488 60%,#4f46e5 100%);box-shadow:var(--elevated)}
+  .hero:after{content:"";position:absolute;right:-60px;top:-90px;width:340px;height:340px;border-radius:50%;background:rgba(255,255,255,.07)}
+  .hero .eyebrow{color:rgba(255,255,255,.85)}
+  .hero h1{margin:.35em 0 .3em;font-size:36px;letter-spacing:-.025em;line-height:1.1}
+  .hero p{margin:0;max-width:64ch;opacity:.95}
+  .pills{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+  .pill{font-size:12.5px;font-weight:600;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:5px 12px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:46px 0 16px;display:flex;align-items:center;gap:12px}
+  h2:after{content:"";height:1px;flex:1;background:var(--hairline)}
+  .lead{font-size:15px;color:var(--muted);max-width:76ch}
+  .card{background:var(--surface);border:1px solid var(--hairline);border-radius:14px;box-shadow:var(--shadow)}
+  .pad{padding:20px}
+  .flow{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:6px}
+  .flow .step{position:relative;padding:16px;border:1px solid var(--hairline);border-right:0;background:#fff}
+  .flow .step:first-child{border-radius:12px 0 0 12px}
+  .flow .step:last-child{border-right:1px solid var(--hairline);border-radius:0 12px 12px 0;background:linear-gradient(180deg,#f0fdf9,#fff)}
+  .flow .k{font-size:11px;font-weight:700;color:var(--b600);letter-spacing:.06em}
+  .flow h5{margin:7px 0 5px;font-size:14px}
+  .flow p{margin:0;font-size:12px;color:var(--muted);line-height:1.45}
+  .flow .arrow{position:absolute;right:-9px;top:50%;transform:translateY(-50%);z-index:3;width:18px;height:18px;border-radius:50%;background:#fff;border:1px solid var(--hairline);display:grid;place-items:center;font-size:10px;color:var(--subtle)}
+  figure{margin:0 0 6px}
+  .shot{width:100%;border-radius:12px;border:1px solid var(--hairline);box-shadow:var(--elevated);display:block}
+  figcaption{margin-top:10px;font-size:13.5px;color:var(--muted)}
+  figcaption b{color:var(--ink)}
+  .why{display:flex;gap:10px;align-items:flex-start;border-left:3px solid var(--b500);background:var(--b50);border-radius:0 10px 10px 0;padding:12px 14px;margin-top:14px;font-size:13.5px;color:var(--b900)}
+  .why .t{font-weight:700;margin-right:4px}
+  table.kinds{width:100%;border-collapse:collapse;font-size:13.5px}
+  table.kinds th,table.kinds td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--hairline);vertical-align:top}
+  table.kinds th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--subtle)}
+  .chip{display:inline-block;font-size:11px;font-weight:600;border-radius:6px;padding:2px 8px}
+  .c-amber{background:#fffbeb;color:#b45309}.c-brand{background:var(--b50);color:var(--b700)}.c-violet{background:#f5f3ff;color:#6d28d9}
+  .gap{display:flex;gap:12px;padding:13px 0;border-bottom:1px solid var(--hairline)}
+  .gap:last-child{border-bottom:0}
+  .tag{flex-shrink:0;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:6px;padding:3px 8px;height:max-content}
+  .t-now{background:#fff7ed;color:#c2410c}.t-later{background:#f1f5f9;color:#475569}
+  .gap b{font-size:14px}.gap p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+  .foot{margin-top:46px;border-top:1px solid var(--hairline);padding-top:20px;color:var(--subtle);font-size:13px}
+  @media(max-width:820px){.flow{grid-template-columns:1fr;display:block}.flow .step{border-right:1px solid var(--hairline);border-radius:12px;margin-bottom:8px}.flow .arrow{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="backlink" href="index.html">← Build review hub</a>
+
+  <div class="hero">
+    <div class="eyebrow">JobSearch Camunda · Phase O3</div>
+    <h1>Strengthen your graph — draw out the under-told</h1>
+    <p>Senior people chronically under-tell: they omit the metric, the scope, the keyword. O3 spots
+       those gaps and asks one question at a time. Your answers become real, honest evidence — and
+       the graph gets stronger. Every node now shows where it came from.</p>
+    <div class="pills">
+      <span class="pill">Code computes the gaps</span>
+      <span class="pill">One question at a time</span>
+      <span class="pill">Never invents a metric</span>
+      <span class="pill">Provenance: imported · AI-coached</span>
+    </div>
+  </div>
+
+  <h2>The coaching loop</h2>
+  <div class="flow">
+    <div class="step"><div class="k">SPOT</div><h5>Code finds the gaps</h5><p>Stories without a metric, skills without ATS variants, roles without a summary — deterministically.</p><div class="arrow">→</div></div>
+    <div class="step"><div class="k">ASK</div><h5>One question</h5><p>A targeted, plain-language prompt — and a note on why it matters.</p><div class="arrow">→</div></div>
+    <div class="step"><div class="k">KEEP</div><h5>Becomes evidence</h5><p>Your answer is added to the graph (tagged AI-coached) — a metric only if you gave a number.</p></div>
+  </div>
+  <div class="card pad" style="margin-top:16px">
+    <table class="kinds">
+      <tr><th>Kind</th><th>Found when</th><th>The question</th><th>Becomes</th></tr>
+      <tr><td><span class="chip c-amber">metric</span></td><td>a story has no quantified result</td><td>“What was the measurable impact of …?”</td><td>a new result (with the number, if real)</td></tr>
+      <tr><td><span class="chip c-brand">ats</span></td><td>a skill has no ATS variants</td><td>“How else might a job ad phrase …?”</td><td>keyword variants on the skill</td></tr>
+      <tr><td><span class="chip c-violet">summary</span></td><td>a role has no summary</td><td>“In one line, what did you own as …?”</td><td>the position’s summary</td></tr>
+    </table>
+  </div>
+
+  <h2>The coach</h2>
+  <figure class="card pad">
+    <img class="shot" src="img/o3-coach.png" alt="The coaching page: 8 opportunities, graph strength 87/100, and cards asking ATS-variant and summary questions for the just-imported evidence" />
+    <figcaption><b>One question at a time.</b> After an import dropped some thinly-told evidence in,
+      the graph reads <b>87/100 with 8 opportunities</b>. Each card is a single, specific question with a why —
+      and an answer field. Answer one and the graph strengthens immediately.</figcaption>
+    <div class="why"><span><span class="t">Why code, not an LLM, finds the gaps —</span> the same rule as the rest of the system: the model judges, <b>code computes</b>. Deterministic gap-finding can't hallucinate a question, works with no API key, and is auditable. (An LLM could phrase warmer questions later.)</div>
+  </figure>
+
+  <h2>Provenance — see where every claim came from</h2>
+  <figure class="card pad">
+    <img class="shot" src="img/o3-prov.png" alt="The skills editor; authored skills carry no badge, while imported skills show an 'imported' badge and a coached skill shows an 'AI-coached' badge" />
+    <figcaption><b>Trust by transparency.</b> Every evidence row now carries a <code>source</code>.
+      Hand-entered evidence is plain; imported nodes wear an <b>imported</b> badge; anything the coach
+      touched wears <b>AI-coached</b> (further down this list). You can always audit how a claim entered your graph —
+      exactly the trust generic CV tools can't offer.</figcaption>
+  </figure>
+
+  <h2>Gaps · missing · future</h2>
+  <div class="card pad">
+    <div class="gap"><span class="tag t-now">Now</span><div><b>Questions are templated.</b><p>A <code>suggestEnrichments</code> LLM pass would rank and phrase them more naturally and spot subtler gaps — wired the same <code>runStructured</code> way when a key is available.</p></div></div>
+    <div class="gap"><span class="tag t-now">Now</span><div><b>No gap → enrich link from screening.</b><p>Mission control flags “Core requirement · Weak match” during tailoring; those should deep-link straight into a coaching prompt. Not wired yet.</p></div></div>
+    <div class="gap"><span class="tag t-later">Later</span><div><b>Confidence isn’t used to prioritise.</b><p>Low-confidence imported nodes are great coaching candidates (“is this right?”). The data is captured; the prioritisation isn’t.</p></div></div>
+    <div class="gap"><span class="tag t-later">Later</span><div><b>Only three target kinds.</b><p>Competences, attributes, and thin stories (few actions) could also be coached. The metric parser is deliberately simple.</p></div></div>
+  </div>
+
+  <div class="foot">
+    Detailed record: <code>docs/phases/O3.md</code> · code in <code>lib/coaching.ts</code>,
+    <code>app/actions/coaching.ts</code>, <code>components/coach-panel.tsx</code>.
+    Screenshots are live captures (mock-LLM mode); test evidence was removed afterwards.
+  </div>
+</div>
+</body>
+</html>

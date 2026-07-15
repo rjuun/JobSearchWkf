@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rethink Completion · Wave E — the honest-verdict surface</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --canvas:#f4f5f8;--surface:#fff;--raised:#f8fafc;--hairline:#e2e6ec;
+    --ink:#111827;--muted:#475467;--subtle:#94a1b3;
+    --proof:#4f46e5;--proof-soft:#eef2ff;--proof-deep:#312e81;--amber:#d97706;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06);
+    --elevated:0 2px 4px -1px rgba(16,24,40,.04),0 14px 32px -10px rgba(16,24,40,.16);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);line-height:1.58;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(1100px 480px at 50% -240px,rgba(79,70,229,.07),transparent 70%);}
+  .wrap{max-width:1040px;margin:0 auto;padding:28px 22px 96px}
+  a{color:var(--proof);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:.88em;background:var(--raised);border:1px solid var(--hairline);border-radius:5px;padding:1px 5px}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--subtle)}
+  .backlink{display:inline-block;margin-bottom:16px;font-size:13px;color:var(--muted)}
+  .hero{position:relative;overflow:hidden;border-radius:22px;padding:42px 44px;color:#fff;
+    background:linear-gradient(125deg,#0f172a 0%,#312e81 42%,#4f46e5 72%,#7c3aed 100%);box-shadow:var(--elevated)}
+  .hero:after{content:"";position:absolute;right:-70px;top:-100px;width:360px;height:360px;border-radius:50%;background:rgba(255,255,255,.07)}
+  .hero .eyebrow{color:rgba(255,255,255,.82)}
+  .hero h1{margin:.35em 0 .25em;font-family:'Instrument Serif',Georgia,serif;font-size:42px;font-weight:400;letter-spacing:-.02em;line-height:1.05;max-width:22ch}
+  .hero p{margin:0;max-width:70ch;opacity:.94;font-size:15px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px;font-size:12.5px}
+  .meta span{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:5px 12px;font-weight:600}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:46px 0 16px;display:flex;align-items:center;gap:12px}
+  h2:after{content:"";height:1px;flex:1;background:var(--hairline)}
+  h3{margin:0 0 4px;font-size:18px;letter-spacing:-.01em}
+  .lead{font-size:15px;color:var(--muted);max-width:78ch;margin:14px 0}
+  .card{background:var(--surface);border:1px solid var(--hairline);border-radius:14px;box-shadow:var(--shadow)}
+  .pad{padding:22px 24px}
+  .badge{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--proof-deep);background:var(--proof-soft);border:1px solid #dfe3ff;border-radius:6px;padding:2px 7px;margin-left:8px;vertical-align:middle}
+  .files{margin:12px 0 0;padding:0;list-style:none;font-size:12.5px}
+  .files li{padding:6px 0;border-bottom:1px dashed var(--hairline);display:flex;gap:10px;align-items:baseline}
+  .files li:last-child{border-bottom:0}
+  .files .k{flex-shrink:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--subtle);width:52px}
+  .stances{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+  .stance{border:1px solid var(--hairline);border-radius:12px;padding:14px 16px;background:var(--raised)}
+  .stance .t{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border-radius:6px;padding:2px 8px;display:inline-block}
+  .adj{background:#ecfdf5;color:#047857}.str{background:#fff7ed;color:#c2410c}.rch{background:#eef2f7;color:#64748b}
+  .stance p{margin:9px 0 0;font-size:12.5px;color:var(--muted)}
+  .why{display:flex;gap:10px;align-items:flex-start;border-left:3px solid var(--proof);background:var(--proof-soft);border-radius:0 10px 10px 0;padding:12px 14px;margin-top:16px;font-size:13.5px;color:var(--proof-deep)}
+  .why .t{font-weight:700;margin-right:4px;white-space:nowrap}
+  ol.verify{font-size:13.5px;color:var(--muted);margin:0;padding-left:20px}
+  ol.verify li{margin:7px 0}ol.verify b{color:var(--ink)}
+  .note{font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--hairline);border-left:3px solid var(--amber);border-radius:0 12px 12px 0;padding:13px 16px;margin-top:14px}
+  footer{margin-top:56px;font-size:12.5px;color:var(--subtle);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="backlink" href="./index.html">← Rethink Completion index</a>
+
+  <div class="hero">
+    <div class="eyebrow">RoleProof · Rethink Completion · Wave E</div>
+    <h1>The honest-verdict surface</h1>
+    <p>Discover let an unexpected door become a target in one click. Wave E adds the beat that makes Discover
+       more than a list: <b>walking through a door</b> — a deterministic, honest verdict on the role
+       <em>before</em> you commit, that names the stretch instead of flattering it.</p>
+    <div class="meta">
+      <span>R4 · Test a Door</span>
+      <span>78 tests green</span>
+      <span>build ✓</span>
+      <span>zero schema change</span>
+    </div>
+  </div>
+
+  <h2>R4 · Test a Door <span class="badge">#5c</span></h2>
+  <div class="card"><div class="pad">
+    <h3>A verdict before the commit</h3>
+    <p class="lead">The door already carries its B6 fit, coverage, and gaps — so the verdict is a pure projection,
+      not a new model. "Test this door →" opens a panel with one honest line, the one or two things you'd
+      strengthen first, and the same flag CTA. It's deterministic and it refuses to oversell: a high fit with
+      thin coverage is called a <em>stretch</em>, never an adjacency.</p>
+
+    <div class="stances">
+      <div class="stance"><span class="t adj">Adjacency</span>
+        <p>Strong fit <b>and</b> most must-haves covered — "a door you can walk through."</p></div>
+      <div class="stance"><span class="t str">Stretch</span>
+        <p>Reachable, but you'd walk in with N gaps to close first — "worth it only if the direction pulls you."</p></div>
+      <div class="stance"><span class="t rch">Reach</span>
+        <p>The evidence isn't there yet — "a direction to grow toward, not a next move."</p></div>
+    </div>
+
+    <ul class="files">
+      <li><span class="k">pure</span><code>lib/discover.ts</code> — <code>doorVerdict()</code>, deterministic, unit-tested (incl. the "don't flatter" case)</li>
+      <li><span class="k">ui</span><code>components/roleproof/door-verdict.tsx</code> — the verdict panel</li>
+      <li><span class="k">wire</span><code>components/roleproof/discover-view.tsx</code> — "Test this door →" toggle; flag stays direct too</li>
+      <li><span class="k">page</span><code>app/discover/page.tsx</code> — verdict computed server-side, passed down</li>
+    </ul>
+
+    <div class="why"><span class="t">Fold question →</span> Does testing lift door→target conversion, or is the
+      one-click flag enough? Watch <code>door_test</code> → <code>door_verdict_flag</code> vs the direct
+      <code>flag_target</code>, and the disagree rate on the verdict line.</div>
+
+    <div class="note"><b>No decisions postponed.</b> R4 reuses the existing archetype scoring and
+      <code>flag_target</code> path — no schema change, no new flag, no seed shaping. The verdict is a projection
+      over data the door already holds.</div>
+  </div></div>
+
+  <h2>How to verify</h2>
+  <div class="card"><div class="pad">
+    <ol class="verify">
+      <li>Open <code>/discover</code>. Each <b>Unexpected door</b> card now shows two actions: <b>Test this door →</b>
+        and <b>Flag as target →</b>.</li>
+      <li>Click <b>Test this door →</b> — the verdict panel opens with the stance (adjacency / stretch / reach),
+        the honest line, and the gaps to close.</li>
+      <li>Flag from inside the panel to fire <code>door_verdict_flag</code>; flag straight off the card for the
+        direct <code>flag_target</code>. The delta is the signal.</li>
+    </ol>
+  </div></div>
+
+  <footer>RoleProof · Rethink Completion · Wave E — generated during the build, kept with the code.</footer>
+</div>
+</body>
+</html>

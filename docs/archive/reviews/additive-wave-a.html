@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Additive Plan · Wave A — applied changes</title>
+<style>
+  :root{--proof:#0f7d5a;--proof-soft:#e6f4ee;--proof-deep:#0a5c42;--ink:#1a1c1a;--muted:#5c6360;--hair:#e3e6e4;--canvas:#f7f9f8;--surface:#fff;--amber:#b7791f;--amber-soft:#fdf6e7}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:32px 16px}
+  .wrap{max-width:860px;margin:0 auto}
+  header{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+  .badge{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:11px;background:var(--proof);color:#fff;font-weight:800}
+  h1{font-size:23px;margin:0;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin:2px 0 24px;font-size:13.5px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+  .pill.ok{background:var(--proof-soft);color:var(--proof-deep)}
+  .pill.flag{background:var(--amber-soft);color:var(--amber)}
+  .card{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:20px 22px;margin:16px 0;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .card h2{font-size:15px;margin:0 0 12px}
+  .row{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--hair)}
+  .row:last-child{border-bottom:0}
+  .tick{color:var(--proof);font-weight:800}
+  .num{display:inline-grid;place-items:center;width:22px;height:22px;flex:0 0 22px;border-radius:6px;background:var(--proof-soft);color:var(--proof-deep);font-size:11px;font-weight:800}
+  code{background:#f0f2f1;border-radius:5px;padding:1px 6px;font-size:12.5px;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+  .ledger{border:1px solid var(--hair);border-radius:10px;overflow:hidden}
+  .lrow{display:flex;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--hair);font-size:12.5px}
+  .lrow:last-child{border-bottom:0}
+  .lrow.head{background:#fafbfb;font-weight:700;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  .ref{font-family:"JetBrains Mono",monospace;font-size:10.5px;font-weight:700;color:var(--proof-deep);background:var(--proof-soft);border:1px solid #cfe7dd;border-radius:5px;padding:2px 6px;white-space:nowrap}
+  .grow{flex:1}
+  .meta{color:var(--muted);font-size:12px}
+  .foot{color:var(--muted);font-size:12.5px;text-align:center;margin-top:24px}
+  ul.tight{margin:6px 0 0;padding-left:20px}
+  ul.tight li{margin:2px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="badge">A</div>
+    <div>
+      <h1>Additive Plan · Wave A + Instrumentation</h1>
+      <div class="sub">Add first, fold later — new surfaces bolt on <b>beside</b> the shipped app · <span class="pill ok">✓ Applied</span> <span class="pill flag">⚑ flag-gated</span></div>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>✨ The one-line</h2>
+    <p style="margin:0">Three additive surfaces now sit next to what already ships — the interview brief beside the CV,
+    a "This week" triage strip above the board, and the coach's designed stop card — each wired to a reaction signal.
+    <b>Nothing was removed or replaced.</b> A tiny <code>ux_events</code> log records how you react, so the plan's
+    "fold decisions" get made on evidence, not taste.</p>
+  </div>
+
+  <div class="card">
+    <h2>✅ What shipped (Wave A)</h2>
+    <div class="row"><span class="num">A1</span><div><b>Interview Brief</b> — a panel bolts on beside the CV-ready download. It re-projects what the lead already holds
+      (your <em>kept</em> evidence + the JD must-haves) into the next moment: <b>proof to lead with</b>, <b>probes to expect</b>,
+      <b>thin spots to bridge honestly</b>. No new data, no LLM call, nothing invented.</div></div>
+    <div class="row"><span class="num">A2</span><div><b>Session stop card</b> — after 3 answered coach prompts a recap card renders (already built in the coach queue);
+      Wave A adds only its <b>reaction signal</b>. "Keep going" leaves the old infinite behaviour one click away.</div></div>
+    <div class="row"><span class="num">A3</span><div><b>"This week" strip</b> — the two leads most worth acting on now, ranked by <code>fit × freshness × saturation</code>
+      (all three already captured at B1), sit <em>above</em> the full board table, which is untouched. Hidden until there
+      are ≥3 scored leads, so it only appears once it's actually narrowing.</div></div>
+    <div class="row"><span class="tick">◆</span><div><b>Instrumentation</b> — one append-only <code>ux_events</code> table (<code>surface · event · lead_id? · ts</code>).
+      This <em>is</em> the "see their reaction" mechanism; without it the additive strategy can conclude nothing.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>📡 Reaction signals emitted</h2>
+    <div class="ledger">
+      <div class="lrow head"><span class="grow">surface · event</span><span>answers the fold question</span></div>
+      <div class="lrow"><span class="ref">interview_brief · open / print</span><span class="grow"></span><span class="meta">Is the interview moment the emotional peak (vs. the apply moment)?</span></div>
+      <div class="lrow"><span class="ref">this_week · pick_open</span><span class="grow"></span><span class="meta">Do users act on the picks, or free-roam the table?</span></div>
+      <div class="lrow"><span class="ref">coach_session · session_complete / keep_going</span><span class="grow"></span><span class="meta">Should the "N to go" counts retire in favour of a bounded set?</span></div>
+    </div>
+    <p style="margin:8px 0 0;font-size:12.5px;color:var(--muted)">Recording is best-effort — a telemetry hiccup can never surface as a user-facing error or block a flow.</p>
+  </div>
+
+  <div class="card">
+    <h2>🗂️ Code changed</h2>
+    <div class="row"><span class="tick">✓</span><div><b>New:</b> <code>lib/ux-events.ts</code>, <code>app/actions/ux.ts</code>,
+      <code>components/roleproof/this-week-strip.tsx</code>, migration <code>drizzle/0012_nostalgic_ultimo.sql</code>.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Schema:</b> <code>ux_events</code> table (mirrors <code>activation_events</code>).</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Board:</b> <code>lib/queries.ts</code> gains <code>thisWeekPicks()</code>; <code>app/roleproof/page.tsx</code> renders the strip above "Needs you".</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Workspace:</b> <code>InterviewBrief</code> added to <code>components/roleproof/workspace.tsx</code>, rendered after the CV card.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Coach:</b> <code>components/coach-queue.tsx</code> emits the stop-card signal.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Flags:</b> <code>NEXT_INTERVIEW_BRIEF</code>, <code>NEXT_THIS_WEEK</code> in <code>lib/env.ts</code> — default <b>on</b>, set <code>=0</code> to retire.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>🧪 Verification</h2>
+    <div class="row"><span class="tick">✓</span><div><code>npm run typecheck</code> — clean.</div></div>
+    <div class="row"><span class="tick">✓</span><div><code>vitest run</code> — <b>58 / 58</b> passing.</div></div>
+    <div class="row"><span class="tick">✓</span><div><code>npm run build</code> — all routes compile; the client → server-action seam for <code>trackUxAction</code> is valid.</div></div>
+    <div class="row"><span class="tick">✓</span><div>Migration applied; demo tenant has 10 candidate leads → the strip renders.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>🔭 How to see it yourself</h2>
+    <ol style="margin:0;padding-left:20px">
+      <li><code>npm run dev</code> → open <b>/roleproof</b>: the <b>This week</b> strip sits above the leads table.</li>
+      <li>Open a tailored lead with a ready CV → expand <b>Prep for the interview</b> beside the download.</li>
+      <li>Answer 3 coach prompts on the Career Graph → the <b>stop card</b> appears.</li>
+      <li>Watch the reactions: <code>select surface, event, count(*) from ux_events group by 1,2;</code></li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>⏭️ Parked for reactions</h2>
+    <p style="margin:0 0 4px">Sequenced by the plan, still additive, not yet built:</p>
+    <ul class="tight">
+      <li><b>Wave B</b> — events log → the Statement; outcomes on the existing <code>applications</code> table; <code>is_target</code> Coverage Matrix; source → Sourcing Compass.</li>
+      <li><b>Wave C</b> — "Your story" through-line; Mirror + Unexpected Doors (via the existing B6 scorer); Excavation sessions; Proof Link.</li>
+    </ul>
+    <p style="margin:8px 0 0;font-size:12.5px;color:var(--muted)">The "Explicitly not now" items (queue re-ranking, screen-first default, dashboard demotion) modify existing behaviour and stay in the milestone plan.</p>
+  </div>
+
+  <div class="foot">RoleProof · Additive Plan Wave A · add first, fold later · generated for review</div>
+</div>
+</body>
+</html>

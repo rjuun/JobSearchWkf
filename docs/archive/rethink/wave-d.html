@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rethink Completion · Wave D — the half-built loops, closed</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --canvas:#f4f5f8;--surface:#fff;--raised:#f8fafc;--hairline:#e2e6ec;
+    --ink:#111827;--muted:#475467;--subtle:#94a1b3;
+    --proof:#4f46e5;--proof-soft:#eef2ff;--proof-deep:#312e81;
+    --emerald:#059669;--amber:#d97706;--rose:#e11d48;--teal:#0d9488;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06);
+    --elevated:0 2px 4px -1px rgba(16,24,40,.04),0 14px 32px -10px rgba(16,24,40,.16);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);line-height:1.58;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(1100px 480px at 50% -240px,rgba(79,70,229,.07),transparent 70%);}
+  .wrap{max-width:1040px;margin:0 auto;padding:28px 22px 96px}
+  a{color:var(--proof);text-decoration:none}a:hover{text-decoration:underline}
+  code,.mono{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:.88em;background:var(--raised);border:1px solid var(--hairline);border-radius:5px;padding:1px 5px}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--subtle)}
+  .backlink{display:inline-block;margin-bottom:16px;font-size:13px;color:var(--muted)}
+  .hero{position:relative;overflow:hidden;border-radius:22px;padding:42px 44px;color:#fff;
+    background:linear-gradient(125deg,#0f172a 0%,#312e81 42%,#4f46e5 72%,#7c3aed 100%);box-shadow:var(--elevated)}
+  .hero:after{content:"";position:absolute;right:-70px;top:-100px;width:360px;height:360px;border-radius:50%;background:rgba(255,255,255,.07)}
+  .hero .eyebrow{color:rgba(255,255,255,.82)}
+  .hero h1{margin:.35em 0 .25em;font-family:'Instrument Serif',Georgia,serif;font-size:42px;font-weight:400;letter-spacing:-.02em;line-height:1.05;max-width:22ch}
+  .hero p{margin:0;max-width:70ch;opacity:.94;font-size:15px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px;font-size:12.5px}
+  .meta span{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:5px 12px;font-weight:600}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:46px 0 16px;display:flex;align-items:center;gap:12px}
+  h2:after{content:"";height:1px;flex:1;background:var(--hairline)}
+  h3{margin:0 0 4px;font-size:18px;letter-spacing:-.01em}
+  .lead{font-size:15px;color:var(--muted);max-width:78ch;margin:14px 0}
+  .card{background:var(--surface);border:1px solid var(--hairline);border-radius:14px;box-shadow:var(--shadow)}
+  .pad{padding:22px 24px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{background:var(--raised);text-align:left;padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;border-bottom:1px solid var(--hairline)}
+  td{padding:12px 14px;border-bottom:1px solid var(--hairline);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  .st{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;border-radius:6px;padding:3px 8px;white-space:nowrap}
+  .st-ok{background:#ecfdf5;color:#047857}.st-new{background:var(--proof-soft);color:var(--proof-deep)}
+  .st-flag{background:#fff7ed;color:#c2410c}
+  .item{margin-top:16px}
+  .item .pad{padding:22px 24px}
+  .badge{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--proof-deep);background:var(--proof-soft);border:1px solid #dfe3ff;border-radius:6px;padding:2px 7px;margin-left:8px;vertical-align:middle}
+  .files{margin:12px 0 0;padding:0;list-style:none;font-size:12.5px}
+  .files li{padding:6px 0;border-bottom:1px dashed var(--hairline);display:flex;gap:10px;align-items:baseline}
+  .files li:last-child{border-bottom:0}
+  .files .k{flex-shrink:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--subtle);width:52px}
+  .kv{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .kv span{font-size:11.5px;background:var(--raised);border:1px solid var(--hairline);border-radius:999px;padding:4px 11px;color:var(--muted)}
+  .kv b{color:var(--ink);font-weight:600}
+  .why{display:flex;gap:10px;align-items:flex-start;border-left:3px solid var(--proof);background:var(--proof-soft);border-radius:0 10px 10px 0;padding:12px 14px;margin-top:14px;font-size:13.5px;color:var(--proof-deep)}
+  .why .t{font-weight:700;margin-right:4px;white-space:nowrap}
+  .decision{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--hairline)}
+  .decision:last-child{border-bottom:0}
+  .decision .tag{flex-shrink:0;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:6px;padding:3px 8px;height:max-content}
+  .t-act{background:#fef3c7;color:#92400e}.t-def{background:#e0f2fe;color:#075985}.t-check{background:#f3e8ff;color:#6b21a8}
+  .decision b{font-size:14px}.decision p{margin:3px 0 0;font-size:13px;color:var(--muted)}
+  ol.verify{font-size:13.5px;color:var(--muted);margin:0;padding-left:20px}
+  ol.verify li{margin:7px 0}
+  ol.verify b{color:var(--ink)}
+  footer{margin-top:56px;font-size:12.5px;color:var(--subtle);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="backlink" href="./index.html">← Rethink Completion index</a>
+
+  <div class="hero">
+    <div class="eyebrow">RoleProof · Rethink Completion · Wave D</div>
+    <h1>The half-built loops, closed</h1>
+    <p>Three loops the Rethink board opened but the repo left half-finished — the interview moment, the
+       excavation invitation, and the return to the Statement. Each ships <b>beside</b> what exists, behind a
+       flag, emitting one <code>ux_events</code> signal so its fold question can finally be answered from
+       behaviour, not opinion.</p>
+    <div class="meta">
+      <span>R1 · Interview Armament</span>
+      <span>R2 · Excavation surfaced</span>
+      <span>R3 · Statement re-entry</span>
+      <span>74 tests green</span>
+      <span>build ✓</span>
+    </div>
+  </div>
+
+  <h2>What shipped</h2>
+  <div class="card"><div style="overflow-x:auto">
+  <table>
+    <thead><tr><th>#</th><th>Board</th><th>What it adds</th><th>Flag</th><th>ux_events signal</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>R1</b></td><td>#2c · #3c</td>
+        <td>A dedicated <b>night-before interview brief</b> — the teaser now opens a full surface at
+            <code>/roleproof/leads/[id]/brief</code>.</td>
+        <td><code>NEXT_INTERVIEW_BRIEF</code></td>
+        <td><code>interview_brief</code> · open · expand_req · print</td>
+        <td><span class="st st-ok">✓ shipped</span></td>
+      </tr>
+      <tr>
+        <td><b>R2</b></td><td>#4c</td>
+        <td>Excavation prompts <b>pulled out of the ranked queue</b> into a "quiet moment" invitation — accept
+            loads it into the stage; "not now" snoozes.</td>
+        <td><code>NEXT_EXCAVATION</code></td>
+        <td><code>excavation</code> · shown · accepted · snoozed</td>
+        <td><span class="st st-ok">✓ shipped</span></td>
+      </tr>
+      <tr>
+        <td><b>R3</b></td><td>#2b · #2e</td>
+        <td>A <b>"since you were last here" banner</b> on the board, rolling up activity since the owner last
+            viewed their Statement. Email adapter stubbed, off.</td>
+        <td><code>NEXT_STATEMENT</code> · <code>NEXT_STATEMENT_EMAIL</code></td>
+        <td><code>statement</code> · banner_shown · banner_open</td>
+        <td><span class="st st-ok">✓ shipped</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div></div>
+
+  <h2>R1 · Interview Armament <span class="badge">#2c #3c</span></h2>
+  <div class="card item"><div class="pad">
+    <h3>The apply moment isn't the last moment</h3>
+    <p class="lead">The A1 teaser already reframed kept evidence as interview prep, but ended with
+      "the full interview workspace comes later." R1 <b>is</b> that workspace: a print-optimised night-before
+      brief on its own route — proof points to lead with, must-haves to expect, honest bridges for the thin
+      spots, and the "left out, on purpose" answers. Nothing is invented; it re-projects the C2 mapping the
+      lead already holds.</p>
+    <ul class="files">
+      <li><span class="k">pure</span><code>lib/interview.ts</code> — deterministic projection (proof / probes / bridges / left-out), unit-tested</li>
+      <li><span class="k">action</span><code>app/actions/interview.ts</code> — owner-scoped read-only projection</li>
+      <li><span class="k">ui</span><code>components/roleproof/interview-brief.tsx</code> — full brief, print + per-requirement expand</li>
+      <li><span class="k">route</span><code>app/roleproof/leads/[id]/brief/page.tsx</code> — teaser CTA now links here</li>
+    </ul>
+    <div class="why"><span class="t">Fold question →</span> Is the emotional peak the <b>apply</b> moment or the
+      <b>interview</b> moment? Watch whether the full brief out-opens the download.</div>
+  </div></div>
+
+  <h2>R2 · Excavation, surfaced <span class="badge">#4c</span></h2>
+  <div class="card item"><div class="pad">
+    <h3>Rediscovery that never elbows ahead of real work</h3>
+    <p class="lead">The <code>engine5</code> excavation prompts existed and were flagged on, but rendered inside
+      the ranked queue where a low-value rediscovery prompt could still auto-advance into the stage. R2 pulls
+      them out entirely: <code>readQueue</code> excludes them, and a new <code>readExcavationInvites</code>
+      surfaces them as a distinct card below the queue — each naming a specific thin era. Accept loads it into
+      the stage (scrolls into view); "not now" snoozes via the existing skip.</p>
+    <ul class="files">
+      <li><span class="k">read</span><code>lib/coaching-queue.ts</code> — filter + <code>readExcavationInvites</code>; engine5 sourceRef now carries era/company</li>
+      <li><span class="k">ui</span><code>components/coach-queue.tsx</code> — <code>ExcavationInvites</code> section, accept/snooze</li>
+      <li><span class="k">seed</span><code>scripts/seed.ts</code> — one deliberately thin era so an invitation is always demonstrable</li>
+    </ul>
+    <div class="why"><span class="t">Fold question →</span> Do invitations earn their place, or does the
+      never-done meter alone carry rediscovery? Watch <code>accepted / shown</code>.</div>
+  </div></div>
+
+  <h2>R3 · The Statement's re-entry ritual <span class="badge">#2b #2e</span></h2>
+  <div class="card item"><div class="pad">
+    <h3>Something that brings you back</h3>
+    <p class="lead">The Statement page rendered the stream but nothing triggered a return. R3 adds a per-owner
+      "last seen" marker (<code>profiles.statement_seen_at</code>) and a board banner that rolls up everything
+      that accrued since — "since you were last here: 3 pieces of evidence kept, 2 CVs tailored and 1 more."
+      Viewing the Statement or dismissing the banner stamps the marker. The email is a thin adapter over the
+      same digest, deliberately last and off.</p>
+    <ul class="files">
+      <li><span class="k">schema</span><code>lib/db/schema.ts</code> + <code>drizzle/0016_*.sql</code> — <code>statement_seen_at</code> column</li>
+      <li><span class="k">lib</span><code>lib/activity.ts</code> — <code>digestSince</code>, marker read/write, pure <code>digestHeadline</code> (tested)</li>
+      <li><span class="k">ui</span><code>components/statement-return-banner.tsx</code> — board banner</li>
+      <li><span class="k">email</span><code>lib/email/statement.ts</code> — thin adapter behind <code>NEXT_STATEMENT_EMAIL</code>, no trigger yet</li>
+    </ul>
+    <div class="why"><span class="t">Fold question →</span> Does statement-as-ritual drive real return sessions,
+      replacing generic notifications? Watch <code>banner_open</code> → session attribution.</div>
+  </div></div>
+
+  <h2>Decisions to review</h2>
+  <p class="lead">Postponed judgment calls, surfaced here rather than silently baked in — per the plan's rule to
+    pre-decide the fold and flag the rest.</p>
+  <div class="card"><div class="pad">
+    <div class="decision">
+      <span class="tag t-act">deploy</span>
+      <div><b>Migration 0016 must run on the live DB.</b>
+        <p><code>npm run db:migrate</code> adds <code>profiles.statement_seen_at</code>. Reads are defensive
+          (they degrade to "no banner" if the column is missing), so the app won't crash if the migration
+          lags — but the banner stays dark until it's applied on Supabase.</p></div>
+    </div>
+    <div class="decision">
+      <span class="tag t-check">confirm</span>
+      <div><b>The seeded "thin era" is demo fixture data.</b>
+        <p>R2 seeds one early role (<code>Financial Analyst · early career</code>, no stories) so an excavation
+          invitation is always demonstrable. It's demo-only and carries no fabricated employer or dates, but
+          the demo tenant imports your real profile — <b>replace it with your real thin era, or drop it</b>, before
+          this reads as history. Guarded + idempotent in <code>shapeDemoTenant()</code>.</p></div>
+    </div>
+    <div class="decision">
+      <span class="tag t-check">confirm</span>
+      <div><b>The demo backdates the last-Statement-seen marker 40 days.</b>
+        <p>So the re-entry banner shows on first demo load (all seeded activity reads as "new since"). Real users
+          get the marker stamped the first time they open <code>/statement</code> — harmless, but noted.</p></div>
+    </div>
+    <div class="decision">
+      <span class="tag t-def">deferred</span>
+      <div><b>The Statement digest email has no trigger.</b>
+        <p>Per the plan, email ships "only once the banner earns opens." The adapter and flag exist; a monthly
+          cron (Vercel Cron → Resend) is the next step if <code>banner_open</code> proves the ritual works.</p></div>
+    </div>
+  </div></div>
+
+  <h2>How to verify</h2>
+  <div class="card"><div class="pad">
+    <ol class="verify">
+      <li><b>R1</b> — open any lead with a generated CV → the CV-ready panel's "Prep for the interview" teaser
+        now shows <b>"Open the full night-before brief →"</b>. Follow it to <code>/roleproof/leads/[id]/brief</code>;
+        expand a must-have, hit Print.</li>
+      <li><b>R2</b> — go to the coach (<code>/profile/coach</code>). Below the ranked queue, a <b>"When you have a
+        quiet moment"</b> card invites you back to a thin era. "Take me back →" loads it into the stage; "Not now"
+        clears it.</li>
+      <li><b>R3</b> — after seeding, the board (<code>/roleproof</code>) greets you with a <b>"Since you were last
+        here…"</b> banner. Click through to the Statement, return — the banner is gone.</li>
+      <li><b>signals</b> — every panel emits into <code>ux_events</code>; the counts are the raw material for the
+        fold calls above.</li>
+    </ol>
+  </div></div>
+
+  <footer>RoleProof · Rethink Completion · Wave D — generated during the build, kept with the code.</footer>
+</div>
+</body>
+</html>

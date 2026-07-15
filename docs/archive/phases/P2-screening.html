@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>P2 — Screening &amp; Scoring · JobSearch Camunda</title>
+<style>
+  :root{--bg:#f5f6fb;--ink:#1e2233;--muted:#6b7280;--line:#e6e8f0;--brand:#4f46e5;--brand2:#7c3aed;--green:#16a34a;--amber:#d97706;--card:#fff;--shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06)}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 22px 80px}
+  a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.86em}
+  .hero{position:relative;overflow:hidden;border-radius:20px;padding:34px;color:#fff;background:linear-gradient(135deg,#0ea5e9 0%,#4f46e5 60%,#7c3aed 100%);box-shadow:var(--shadow)}
+  .hero:after{content:"";position:absolute;right:-60px;top:-60px;width:240px;height:240px;border-radius:50%;background:rgba(255,255,255,.10)}
+  .eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;opacity:.85}
+  .hero h1{margin:.3em 0 .15em;font-size:30px;letter-spacing:-.02em}
+  .hero p{margin:.2em 0 0;max-width:64ch;opacity:.94}
+  .status{display:inline-flex;align-items:center;gap:7px;margin-top:16px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.28);padding:5px 12px;border-radius:999px;font-size:13px;font-weight:600}
+  .dot{width:8px;height:8px;border-radius:50%;background:#86efac;box-shadow:0 0 0 3px rgba(134,239,172,.3)}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:22px 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 12px;text-align:center;box-shadow:var(--shadow)}
+  .stat b{display:block;font-size:24px;letter-spacing:-.02em}
+  .stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  h2{font-size:19px;margin:34px 0 14px;letter-spacing:-.01em}
+  h2 .num{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:7px;background:#eef2ff;color:var(--brand);font-size:13px;margin-right:9px;vertical-align:middle}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 17px;box-shadow:var(--shadow)}
+  .card h3{margin:0 0 6px;font-size:15px}.card p{margin:0;color:var(--muted);font-size:14px}
+  .tag{display:inline-block;font-size:11px;font-weight:600;color:var(--brand);background:#eef2ff;border-radius:6px;padding:2px 7px;margin-bottom:8px}
+  .principle{background:linear-gradient(180deg,#fff,#faf5ff);border:1px solid #e9d5ff;border-radius:16px;padding:20px 22px;box-shadow:var(--shadow)}
+  .principle h3{margin:0 0 8px;font-size:16px;color:#6d28d9}
+  .formula{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:#0f1222;color:#e7e9f5;border-radius:12px;padding:14px 16px;margin-top:12px;line-height:1.7;overflow:auto}
+  .formula .k{color:#a5b4fc}.formula .n{color:#fca5a5}
+  .pipe{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+  .step{flex:1;min-width:120px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 12px;box-shadow:var(--shadow)}
+  .step .id{font-weight:700;color:var(--brand);font-size:12px}
+  .step b{display:block;font-size:13px;margin:2px 0 1px}
+  .step span{font-size:11px;color:var(--muted)}
+  .step.code{border-color:#bbf7d0;background:#f0fdf4}
+  .step.opus{border-color:#ddd6fe;background:#f5f3ff}
+  .gate{background:#fff7ed;border:1px dashed #fdba74;border-radius:12px;padding:11px 14px;font-size:13px;color:#9a3412;margin-top:10px}
+  ul.checks{list-style:none;padding:0;margin:0;display:grid;gap:9px}
+  ul.checks li{display:flex;gap:11px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow)}
+  .ck{flex:none;width:20px;height:20px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;font-size:12px;margin-top:1px}
+  pre{background:#0f1222;color:#e7e9f5;border-radius:12px;padding:14px 16px;overflow:auto;font-size:12px;line-height:1.55}
+  .note{font-size:13px;color:var(--muted);background:#f8f9ff;border:1px dashed var(--line);border-radius:12px;padding:13px 15px}
+  footer{margin-top:42px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="eyebrow">Phase 2 · Screening</div>
+    <h1>Capture, B1→B6 &amp; the Role Fit Score</h1>
+    <p>The analytical core: pull in a job description, run the six-step screening pipeline, and
+       produce a reproducible Role Fit Score that decides whether a lead is worth tailoring for.</p>
+    <div class="status"><span class="dot"></span> Complete &amp; verified</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b>6</b><span>Pipeline steps</span></div>
+    <div class="stat"><b>5</b><span>Score dimensions</span></div>
+    <div class="stat"><b>2</b><span>Models (Sonnet/Opus)</span></div>
+    <div class="stat"><b>2</b><span>Gates (B1, B6)</span></div>
+  </div>
+
+  <h2><span class="num">★</span>The principle that makes it trustworthy</h2>
+  <div class="principle">
+    <h3>The LLM judges. The code computes.</h3>
+    <p style="margin:0;color:#4b5563;font-size:14px">Each step forces a single tool call with a strict
+       schema (validated by zod, one retry on failure). B6 returns only <em>judgments</em> — 0–10 ratings
+       per dimension and per requirement. Every rollup and gate is plain TypeScript, so the same inputs
+       always yield the same score.</p>
+    <div class="formula">
+<span class="k">overall</span> = 0.35·relevance + 0.20·seniority + 0.20·impact + 0.15·reqAlignment + 0.10·ats
+<span class="k">reqAlignment</span> = Σ(reqScore·weight) / Σ(weight)   <span class="n">// Core 3 · Important 2 · Nice 1</span>
+<span class="k">recommend</span> = ≥7 Proceed · ≥5.5 Caution · ≥4 Low priority · else Not recommended
+    </div>
+  </div>
+
+  <h2><span class="num">1</span>The pipeline</h2>
+  <div class="pipe">
+    <div class="step code"><span class="id">B1</span><b>Freshness</b><span>code · ≥60d → hold</span></div>
+    <div class="step"><span class="id">B2</span><b>Roadblocks</b><span>Sonnet</span></div>
+    <div class="step"><span class="id">B3</span><b>Misalignments</b><span>Sonnet</span></div>
+    <div class="step"><span class="id">B4</span><b>Skills·Group·ATS</b><span>Sonnet</span></div>
+    <div class="step"><span class="id">B5</span><b>Requirements</b><span>Sonnet</span></div>
+    <div class="step opus"><span class="id">B6</span><b>Role fit</b><span>Opus + code</span></div>
+  </div>
+  <div class="gate">⛐ <b>Gate:</b> only leads scoring <b>Proceed</b> or <b>Caution</b> can be promoted to tailoring — the rest stop here, saving the expensive C-phase for roles worth it.</div>
+
+  <h2><span class="num">2</span>What was built</h2>
+  <div class="grid">
+    <div class="card"><span class="tag">Anthropic client</span><h3>One choke point, two modes</h3>
+      <p>Forces a tool call, validates with zod (+retry), logs tokens. <b>Mock</b> mode runs the whole
+         pipeline with no API key; <b>live</b> mode calls Claude — same contract either way.</p></div>
+    <div class="card"><span class="tag">Scoring</span><h3>Deterministic rollup</h3>
+      <p>All weighted-average math, requirement alignment, recommendation tiers and the B1 hold gate
+         live in <code>lib/scoring.ts</code> — never the model.</p></div>
+    <div class="card"><span class="tag">Prompts</span><h3>Your notes are the prompts</h3>
+      <p>Each step loads its <code>Process/*.md</code> note as the system prompt — refining a step means
+         editing markdown, not code.</p></div>
+    <div class="card"><span class="tag">Capture</span><h3>Bookmarklet + paste</h3>
+      <p>A public ingest endpoint for the LinkedIn bookmarklet, plus a manual paste form — both create a
+         lead and store the JD.</p></div>
+    <div class="card"><span class="tag">Console</span><h3>Run it live</h3>
+      <p>"Run screening" shows each step completing with its model + latency, then the score and the
+         promote-to-tailoring gate.</p></div>
+    <div class="card"><span class="tag">Audit</span><h3>Every run recorded</h3>
+      <p><code>pipeline_runs</code> + <code>llm_calls</code> capture each step's output, model and token
+         use — the basis for the cost panel in P4.</p></div>
+  </div>
+
+  <h2><span class="num">3</span>Verified end to end</h2>
+  <ul class="checks">
+    <li><span class="ck">✓</span><div><b>Reproducible score.</b> A screened lead's persisted overall (6.9) exactly equals the recomputed rollup of its dimensions — the LLM never did the arithmetic.</div></li>
+    <li><span class="ck">✓</span><div><b>All six steps run.</b> B1 (code) → B2–B5 (Sonnet) → B6 (Opus), persisting roadblocks, misalignments, skill ratings, requirements and scores.</div></li>
+    <li><span class="ck">✓</span><div><b>Offline-capable.</b> Mock mode produces deterministic, JD-grounded outputs (B4 even detected the ATS from the posting) — no API key needed to demo.</div></li>
+    <li><span class="ck">✓</span><div><b>Build &amp; types green.</b> Including the new ingest route and client console.</div></li>
+  </ul>
+  <pre style="margin-top:12px">B6  Role fit score   6.9 / 10 · Caution   [opus (mock)]
+dimensions {relevance 6.6, seniority 8, impact 7, reqAlignment 6, ats 7}
+persisted overall 6.9  =  recomputed 6.9   ✓</pre>
+
+  <h2><span class="num">4</span>Polish — the simplify pass</h2>
+  <div class="note">
+    Deduped <code>round1</code> / <code>matchStrengthToScore</code> into <code>lib/scoring</code>;
+    cached the step-note reads; replaced an insert-then-reselect with <code>.returning()</code>; and
+    made B6 match judgments back to requirements by a stable <b>order</b> key (with text + index
+    fallbacks) so the live LLM path stays correct even if it reorders requirements.
+  </div>
+
+  <footer>
+    <span>JobSearch&nbsp;Camunda · Phase 2 of 5</span>
+    <span><a href="P1-foundation.html">← P1 · Foundation</a> &nbsp;·&nbsp; <a href="P3-tailoring.html">P3 · Tailoring →</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

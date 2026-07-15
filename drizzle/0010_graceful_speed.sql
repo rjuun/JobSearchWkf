@@ -1,0 +1,2 @@
+ALTER TABLE "requirement_tailoring" ADD COLUMN "prov_source" text DEFAULT 'imported' NOT NULL;--> statement-breakpoint
+ALTER TABLE "requirement_tailoring" ADD COLUMN "approved_at" timestamp with time zone;

@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* RoleProof rebrand (global) — warm, editorial semantic tokens. RGB channels so
+       Tailwind's <alpha-value> works and dark mode stays a later swap. */
+    --canvas: 243 240 233; /* #F3F0E9 — warm board background */
+    --surface: 255 255 255; /* cards, panels */
+    --raised: 250 248 243; /* #FAF8F3 — paper / recessed fills */
+    --hairline: 230 225 215; /* #E6E1D7 */
+    --ink: 27 26 23; /* #1B1A17 — primary text */
+    --ink-muted: 106 100 90; /* #6A645A — secondary text */
+    --ink-subtle: 154 147 135; /* #9A9387 — tertiary, captions */
+    --brand: 19 122 91; /* proof green #137A5B — focus rings, accents, selection */
+  }
+
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    /* Whisper-faint brand halo at the top of the canvas — depth without noise. */
+    background-image: radial-gradient(
+      1200px 520px at 50% -260px,
+      rgb(19 122 91 / 0.05),
+      transparent 70%
+    );
+    background-attachment: fixed;
+    font-feature-settings: 'cv11', 'ss01';
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Quiet, consistent focus for keyboard users on every interactive element. */
+  a:focus-visible,
+  button:focus-visible,
+  summary:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [role='button']:focus-visible,
+  [tabindex]:focus-visible {
+    outline: none;
+    @apply ring-2 ring-brand-500/55 ring-offset-2;
+  }
+
+  ::selection {
+    background: rgb(var(--brand) / 0.16);
+  }
+
+  /* Thin, unobtrusive scrollbars for tables / the JD reader. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(203 213 225) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(203 213 225);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(148 163 184);
+  }
+}
+
+@layer components {
+  /* Small uppercase label used above section titles and stat values. */
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-subtle;
+  }
+  /* Tabular, mono ref codes / scores (e.g. tbl_STAR_Actions > 5-3). */
+  .ref {
+    @apply font-mono text-[0.78em] tracking-tight;
+  }
+}
+
+/* Respect reduced-motion: collapse all animation + transition. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

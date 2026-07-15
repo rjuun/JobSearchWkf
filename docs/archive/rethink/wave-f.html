@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rethink Completion · Wave F — the IA-shifting bets</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --canvas:#f4f5f8;--surface:#fff;--raised:#f8fafc;--hairline:#e2e6ec;
+    --ink:#111827;--muted:#475467;--subtle:#94a1b3;
+    --proof:#4f46e5;--proof-soft:#eef2ff;--proof-deep:#312e81;--amber:#d97706;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06);
+    --elevated:0 2px 4px -1px rgba(16,24,40,.04),0 14px 32px -10px rgba(16,24,40,.16);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);line-height:1.58;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(1100px 480px at 50% -240px,rgba(79,70,229,.07),transparent 70%);}
+  .wrap{max-width:1040px;margin:0 auto;padding:28px 22px 96px}
+  a{color:var(--proof);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:.88em;background:var(--raised);border:1px solid var(--hairline);border-radius:5px;padding:1px 5px}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--subtle)}
+  .backlink{display:inline-block;margin-bottom:16px;font-size:13px;color:var(--muted)}
+  .hero{position:relative;overflow:hidden;border-radius:22px;padding:42px 44px;color:#fff;
+    background:linear-gradient(125deg,#0f172a 0%,#312e81 42%,#4f46e5 72%,#7c3aed 100%);box-shadow:var(--elevated)}
+  .hero:after{content:"";position:absolute;right:-70px;top:-100px;width:360px;height:360px;border-radius:50%;background:rgba(255,255,255,.07)}
+  .hero .eyebrow{color:rgba(255,255,255,.82)}
+  .hero h1{margin:.35em 0 .25em;font-family:'Instrument Serif',Georgia,serif;font-size:42px;font-weight:400;letter-spacing:-.02em;line-height:1.05;max-width:22ch}
+  .hero p{margin:0;max-width:70ch;opacity:.94;font-size:15px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px;font-size:12.5px}
+  .meta span{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:5px 12px;font-weight:600}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:46px 0 16px;display:flex;align-items:center;gap:12px}
+  h2:after{content:"";height:1px;flex:1;background:var(--hairline)}
+  h3{margin:0 0 4px;font-size:18px;letter-spacing:-.01em}
+  .lead{font-size:15px;color:var(--muted);max-width:78ch;margin:14px 0}
+  .card{background:var(--surface);border:1px solid var(--hairline);border-radius:14px;box-shadow:var(--shadow)}
+  .pad{padding:22px 24px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{background:var(--raised);text-align:left;padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;border-bottom:1px solid var(--hairline)}
+  td{padding:12px 14px;border-bottom:1px solid var(--hairline);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  .st{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;border-radius:6px;padding:3px 8px;white-space:nowrap}
+  .st-ok{background:#ecfdf5;color:#047857}
+  .badge{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--proof-deep);background:var(--proof-soft);border:1px solid #dfe3ff;border-radius:6px;padding:2px 7px;margin-left:8px;vertical-align:middle}
+  .files{margin:12px 0 0;padding:0;list-style:none;font-size:12.5px}
+  .files li{padding:6px 0;border-bottom:1px dashed var(--hairline);display:flex;gap:10px;align-items:baseline}
+  .files li:last-child{border-bottom:0}
+  .files .k{flex-shrink:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--subtle);width:52px}
+  .why{display:flex;gap:10px;align-items:flex-start;border-left:3px solid var(--proof);background:var(--proof-soft);border-radius:0 10px 10px 0;padding:12px 14px;margin-top:14px;font-size:13.5px;color:var(--proof-deep)}
+  .why .t{font-weight:700;margin-right:4px;white-space:nowrap}
+  .decision{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--hairline)}
+  .decision:last-child{border-bottom:0}
+  .decision .tag{flex-shrink:0;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:6px;padding:3px 8px;height:max-content}
+  .t-act{background:#fef3c7;color:#92400e}.t-check{background:#f3e8ff;color:#6b21a8}.t-def{background:#e0f2fe;color:#075985}
+  .decision b{font-size:14px}.decision p{margin:3px 0 0;font-size:13px;color:var(--muted)}
+  ol.verify{font-size:13.5px;color:var(--muted);margin:0;padding-left:20px}
+  ol.verify li{margin:7px 0}ol.verify b{color:var(--ink)}
+  footer{margin-top:56px;font-size:12.5px;color:var(--subtle);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="backlink" href="./index.html">← Rethink Completion index</a>
+
+  <div class="hero">
+    <div class="eyebrow">RoleProof · Rethink Completion · Wave F</div>
+    <h1>The IA-shifting bets</h1>
+    <p>The three items that modify a primary surface — so, per the plan, they ship last, on a product the
+       lighter waves already proved alive. Each stays additive: a new default with the old view one click
+       away, behind a flag, instrumented so the fold question decides whether it becomes permanent.</p>
+    <div class="meta">
+      <span>R5 · Weekly Triage</span>
+      <span>R6 · Transition Ledger</span>
+      <span>R7 · Assembled graph + mobile proof</span>
+      <span>88 tests green</span>
+      <span>build ✓</span>
+    </div>
+  </div>
+
+  <h2>What shipped</h2>
+  <div class="card"><div style="overflow-x:auto">
+  <table>
+    <thead><tr><th>#</th><th>Board</th><th>What it adds</th><th>Flag</th><th>ux_events signal</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>R5</b></td><td>#6a</td>
+        <td>The <b>whole queue judged</b>, not just two picks — priority-ranked, capacity-trimmed, with an
+            auto-held stale pile. Raw table stays below.</td>
+        <td><code>NEXT_TRIAGE</code></td>
+        <td><code>weekly_triage</code> · pick_tailor · pick_open · table_open</td>
+        <td><span class="st st-ok">✓ shipped</span></td>
+      </tr>
+      <tr>
+        <td><b>R6</b></td><td>#4b</td>
+        <td>The <b>Transition Ledger</b> — a slow search reframed as accumulation. A timeline over three
+            existing streams; a tab beside the Statement.</td>
+        <td><code>NEXT_LEDGER</code></td>
+        <td><code>ledger</code> · open</td>
+        <td><span class="st st-ok">✓ shipped</span></td>
+      </tr>
+      <tr>
+        <td><b>R7</b></td><td>#3a · #3b</td>
+        <td>The <b>assembled graph face</b> (Coverage Matrix primary + Statement rail) and the
+            <b>recruiter's-phone</b> proof view (mobile-first).</td>
+        <td><code>NEXT_GRAPH_ASSEMBLED</code></td>
+        <td><code>graph_page</code> · open (assembled/meter) · <code>proof_link</code> · mobile_open</td>
+        <td><span class="st st-ok">✓ shipped</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div></div>
+
+  <h2>R5 · The Weekly Triage <span class="badge">#6a</span></h2>
+  <div class="card"><div class="pad">
+    <h3>Judge the whole queue, so nothing rots silently</h3>
+    <p class="lead">The A3 strip picked two leads; R5's picks become the head of a fuller triage. Everything is
+      a pure derivation over data B1 already captured — <code>priority = fit × freshness × competition − flags</code>,
+      capacity-trimmed to a per-owner pace, with stale leads auto-held (a derived band, never a destructive
+      write). The raw table stays one scroll down.</p>
+    <ul class="files">
+      <li><span class="k">pure</span><code>lib/triage.ts</code> — computeTriage (priority · capacity · auto-hold), unit-tested</li>
+      <li><span class="k">schema</span><code>profiles.weekly_capacity</code> + <code>drizzle/0017_*.sql</code></li>
+      <li><span class="k">read</span><code>lib/queries.ts</code> — weeklyTriage + capacity; the A3 strip now shares the factor maps</li>
+      <li><span class="k">ui</span><code>components/roleproof/weekly-triage.tsx</code> + <code>tracked-table.tsx</code> (free-roam signal)</li>
+    </ul>
+    <div class="why"><span class="t">Fold question →</span> Does the judged queue deserve to become the Board
+      default (demote the raw table)? Watch <code>pick_*</code> vs <code>table_open</code>.</div>
+  </div></div>
+
+  <h2>R6 · The Transition Ledger <span class="badge">#4b</span></h2>
+  <div class="card"><div class="pad">
+    <h3>Accumulation, not stagnation</h3>
+    <p class="lead">Month four of a slow search, reframed as what it actually built. No new capture — a pure
+      timeline composing three streams the app already writes: strength snapshots (the meter climbing),
+      activity events (evidence kept, CVs made), and story versions (the through-line maturing). An honest
+      summary line plus a month-by-month record, on a tab beside the Statement.</p>
+    <ul class="files">
+      <li><span class="k">pure</span><code>lib/ledger.ts</code> — buildLedger (month buckets + honest summary), unit-tested</li>
+      <li><span class="k">read</span><code>app/actions/ledger.ts</code> — owner-scoped projection over the three streams</li>
+      <li><span class="k">ui</span><code>components/roleproof/transition-ledger.tsx</code> + <code>statement-tabs.tsx</code></li>
+    </ul>
+    <div class="why"><span class="t">Fold question →</span> Does the ledger sustain the long-tail user
+      (weeks 6–16) better than the meter alone? Watch <code>ledger · open</code> + return sessions.</div>
+  </div></div>
+
+  <h2>R7 · Assembled graph + the recruiter's phone <span class="badge">#3a #3b</span></h2>
+  <div class="card"><div class="pad">
+    <h3>Compose the parts, and tune the shared artifact for its real device</h3>
+    <p class="lead"><b>3a</b> makes the Coverage Matrix the primary face of <code>/profile</code>, with the
+      Statement as a living-history rail — the assembled graph the board draws. The strength-meter view stays
+      one click away at <code>?view=meter</code>; a toggle switches between them. <b>3b</b> gives the public
+      Proof Link a deliberate mobile-first pass — a single 440px column, phone-legible type, a pinned viewport,
+      zero contact fields — where a recruiter actually reads it.</p>
+    <ul class="files">
+      <li><span class="k">3a</span><code>components/roleproof/assembled-graph.tsx</code> + <code>app/profile/page.tsx</code> (view toggle)</li>
+      <li><span class="k">3b</span><code>app/p/[token]/page.tsx</code> (responsive pass) + <code>components/proof-mobile-beacon.tsx</code></li>
+      <li><span class="k">read</span><code>app/actions/proof.ts</code> — trackProofMobileAction (token-scoped, sessionless)</li>
+    </ul>
+    <div class="why"><span class="t">Fold question →</span> Matrix-assembled vs meter as the graph's default
+      face. Watch <code>graph_page · open</code> (assembled vs meter) and the <code>mobile_open</code> share.</div>
+  </div></div>
+
+  <h2>Decisions to review</h2>
+  <p class="lead">The IA bets change primary surfaces, so their defaults are judgment calls — surfaced here
+    rather than baked in silently.</p>
+  <div class="card"><div class="pad">
+    <div class="decision">
+      <span class="tag t-act">deploy</span>
+      <div><b>Migration 0017 must run on the live DB.</b>
+        <p><code>npm run db:migrate</code> adds <code>profiles.weekly_capacity</code>. The capacity read is
+          defensive (falls back to 2 if the column lags), so the triage still works pre-migration — you just
+          can't change the pace until it's applied.</p></div>
+    </div>
+    <div class="decision">
+      <span class="tag t-check">confirm default</span>
+      <div><b>The assembled graph is the default profile face (NEXT_GRAPH_ASSEMBLED=1).</b>
+        <p><code>/profile</code> now leads with the Coverage Matrix, not the strength meter. The meter is a
+          click away (<code>?view=meter</code>, or the header toggle). This is the R7 fold question made live —
+          set <code>NEXT_GRAPH_ASSEMBLED=0</code> to revert the meter to the default while it earns its data.</p></div>
+    </div>
+    <div class="decision">
+      <span class="tag t-check">confirm default</span>
+      <div><b>The Weekly Triage supersedes the A3 strip (NEXT_TRIAGE=1).</b>
+        <p>The board shows the fuller triage instead of the two-pick strip. This is additive — the raw "All
+          leads" table is unchanged, one scroll down — and the fold question (promote to default, demote the
+          table?) is exactly what the <code>table_open</code> vs <code>pick_*</code> signal answers. Retire with
+          <code>NEXT_TRIAGE=0</code> to fall back to the strip.</p></div>
+    </div>
+    <div class="decision">
+      <span class="tag t-def">note</span>
+      <div><b>Dwell is proxied by open-by-face, not measured directly.</b>
+        <p>The plan mentions "matrix dwell vs meter dwell"; true dwell tracking is heavier than it's worth here.
+          <code>graph_page · open</code> is tagged <code>assembled|meter</code> so you can still compare which
+          face people land on. A real dwell timer can follow if the open-share is ambiguous.</p></div>
+    </div>
+  </div></div>
+
+  <h2>How to verify</h2>
+  <div class="card"><div class="pad">
+    <ol class="verify">
+      <li><b>R5</b> — the board (<code>/roleproof</code>) shows <b>This week · the whole queue, judged</b> with a
+        capacity control, a "waiting" list, and a "Held — verify it's still open" pile. The raw table is below.</li>
+      <li><b>R6</b> — <code>/statement</code> now has a <b>Ledger</b> tab → <code>/ledger</code> shows the
+        accumulation summary and a month-by-month record.</li>
+      <li><b>R7a</b> — <code>/profile</code> leads with the Coverage Matrix + a living-history rail; the header
+        toggle flips to the <b>Meter</b> lens.</li>
+      <li><b>R7b</b> — open a Proof Link on a phone (or a 430px window): a single focused column, no contact
+        fields, and <code>proof_link · mobile_open</code> fires.</li>
+    </ol>
+  </div></div>
+
+  <footer>RoleProof · Rethink Completion · Wave F — the board is now functionally complete. Generated during the build, kept with the code.</footer>
+</div>
+</body>
+</html>

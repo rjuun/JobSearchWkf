@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RoleProof · Rethink — Grok Review Triage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --canvas:#f4f5f8;--surface:#fff;--raised:#f8fafc;--hairline:#e2e6ec;
+    --ink:#111827;--muted:#475467;--subtle:#94a1b3;
+    --proof:#4f46e5;--proof-soft:#eef2ff;--proof-deep:#312e81;
+    --emerald:#059669;--amber:#d97706;--rose:#e11d48;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06);
+    --elevated:0 2px 4px -1px rgba(16,24,40,.04),0 14px 32px -10px rgba(16,24,40,.16);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);line-height:1.58;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(1100px 480px at 50% -240px,rgba(79,70,229,.07),transparent 70%);}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 22px 96px}
+  a{color:var(--proof);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:.86em;background:var(--raised);border:1px solid var(--hairline);border-radius:5px;padding:1px 5px}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.82)}
+  .hero{position:relative;overflow:hidden;border-radius:22px;padding:40px 44px;color:#fff;
+    background:linear-gradient(125deg,#0f172a 0%,#312e81 42%,#4f46e5 72%,#7c3aed 100%);box-shadow:var(--elevated)}
+  .hero:after{content:"";position:absolute;right:-70px;top:-100px;width:360px;height:360px;border-radius:50%;background:rgba(255,255,255,.07)}
+  .hero h1{margin:.35em 0 .3em;font-family:'Instrument Serif',Georgia,serif;font-size:42px;font-weight:400;letter-spacing:-.02em;line-height:1.05;max-width:22ch}
+  .hero p{margin:0;max-width:74ch;opacity:.94;font-size:15px}
+  .tallies{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+  .tally{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:11px;padding:9px 15px}
+  .tally b{font-family:'Instrument Serif',Georgia,serif;font-size:26px;font-weight:400;display:block;line-height:1}
+  .tally span{font-size:11px;letter-spacing:.05em;text-transform:uppercase;opacity:.82}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:44px 0 16px;display:flex;align-items:center;gap:12px}
+  h2:after{content:"";height:1px;flex:1;background:var(--hairline)}
+  .card{background:var(--surface);border:1px solid var(--hairline);border-radius:14px;box-shadow:var(--shadow);padding:18px 20px;margin-bottom:13px}
+  .card .top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .card h3{margin:0;font-size:16px;letter-spacing:-.01em;color:var(--ink)}
+  .card h3 .n{color:var(--subtle);font-weight:600;margin-right:7px}
+  .card p{margin:8px 0 0;font-size:13.5px;color:var(--muted)}
+  .card p.fix{color:var(--ink)}
+  .card p.fix b{color:var(--proof-deep)}
+  .loc{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--subtle);margin-top:7px}
+  .st{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;border-radius:6px;padding:3px 9px;white-space:nowrap}
+  .st-fixed{background:#ecfdf5;color:#047857}
+  .st-defer{background:#fff7ed;color:#b45309}
+  .st-moot{background:var(--raised);color:var(--subtle)}
+  .sev{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--subtle);margin-left:8px}
+  .decision{background:var(--surface);border:1px solid var(--hairline);border-left:3px solid var(--amber);border-radius:0 12px 12px 0;padding:16px 20px;margin:14px 0}
+  .decision h3{margin:0 0 4px;font-size:15px}
+  .decision p{margin:6px 0 0;font-size:13.5px;color:var(--muted)}
+  .decision .q{margin-top:10px;font-size:13.5px;color:var(--ink);font-weight:600}
+  .rule{font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--hairline);border-left:3px solid var(--proof);border-radius:0 12px 12px 0;padding:14px 18px;margin:20px 0}
+  footer{margin-top:52px;font-size:12.5px;color:var(--subtle);text-align:center}
+  .back{display:inline-block;margin-bottom:18px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="./index.html">← Rethink Completion index</a>
+  <div class="hero">
+    <div class="eyebrow">RoleProof · Rethink · External review triage</div>
+    <h1>Grok review — verified &amp; resolved</h1>
+    <p>An external pass (<code>grok-review-6ce2e534.md</code>) over the Rethink D–F branch flagged 11 items.
+       Each was re-checked against the actual code before acting — 7 real defects fixed, 2 open design
+       questions since decided and implemented, 2 moot / by-convention. Typecheck clean, 92 tests green (+1).</p>
+    <div class="tallies">
+      <div class="tally"><b>7</b><span>defects fixed</span></div>
+      <div class="tally"><b>2</b><span>decided + shipped</span></div>
+      <div class="tally"><b>2</b><span>moot / by-convention</span></div>
+      <div class="tally"><b>92</b><span>tests green</span></div>
+    </div>
+  </div>
+
+  <h2>Fixed — verified real</h2>
+
+  <div class="card">
+    <div class="top"><h3><span class="n">#3</span>/brief route bypassed its feature flag<span class="sev">bug</span></h3><span class="st st-fixed">✓ fixed</span></div>
+    <p>The dedicated interview-brief route rendered and emitted <code>interview_brief · open</code> even with
+       <code>NEXT_INTERVIEW_BRIEF=0</code> — the workspace teaser was gated, the route wasn't.</p>
+    <p class="fix"><b>Fix:</b> <code>if (!env.nextInterviewBrief) redirect(`/roleproof/leads/[id]`)</code> at the top,
+       matching how <code>/discover</code>, <code>/ledger</code> and <code>/statement</code> guard. Redirects to the
+       workspace (not a 404) so a stale link still lands somewhere real.</p>
+    <div class="loc">app/roleproof/leads/[id]/brief/page.tsx</div>
+  </div>
+
+  <div class="card">
+    <div class="top"><h3><span class="n">#4</span>Excavation invites outlived their flag<span class="sev">bug</span></h3><span class="st st-fixed">✓ fixed</span></div>
+    <p>Invite <em>generation</em> was gated, but <code>readExcavationInvites</code> still surfaced any
+       existing excavation prompts (and their telemetry) when <code>NEXT_EXCAVATION=0</code> — breaking the
+       documented retire-with-the-flag contract.</p>
+    <p class="fix"><b>Fix:</b> the coach page only reads invites when <code>env.nextExcavation</code> is on,
+       else passes <code>[]</code>. No invite UI, no <code>excavation · shown</code> event, one fewer query when off.</p>
+    <div class="loc">app/profile/coach/page.tsx</div>
+  </div>
+
+  <div class="card">
+    <div class="top"><h3><span class="n">#1</span>Held stale-lead pile vanished on small boards<span class="sev">bug</span></h3><span class="st st-fixed">✓ fixed</span></div>
+    <p>The whole Weekly Triage returned <code>null</code> when <code>consideredCount &lt; 3</code>, which also
+       hid the auto-held "verify it's still open" pile — undercutting R5's promise that nothing rots silently for
+       a user with one or two live leads but several stale postings.</p>
+    <p class="fix"><b>Fix:</b> extracted a reusable <code>&lt;HeldPile&gt;</code>. Below the narrowing threshold the
+       triage still renders the held pile on its own (when there is one); only the picks/waiting sections stay gated.</p>
+    <div class="loc">components/roleproof/weekly-triage.tsx</div>
+  </div>
+
+  <div class="card">
+    <div class="top"><h3><span class="n">#2</span><code>pick_tailor</code> over-counted the fold signal<span class="sev">bug</span></h3><span class="st st-fixed">✓ fixed</span></div>
+    <p>Every top pick emitted <code>weekly_triage · pick_tailor</code> on click regardless of its real CTA
+       ("Screen", "Promote", "Download"…) — inflating the tailor numerator against which R5's fold question
+       (<code>pick_tailor</code> vs <code>table_open</code>) is judged.</p>
+    <p class="fix"><b>Fix:</b> a pick emits <code>pick_tailor</code> only when its status genuinely advances tailoring
+       (<code>ready</code>/<code>promoted</code>/<code>tailoring</code>), otherwise <code>pick_open</code> — so the
+       signal means what its name says.</p>
+    <div class="loc">components/roleproof/weekly-triage.tsx</div>
+  </div>
+
+  <div class="card">
+    <div class="top"><h3><span class="n">#6</span>Door-verdict rejection was indistinguishable from a Mirror dismissal<span class="sev">suggestion</span></h3><span class="st st-fixed">✓ fixed</span></div>
+    <p>Rejecting a tested door reused <code>discover · disagree</code> — the same event as dismissing a Mirror card.
+       Both carried only <code>meta.archetype</code>, so R4's "does the honest verdict change minds?" rate wasn't
+       measurable without a fragile join on archetype role.</p>
+    <p class="fix"><b>Fix:</b> a dedicated <code>door_verdict_disagree</code> event, symmetric with the existing
+       <code>door_verdict_flag</code>. Added to the <code>UxEvent</code> union and the action's signature.</p>
+    <div class="loc">components/roleproof/discover-view.tsx · app/actions/discover.ts · lib/ux-events.ts</div>
+  </div>
+
+  <div class="card">
+    <div class="top"><h3><span class="n">#7</span>Interview brief called covered requirements "thin spots"<span class="sev">suggestion → truthfulness</span></h3><span class="st st-fixed">✓ fixed</span></div>
+    <p>Bridges came purely from a requirement's <em>initial</em> match strength, ignoring whether the user later
+       kept green evidence for it in C2. A requirement you'd already addressed could still show as a gap — night-before
+       guidance contradicting its own proof point. This crosses into the truthfulness non-negotiable, so it's a real fix,
+       not a nicety.</p>
+    <p class="fix"><b>Fix:</b> a weak requirement is excluded from bridges when a kept (green) tailoring row covers it
+       (loose match on requirement text ↔ <code>requirementLine</code>). Non-green rows don't clear it. New unit test added.</p>
+    <div class="loc">lib/interview.ts · lib/__tests__/interview.test.ts</div>
+  </div>
+
+  <div class="card">
+    <div class="top"><h3><span class="n">#8</span>Seen-marker written fire-and-forget<span class="sev">suggestion</span></h3><span class="st st-fixed">✓ fixed</span></div>
+    <p><code>markStatementSeen</code> was <code>void</code>-ed on the Statement page, so a quick back-navigation
+       could briefly re-show the re-entry banner despite having just viewed the Statement.</p>
+    <p class="fix"><b>Fix:</b> <code>await</code> it before render — the marker is committed before the page paints,
+       so the user can't get back to the board with the banner still live. (This also subsumes nit&nbsp;#11.)</p>
+    <div class="loc">app/statement/page.tsx</div>
+  </div>
+
+  <h2>Decided + shipped</h2>
+
+  <div class="decision" style="border-left-color:#059669">
+    <h3><span style="color:var(--subtle);font-weight:600">#5 · </span>Assembled matrix vs <code>NEXT_COVERAGE_MATRIX</code>
+      <span class="st st-fixed" style="margin-left:8px">✓ coupled</span></h3>
+    <p>With <code>NEXT_GRAPH_ASSEMBLED=1</code> and <code>NEXT_COVERAGE_MATRIX=0</code>, the coverage matrix still
+       showed as the assembled <code>/profile</code> face while its dedicated page and nav button were gone.</p>
+    <p class="q">Decision — <b>couple them.</b> The assembled view <em>is</em> a coverage-matrix presentation; retiring
+       the matrix must not resurrect it as the profile's <em>primary</em> face. The dependency is real and directional
+       (assembled&nbsp;⊃&nbsp;matrix).</p>
+    <p class="fix"><b>Shipped:</b> <code>canAssemble = nextGraphAssembled &amp;&amp; nextCoverageMatrix</code> now gates both
+       the assembled face and its view-toggle; with the matrix off, <code>/profile</code> degrades cleanly to the
+       strength-meter view. <span class="loc" style="margin:0">app/profile/page.tsx</span></p>
+  </div>
+
+  <div class="decision" style="border-left-color:#059669">
+    <h3><span style="color:var(--subtle);font-weight:600">#9 · </span>Excavation "Not now" — snooze or dismiss?
+      <span class="st st-fixed" style="margin-left:8px">✓ real snooze</span></h3>
+    <p>"Not now" called <code>skipPromptAction</code> — a permanent one-way skip — while the telemetry read
+       <code>excavation · snoozed</code>. A dismiss wearing a "later" label.</p>
+    <p class="q">Decision — <b>make it a genuine snooze.</b> Rediscovery's whole value is that a thin era keeps gently
+       resurfacing until you mine it; losing that invitation forever on one busy-day "Not now" defeats the feature.</p>
+    <p class="fix"><b>Shipped:</b> "Not now" now hides the card for the session only — it returns next visit. The prompt
+       stays <code>open</code> (generatePrompts dedupes on its key, so nothing duplicates), and the <code>snoozed</code>
+       event name is now truthful. Lightest honest version — no migration.
+       <span class="loc" style="margin:0">components/coach-queue.tsx</span></p>
+  </div>
+
+  <h2>Moot / by convention</h2>
+
+  <div class="card">
+    <div class="top"><h3><span class="n">#11</span>Banner link doesn't mark-seen on click<span class="sev">nit</span></h3><span class="st st-moot">subsumed</span></div>
+    <p>The "See your Statement →" link relied on the Statement page load to clear the marker. With #8 now
+       <code>await</code>-ing the write server-side before render, the open path's race is closed too — an extra
+       optimistic client write would just be a redundant round-trip. No change made.</p>
+  </div>
+
+  <div class="card">
+    <div class="top"><h3><span class="n">#10</span>No integration tests for DB-facing seams<span class="sev">suggestion</span></h3><span class="st st-moot">by convention</span></div>
+    <p>Grok suggests mocked-DB tests for <code>readExcavationInvites</code>, <code>digestSince</code> and the
+       <code>readQueue</code> excavation split — citing <code>coaching.test.ts</code> as the pattern. But that suite is
+       explicitly pure ("<em>no DB, no network, no LLM</em>"); there is no DB-mock harness in the project. Introducing one
+       for a prototype is a scope call, so I've left it. The pure projections these seams feed (<code>buildInterviewBrief</code>,
+       <code>computeTriage</code>, <code>buildLedger</code>, <code>digestHeadline</code>) remain well covered.</p>
+    <p class="q" style="font-weight:600;color:var(--ink)">Decision: worth standing up a DB-mock test harness, or leave the seams to manual/e2e checks?</p>
+  </div>
+
+  <div class="rule" style="border-left-color:#059669">
+    <b>Net:</b> the branch's substantive gaps — two flag-gating leaks, the vanishing held pile, one inflated fold
+    signal, one conflated signal, a brief that could contradict itself, plus the two design questions (assembled-face
+    coupling and a real snooze) — are all closed. The only open item left is a preference: whether to stand up a
+    DB-mock test harness (#10), which the prototype's pure-only suite has deliberately avoided.
+  </div>
+
+  <footer>Kept with the code · verified against the tree, not taken on faith from the review.</footer>
+</div>
+</body>
+</html>

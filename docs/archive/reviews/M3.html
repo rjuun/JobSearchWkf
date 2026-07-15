@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>M3 · Coach rail + auto-advance — morning review</title>
+<style>
+  :root{--proof:#0f7d5a;--proof-soft:#e6f4ee;--proof-deep:#0a5c42;--ink:#1a1c1a;--muted:#5c6360;--hair:#e3e6e4;--canvas:#f7f9f8;--surface:#fff;--amber:#b7791f;--amber-soft:#fdf6e7}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:32px 16px}
+  .wrap{max-width:860px;margin:0 auto}
+  header{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+  .badge{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:11px;background:var(--proof);color:#fff;font-weight:800}
+  h1{font-size:23px;margin:0;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin:2px 0 24px;font-size:13.5px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+  .pill.ok{background:var(--proof-soft);color:var(--proof-deep)}
+  .pill.warn{background:var(--amber-soft);color:var(--amber)}
+  .card{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:20px 22px;margin:16px 0;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .card h2{font-size:15px;margin:0 0 12px}
+  code{background:#f0f2f1;border-radius:5px;padding:1px 6px;font-size:12.5px;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+  .row{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--hair)}
+  .row:last-child{border-bottom:0}
+  .tick{color:var(--proof);font-weight:800}
+  .mock{display:grid;grid-template-columns:150px 1fr;gap:12px;border:1px dashed var(--hair);border-radius:12px;padding:14px;background:#fbfcfc}
+  .rail{font-size:11px;color:var(--muted);border-right:1px solid var(--hair);padding-right:12px}
+  .rail b{color:var(--ink)}
+  .stage{font-size:12.5px}
+  .stage .q{font-size:15px;font-weight:600;color:var(--ink);margin-bottom:6px}
+  .btns{display:flex;gap:6px;margin-top:8px}
+  .b{border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700}
+  .b.p{background:var(--proof);color:#fff}.b.o{background:#fff;border:1px solid var(--hair);color:var(--ink)}
+  .foot{color:var(--muted);font-size:12.5px;text-align:center;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="badge">M3</div>
+    <div>
+      <h1>Coach rail + auto-advance</h1>
+      <div class="sub">Answering the coach now feels like flow, with a real undo · <span class="pill ok">✓ Complete</span></div>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>✨ The one-line</h2>
+    <p style="margin:0">The coach went from a scrollable stack of cards to a <b>calm rail + one focused question</b>. Answer → AI drafts →
+    approve (or just hit <b>Enter</b>), and the next-best question loads itself. There's an <b>8-second Undo</b> that truly reverts
+    the graph, and after a few captures a <b>designed stop</b> — because "never done" lives in the meter, not a nagging todo count.</p>
+  </div>
+
+  <div class="card">
+    <h2>🖼 The shape</h2>
+    <div class="mock">
+      <div class="rail">
+        <b>Graph strength</b><br>72 / 100 · Solid start<br>▓▓▓▓▓░░ 28 headroom<br><br>
+        <b>This session</b><br>1 captured · <span style="color:var(--proof)">+3</span><br>✓ measurable impact… <u>Undo</u><br><br>
+        <b>Up next</b><br>⚑ COO flagged industry…<br>⌖ Core req on 3 roles…
+      </div>
+      <div class="stage">
+        <span style="font-size:10px;color:var(--muted)">TODAY'S SET · 2 OF 3 · ~10 MIN</span> <span class="pill ok" style="font-size:10px">Highest value now</span>
+        <div class="q" style="margin-top:6px">"Strategy Office flagged seniority — can you point to a time that shows otherwise?"</div>
+        <div style="color:var(--muted)">⌖ Screening raised this as a watch-out. Evidence here turns a flag into a strength.</div>
+        <div class="btns"><span class="b p">Approve into graph</span><span class="b o">Edit</span><span class="b o">Skip</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>✅ What I changed</h2>
+    <div class="row"><span class="tick">✓</span><div><b>Rail + stage.</b> Strength (with the M1 breakdown bars), a live session tally, and "Up next" on the left; one question at a time on the right.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Auto-advance.</b> Approve/skip → the next-highest-value prompt loads itself. Enter approves.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Real undo.</b> A toast <em>and</em> per-item undo in the tally — both fully reverse the graph edit (delete a created story/metric, or restore prior values), and remove any follow-up it spawned. <b>Verified by a round-trip test</b> (strength returned to exactly its prior value).</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Bounded sessions.</b> "Today's set · N of 3" and a designed stop card ("Nice set — 3 captured, +N strength") with a "keep going" option.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Responsive.</b> Two-pane on wide screens; the rail stacks above the stage on mobile.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>🔍 Code review (agent)</h2>
+    <p style="margin:0;font-size:13px;color:var(--muted)">Findings + resolutions are in <code>docs/milestones/M3.md</code>. All addressed before commit.</p>
+  </div>
+
+  <div class="card">
+    <h2>⚠️ Worth a live look</h2>
+    <div class="row"><span style="color:var(--amber);font-weight:800">!</span><div>This is the biggest UI change so far. It passes typecheck, build, and an undo round-trip test, but I couldn't click through it in a real browser this session. Recommend a quick <code>npm run dev → /profile/coach</code> pass in the morning.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>🧪 How to check it yourself</h2>
+    <ol style="margin:0;padding-left:20px">
+      <li><code>npm run seed &amp;&amp; npm run dev</code> → <code>/profile/coach</code></li>
+      <li>Answer the top prompt → Draft → Enter to approve → the next loads itself.</li>
+      <li>Hit <b>Undo</b> in the toast → the capture reverts and the prompt returns.</li>
+      <li>After 3 captures → the stop card appears.</li>
+    </ol>
+  </div>
+
+  <div class="foot">RoleProof · M3 of M0–M7 · generated for morning review</div>
+</div>
+</body>
+</html>

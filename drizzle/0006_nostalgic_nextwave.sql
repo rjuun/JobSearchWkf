@@ -1,0 +1,1 @@
+ALTER TABLE "job_leads" ADD COLUMN "is_target" boolean DEFAULT false NOT NULL;

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "coaching_prompts_owner_dedupe_uq" ON "coaching_prompts" USING btree ("owner_id","dedupe_key");

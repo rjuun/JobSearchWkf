@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase A — Atomic Undo &amp; Resilient Recovery</title>
+<style>
+  :root{
+    --ink:#1a1a17; --ink-muted:#57534e; --ink-subtle:#8a8579;
+    --paper:#faf9f6; --surface:#ffffff; --raised:#f2f0ea; --hairline:#e6e2d8;
+    --proof:#2f6d5b; --proof-deep:#1f4d40; --proof-soft:#dcefe7;
+    --caution:#b4741e; --caution-soft:#f6e7cf; --danger:#a3352b; --danger-soft:#f6dedb;
+    --code:#26413a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:820px;margin:0 auto;padding:48px 24px 96px;}
+  header.hero{border-bottom:2px solid var(--ink);padding-bottom:22px;margin-bottom:8px;}
+  .kicker{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--proof);}
+  h1{font-size:34px;line-height:1.12;margin:.35em 0 .15em;letter-spacing:-.01em;}
+  h2{font-size:24px;margin:2.4em 0 .5em;letter-spacing:-.01em;border-top:1px solid var(--hairline);padding-top:1.2em;}
+  h3{font-size:17px;margin:1.7em 0 .3em;}
+  .sub{color:var(--ink-muted);font-size:15px;max-width:60ch;}
+  p{margin:.7em 0;} strong{color:var(--ink);}
+  .meta{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-subtle);margin-top:14px;}
+  .meta b{color:var(--ink-muted);font-weight:600;}
+  .lead{font-size:18px;line-height:1.6;color:var(--ink);margin:1.1em 0;}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.87em;
+    background:var(--raised);padding:.1em .38em;border-radius:5px;color:var(--code);}
+  pre{background:#20302b;color:#e7efe9;border-radius:10px;padding:16px 18px;overflow-x:auto;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.55;
+    margin:.9em 0;border:1px solid #16221e;}
+  pre .c{color:#7fa89a;} pre .r{color:#e39a94;} pre .g{color:#8fd4b4;} pre .k{color:#d9c58a;}
+  .callout{border-left:3px solid var(--proof);background:var(--proof-soft);border-radius:0 10px 10px 0;
+    padding:14px 18px;margin:1.1em 0;font-size:14.5px;}
+  .callout.intuition{border-color:var(--caution);background:#f8efdd;}
+  .callout .lab{font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--proof-deep);display:block;margin-bottom:3px;}
+  .callout.intuition .lab{color:var(--caution);}
+  .issue{background:var(--surface);border:1px solid var(--hairline);border-radius:14px;padding:22px 24px;margin:1.4em 0;box-shadow:0 1px 3px rgba(30,20,0,.04);}
+  .issue-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:2px;}
+  .badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;letter-spacing:.03em;}
+  .badge.bug{background:var(--danger-soft);color:var(--danger);}
+  .badge.file{background:var(--raised);color:var(--ink-muted);font-family:ui-monospace,monospace;font-weight:600;}
+  .issue h3{margin-top:.2em;}
+  .flow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:.8em 0;font-size:12.5px;}
+  .flow .step{background:var(--raised);border:1px solid var(--hairline);border-radius:7px;padding:5px 10px;font-family:ui-monospace,monospace;}
+  .flow .arr{color:var(--ink-subtle);font-weight:700;}
+  .flow .bad{background:var(--danger-soft);border-color:#e9c3bd;color:var(--danger);}
+  .flow .good{background:var(--proof-soft);border-color:#bfe0d3;color:var(--proof-deep);}
+  ul{margin:.5em 0 .5em 0;padding-left:1.2em;} li{margin:.3em 0;}
+  .tldr{background:var(--ink);color:var(--paper);border-radius:14px;padding:22px 26px;margin:1.4em 0;}
+  .tldr h2{border:none;color:var(--paper);margin:0 0 .3em;padding:0;font-size:19px;}
+  .tldr ul{margin:.4em 0;} .tldr li{color:#e8e5dc;}
+  .tldr code{background:rgba(255,255,255,.14);color:#ffe;}
+  /* quiz */
+  .quiz{background:var(--surface);border:2px solid var(--ink);border-radius:16px;padding:26px 26px 30px;margin-top:2.4em;}
+  .quiz h2{border:none;margin:0 0 .2em;padding:0;}
+  .q{margin:1.5em 0;padding-bottom:1.3em;border-bottom:1px dashed var(--hairline);}
+  .q:last-of-type{border-bottom:none;}
+  .q .qtext{font-weight:600;margin-bottom:.7em;}
+  .q .qnum{color:var(--proof);font-weight:700;}
+  .opt{display:block;background:var(--paper);border:1px solid var(--hairline);border-radius:9px;
+    padding:11px 14px;margin:7px 0;cursor:pointer;transition:.12s;font-size:14.5px;}
+  .opt:hover{border-color:var(--proof);background:#fff;}
+  .opt input{margin-right:9px;}
+  .opt.correct{background:var(--proof-soft);border-color:var(--proof);}
+  .opt.wrong{background:var(--danger-soft);border-color:var(--danger);}
+  .explain{font-size:13.5px;color:var(--ink-muted);margin-top:9px;padding:10px 14px;background:var(--raised);border-radius:8px;display:none;}
+  .explain.show{display:block;}
+  .explain b{color:var(--proof-deep);}
+  .submit{background:var(--proof);color:#fff;border:none;border-radius:10px;padding:13px 26px;
+    font-size:15px;font-weight:700;cursor:pointer;margin-top:14px;transition:.12s;}
+  .submit:hover{background:var(--proof-deep);}
+  .score{margin-top:20px;padding:20px 22px;border-radius:12px;font-size:16px;display:none;}
+  .score.show{display:block;} .score.pass{background:var(--proof-soft);border:1px solid var(--proof);}
+  .score.fail{background:var(--danger-soft);border:1px solid var(--danger);}
+  .score .big{font-size:30px;font-weight:800;display:block;letter-spacing:-.01em;}
+  .score.pass .big{color:var(--proof-deep);} .score.fail .big{color:var(--danger);}
+  footer{margin-top:3em;padding-top:1.4em;border-top:1px solid var(--hairline);font-size:12.5px;color:var(--ink-subtle);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <span class="kicker">Grok Review · Remediation</span>
+  <h1>Phase A — Atomic Undo &amp; Resilient Recovery</h1>
+  <p class="sub">The four real correctness &amp; recovery bugs from the branch review, fixed. This is the "money" phase — it's about what happens when something goes <em>wrong</em> mid-operation.</p>
+  <div class="meta">
+    <span><b>Branch</b> fix/grok-review-phase-a</span>
+    <span><b>Commit</b> 356e82e</span>
+    <span><b>Files</b> coaching.ts · coaching-commit.ts · onboarding.ts</span>
+    <span><b>Tests</b> 52 green · typecheck clean</span>
+  </div>
+</header>
+
+<p class="lead">Every fix in this phase answers one question: <strong>if this operation fails halfway through, what state does the user end up in?</strong> The review found four places where the answer was "a broken one." Below is what each was, the intuition for why it mattered, and exactly what changed.</p>
+
+<div class="callout intuition">
+  <span class="lab">The one idea to hold onto</span>
+  A user action like "undo my last answer" isn't one database write — it's <strong>five or six</strong>. Delete the follow-up, revert the star, flip two statuses, re-score. If the server dies after step 3, you've got half an undo. The fix is a <strong>transaction</strong>: a wrapper that says "do all of these, or none of them." That single concept is 3 of the 4 fixes.
+</div>
+
+<h2>Concept primer (30 seconds)</h2>
+<h3>Transaction</h3>
+<p>A database transaction groups several writes so they <strong>commit together or roll back together</strong>. Nothing outside the transaction sees a half-finished state, and if any step throws, everything already done inside is undone automatically. In this code it's <code>db.transaction(async (tx) =&gt; { … })</code> — and crucially, you must use the <code>tx</code> handle for every write inside, not the global <code>db</code>, or that write escapes the safety net.</p>
+<h3>Executor threading</h3>
+<p>To let a shared helper (like "revert this star") run <em>either</em> standalone <em>or</em> inside someone's transaction, you pass it the handle to use. We call that a <code>DbExecutor</code>. Both the global <code>db</code> and a transaction's <code>tx</code> satisfy the same shape, so the helper doesn't care which it got — it just uses what it's handed.</p>
+<h3>Best-effort (fire-and-forget)</h3>
+<p>Some steps are <em>bookkeeping</em> — recording a strength snapshot, regenerating the prompt queue. If the important write already committed, a failure in bookkeeping should <strong>log and move on</strong>, never blow up the user's request. The trick is that the bookkeeping must be <em>idempotent</em> (safe to re-run), which the queue regeneration already is.</p>
+
+<h2>The four fixes</h2>
+
+<div class="issue">
+  <div class="issue-head">
+    <span class="badge bug">Issue 3 · enabler</span>
+    <span class="badge file">lib/coaching-commit.ts</span>
+  </div>
+  <h3>Make <code>revertCommit</code> able to join a transaction</h3>
+  <p><span class="callout intuition" style="display:inline-block;margin:0">This one fixes nothing by itself — it <strong>unlocks</strong> Issue 2.</span></p>
+  <p>The <code>revertCommit</code> function undoes a graph change (delete the coached star, restore the old summary, etc.). But it was hardwired to the global <code>db</code> — so even if its caller opened a transaction, the revert's deletes ran <em>outside</em> it and couldn't be rolled back. We gave it an optional executor argument, defaulting to <code>db</code> so existing callers are unchanged:</p>
+<pre><span class="c">// before — always the global db, can't participate in a tx</span>
+<span class="r">export async function revertCommit(owner, plan) {</span>
+  <span class="r">await db.delete(starResults)...</span>
+
+<span class="c">// after — takes the handle to use</span>
+<span class="g">export async function revertCommit(owner, plan, database: DbExecutor = db) {</span>
+  <span class="g">await database.delete(starResults)...</span></pre>
+  <p>We also added <code>asRevertPlan()</code> — a small validator that checks the revert instructions read back from the database actually have the shape we expect before acting on them. These are written by our own code, so this is a seatbelt against schema drift or a hand-edited row, not a security boundary. An unrecognized shape returns <code>null</code> → we skip the revert instead of crashing on <code>undefined.length</code>.</p>
+</div>
+
+<div class="issue">
+  <div class="issue-head">
+    <span class="badge bug">Issue 2 · highest priority</span>
+    <span class="badge file">app/actions/coaching.ts · undoApprovalAction</span>
+  </div>
+  <h3>Make "undo" all-or-nothing</h3>
+  <p><strong>The failure it prevents:</strong> Undo used to run as a bare sequence of writes. Picture a user undoing an answer that had spawned a follow-up question:</p>
+  <div class="flow">
+    <span class="step">purge follow-up's stars</span><span class="arr">→</span>
+    <span class="step">delete follow-up prompt</span><span class="arr">→</span>
+    <span class="step bad">💥 crash / refresh</span><span class="arr">→</span>
+    <span class="step" style="opacity:.4">revert main star</span><span class="arr">→</span>
+    <span class="step" style="opacity:.4">flip status</span>
+  </div>
+  <p>Stop at the 💥 and you've deleted the follow-up but <strong>not</strong> reverted the original — an orphaned star, a prompt stuck in the wrong state, and a strength score that no longer matches reality. A concurrent approve landing at the same moment could interleave and corrupt it further.</p>
+  <p><strong>The fix:</strong> the entire unwind now runs inside one <code>db.transaction</code>. Every write uses <code>tx</code> (including the newly-threaded <code>purgePromptEvidence</code> and <code>revertCommit</code>). Either all of it lands or none of it does.</p>
+<pre><span class="g">const didUndo = await db.transaction(async (tx) =&gt; {</span>
+  <span class="c">// find the answer; if none, bail cleanly (empty tx, no-op)</span>
+  <span class="k">for</span> (<span class="k">const</span> c <span class="k">of</span> children) <span class="k">await</span> purgePromptEvidence(owner, c.id, <span class="g">tx</span>);
+  <span class="k">await</span> tx.delete(coachingPrompts)...      <span class="c">// child follow-ups</span>
+  <span class="k">if</span> (plan) <span class="k">await</span> revertCommit(owner, plan, <span class="g">tx</span>);  <span class="c">// this approval's star</span>
+  <span class="k">await</span> tx.update(coachingAnswers)...        <span class="c">// null out the commit</span>
+  <span class="k">await</span> tx.update(coachingPrompts)...        <span class="c">// back to 'drafted'</span>
+  <span class="k">return</span> <span class="k">true</span>;
+<span class="g">});</span>
+<span class="k">if</span> (!didUndo) <span class="k">return</span>;
+<span class="k">await</span> snapshotStrengthAndRegen(owner);       <span class="c">// bookkeeping, after commit</span></pre>
+  <div class="callout"><span class="lab">Subtle but important</span> The strength snapshot and queue regen happen <em>after</em> the transaction commits, not inside it — because they re-read the graph through the global <code>db</code>, which can't see the transaction's uncommitted writes. Doing them after commit means they read the correct, reverted state. This mirrors how <code>approve</code> already worked.</div>
+</div>
+
+<div class="issue">
+  <div class="issue-head">
+    <span class="badge bug">Issue 1 · medium</span>
+    <span class="badge file">app/actions/coaching.ts · approveAnswerAction</span>
+  </div>
+  <h3>Stop the approval "tail" from erroring the request</h3>
+  <p>Approving an answer already had a proper transaction around the important part (claim the prompt, write the star). But <em>after</em> that committed, three more steps ran unguarded: maybe spawn a follow-up, snapshot strength, regenerate the queue. If any threw — a transient DB blip, a bug in queue generation — the user saw an error <strong>even though their evidence was safely saved.</strong></p>
+  <p>The fix wraps that tail in try/catch that logs instead of throwing, extracted into a shared <code>snapshotStrengthAndRegen</code> helper (now reused by both approve and undo). This is safe precisely because the queue regeneration is idempotent — if it fails now, the next coach-page load regenerates it correctly.</p>
+<pre><span class="k">try</span> { <span class="k">await</span> maybeSpawnFollowup(...); }
+<span class="k">catch</span> (err) { console.error(<span class="c">'[coaching] follow-up spawn failed'</span>, err); }
+<span class="k">await</span> snapshotStrengthAndRegen(owner);  <span class="c">// itself try/catch + log inside</span></pre>
+</div>
+
+<div class="issue">
+  <div class="issue-head">
+    <span class="badge bug">Issue 4 · medium</span>
+    <span class="badge file">app/actions/onboarding.ts · startScreenFirstAction</span>
+  </div>
+  <h3>Don't mark onboarding "done" before the lead exists</h3>
+  <p><strong>The failure it prevents:</strong> the cold-start flow is "paste CV + job ad → screen it → land on a verdict." The old order committed the imported career graph <em>and flipped onboarding to <code>done</code></em> before it created the lead:</p>
+  <div class="flow">
+    <span class="step">extract graph</span><span class="arr">→</span>
+    <span class="step bad">commit graph + onboarding=DONE</span><span class="arr">→</span>
+    <span class="step">createLead</span><span class="arr">→</span>
+    <span class="step">screen</span>
+  </div>
+  <p>If <code>createLead</code> threw, the user was left with a "done" onboarding and an imported graph but <strong>no lead to land on</strong> — and, since <code>createLead</code> wasn't guarded, a raw error page instead of a graceful retry. The fix reorders so the lead is captured <em>before</em> the graph commit (the "done" flip), wrapped so a capture failure redirects to <code>/start?error=1</code> with onboarding still in <code>reviewing</code>:</p>
+  <div class="flow">
+    <span class="step">extract graph</span><span class="arr">→</span>
+    <span class="step good">stage + createLead (guarded)</span><span class="arr">→</span>
+    <span class="step good">commit graph + onboarding=DONE</span><span class="arr">→</span>
+    <span class="step">screen (best-effort)</span>
+  </div>
+  <p>Capture doesn't need the graph (it just files the job ad), and screening still runs after the commit so it sees the imported history. The user can only reach a "done" state once there's genuinely a lead waiting for them.</p>
+</div>
+
+<div class="tldr">
+  <h2>Phase A in one breath</h2>
+  <ul>
+    <li><strong>Issue 3</strong> — <code>revertCommit</code> can now take a <code>tx</code> handle (unlocks 2).</li>
+    <li><strong>Issue 2</strong> — undo is now one atomic transaction: no orphaned stars.</li>
+    <li><strong>Issue 1</strong> — approve's after-save bookkeeping is best-effort, can't error the request.</li>
+    <li><strong>Issue 4</strong> — cold-start captures the lead before flipping onboarding "done".</li>
+  </ul>
+  <p style="margin:.5em 0 0;color:#cfe7dd;font-size:14px;">Common thread: <b>define the state you're in when a step fails</b>, and make it a recoverable one.</p>
+</div>
+
+<!-- ─────────────── QUIZ ─────────────── -->
+<div class="quiz" id="quiz">
+  <span class="kicker">Check yourself</span>
+  <h2>Phase A knowledge check</h2>
+  <p class="sub">Six questions. You need <strong>5 / 6 (83%)</strong> to pass. Answers explained on submit.</p>
+
+  <div class="q" data-a="1">
+    <div class="qtext"><span class="qnum">Q1.</span> What is the core purpose of wrapping the undo logic in a <code>db.transaction</code>?</div>
+    <label class="opt"><input type="radio" name="q1" value="0">To make the undo run faster by batching queries.</label>
+    <label class="opt"><input type="radio" name="q1" value="1">So all the writes commit together or roll back together — no half-finished undo if a step fails.</label>
+    <label class="opt"><input type="radio" name="q1" value="2">To prevent other users from reading the data.</label>
+    <label class="opt"><input type="radio" name="q1" value="3">To automatically retry the operation if it fails.</label>
+    <div class="explain"><b>Atomicity.</b> A transaction's whole point is all-or-nothing. It's not primarily about speed, isolation from readers, or retries — it's that a crash mid-way leaves <em>no</em> partial change behind.</div>
+  </div>
+
+  <div class="q" data-a="2">
+    <div class="qtext"><span class="qnum">Q2.</span> Why did <code>revertCommit</code> need an optional <code>DbExecutor</code> parameter added <em>before</em> the undo transaction could work?</div>
+    <label class="opt"><input type="radio" name="q2" value="0">Because it was too slow using the global db.</label>
+    <label class="opt"><input type="radio" name="q2" value="1">Because TypeScript required a new type.</label>
+    <label class="opt"><input type="radio" name="q2" value="2">Because a write using the global <code>db</code> runs outside the transaction, so it wouldn't roll back with the rest.</label>
+    <label class="opt"><input type="radio" name="q2" value="3">Because reverts should never be undone.</label>
+    <div class="explain"><b>You must use the tx handle for every write.</b> If <code>revertCommit</code> kept using the global <code>db</code>, its deletes would escape the transaction — commit even if the surrounding tx rolled back. Threading the executor lets it use <code>tx</code>.</div>
+  </div>
+
+  <div class="q" data-a="2">
+    <div class="qtext"><span class="qnum">Q3.</span> Why do the strength snapshot and queue regeneration run <em>after</em> the transaction commits rather than inside it?</div>
+    <label class="opt"><input type="radio" name="q3" value="0">Because they're the most important part and need to go first.</label>
+    <label class="opt"><input type="radio" name="q3" value="1">Because transactions can't contain more than five writes.</label>
+    <label class="opt"><input type="radio" name="q3" value="2">Because they re-read the graph through the global <code>db</code>, which can't see the transaction's uncommitted changes — so they must run after commit to read the correct reverted state.</label>
+    <label class="opt"><input type="radio" name="q3" value="3">Because they don't touch the database at all.</label>
+    <div class="explain"><b>Visibility.</b> Reads through the global <code>db</code> can't see a transaction's uncommitted writes. Snapshotting inside the tx would record the <em>old</em> strength. Running after commit reads the true post-undo state.</div>
+  </div>
+
+  <div class="q" data-a="1">
+    <div class="qtext"><span class="qnum">Q4.</span> In Issue 1, approve's after-save steps were made "best-effort" (try/catch + log). Why is that <em>safe</em> to do here?</div>
+    <label class="opt"><input type="radio" name="q4" value="0">Because those steps never actually fail.</label>
+    <label class="opt"><input type="radio" name="q4" value="1">Because the important write already committed, and the queue regeneration is idempotent — it self-corrects on the next page load.</label>
+    <label class="opt"><input type="radio" name="q4" value="2">Because errors are always unimportant.</label>
+    <label class="opt"><input type="radio" name="q4" value="3">Because the user can't see errors anyway.</label>
+    <div class="explain"><b>Committed + idempotent.</b> Swallowing an error is only safe when nothing important is lost. The evidence was already saved in the tx, and regenerating the queue can be safely re-run — so logging and moving on is correct.</div>
+  </div>
+
+  <div class="q" data-a="3">
+    <div class="qtext"><span class="qnum">Q5.</span> What bad end-state did the Issue 4 reordering specifically prevent?</div>
+    <label class="opt"><input type="radio" name="q5" value="0">A CV with the wrong font.</label>
+    <label class="opt"><input type="radio" name="q5" value="1">The screening score being slightly off.</label>
+    <label class="opt"><input type="radio" name="q5" value="2">Two leads being created instead of one.</label>
+    <label class="opt"><input type="radio" name="q5" value="3">A "done" onboarding with an imported graph but no lead to land on (plus a raw error page).</label>
+    <div class="explain"><b>Orphaned "done" state.</b> Committing the graph and flipping onboarding to <code>done</code> before creating the lead meant a capture failure stranded the user in a finished-looking state with nowhere to go. Capturing the lead first fixes it.</div>
+  </div>
+
+  <div class="q" data-a="0">
+    <div class="qtext"><span class="qnum">Q6.</span> What does <code>asRevertPlan()</code> do, and what is it <em>not</em>?</div>
+    <label class="opt"><input type="radio" name="q6" value="0">It validates the shape of a revert plan read from the DB before acting on it — a defensive seatbelt, not a security boundary.</label>
+    <label class="opt"><input type="radio" name="q6" value="1">It encrypts the revert plan so users can't tamper with it.</label>
+    <label class="opt"><input type="radio" name="q6" value="2">It generates a new revert plan from scratch on every undo.</label>
+    <label class="opt"><input type="radio" name="q6" value="3">It reverts the plan immediately when called.</label>
+    <div class="explain"><b>Shape check.</b> Revert plans are written by our own commit code, so validating them guards against schema drift or a corrupt row (avoiding a crash on <code>undefined.length</code>) — it isn't defending against a malicious user, since users never author these.</div>
+  </div>
+
+  <button class="submit" onclick="grade()">Submit answers</button>
+  <div class="score" id="score"></div>
+</div>
+
+<footer>
+  Generated for Phase A of the Grok review remediation · RoleProof · branch <code>fix/grok-review-phase-a</code>.
+  Next up: <strong>Phase B</strong> — wiring the two half-finished pillars (dynamic target coverage &amp; provenance stamping).
+</footer>
+
+</div>
+<script>
+const PASS = 5, TOTAL = 6;
+function grade(){
+  let correct = 0;
+  for(let i=1;i<=TOTAL;i++){
+    const el = document.querySelectorAll('.q')[i-1];
+    const ans = parseInt(el.dataset.a,10);
+    const picked = el.querySelector('input[name=q'+i+']:checked');
+    el.querySelectorAll('.opt').forEach((o,idx)=>{
+      o.classList.remove('correct','wrong');
+      if(idx===ans) o.classList.add('correct');
+      if(picked && parseInt(picked.value,10)===idx && idx!==ans) o.classList.add('wrong');
+    });
+    el.querySelector('.explain').classList.add('show');
+    if(picked && parseInt(picked.value,10)===ans) correct++;
+  }
+  const s = document.getElementById('score');
+  const pass = correct >= PASS;
+  s.className = 'score show ' + (pass?'pass':'fail');
+  s.innerHTML = '<span class="big">'+correct+' / '+TOTAL+(pass?'  ✓ Passed':'  — not yet')+'</span>'+
+    (pass
+      ? 'You\'ve got Phase A. The through-line — <b>define your failure state and make it recoverable</b> — is exactly the lens we\'ll carry into Phase B.'
+      : 'Review the highlighted answers above (each has an explanation), then re-submit. You need '+PASS+' of '+TOTAL+'. The key concepts are <b>transactions</b>, <b>executor threading</b>, and <b>best-effort bookkeeping</b>.');
+  s.scrollIntoView({behavior:'smooth',block:'center'});
+}
+</script>
+</body>
+</html>

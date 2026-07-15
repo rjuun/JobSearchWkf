@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>M7 · Trust as a felt surface — morning review</title>
+<style>
+  :root{--proof:#0f7d5a;--proof-soft:#e6f4ee;--proof-deep:#0a5c42;--ink:#1a1c1a;--muted:#5c6360;--hair:#e3e6e4;--canvas:#f7f9f8;--surface:#fff;--amber:#b7791f;--amber-soft:#fdf6e7}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:32px 16px}
+  .wrap{max-width:860px;margin:0 auto}
+  header{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+  .badge{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:11px;background:var(--proof);color:#fff;font-weight:800}
+  h1{font-size:23px;margin:0;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin:2px 0 24px;font-size:13.5px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+  .pill.ok{background:var(--proof-soft);color:var(--proof-deep)}
+  .card{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:20px 22px;margin:16px 0;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .card h2{font-size:15px;margin:0 0 12px}
+  .row{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--hair)}
+  .row:last-child{border-bottom:0}
+  .tick{color:var(--proof);font-weight:800}
+  code{background:#f0f2f1;border-radius:5px;padding:1px 6px;font-size:12.5px;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+  .ledger{border:1px solid var(--hair);border-radius:10px;overflow:hidden}
+  .lrow{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-bottom:1px solid var(--hair);font-size:12.5px}
+  .lrow:last-child{border-bottom:0}
+  .ref{font-family:"JetBrains Mono",monospace;font-size:10px;font-weight:700;color:var(--proof-deep);background:var(--proof-soft);border:1px solid #cfe7dd;border-radius:5px;padding:2px 6px;white-space:nowrap}
+  .meta{color:var(--muted);font-size:10.5px}
+  .chip{background:#fff;border:1px solid var(--hair);border-radius:5px;padding:1px 6px;font-weight:600}
+  .foot{color:var(--muted);font-size:12.5px;text-align:center;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="badge">M7</div>
+    <div>
+      <h1>Trust as a felt surface</h1>
+      <div class="sub">The guarantee is now a computed truth you can click into · <span class="pill ok">✓ Complete</span></div>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>✨ The one-line</h2>
+    <p style="margin:0">"Every line is evidence-backed" used to be a sentence you had to trust. Now it's <b>computed from the data</b> and
+    you can open the proof trail: each CV line shows the graph <code>ref_code</code> it came from, <b>how it entered</b>, and
+    <b>that you approved it</b> — and the evidence you deliberately left off sits beside the CV as interview armament.</p>
+  </div>
+
+  <div class="card">
+    <h2>🧾 The proof trail (Show sources on every line)</h2>
+    <div class="ledger">
+      <div class="lrow"><span class="ref">2-1</span><span><span>Led global process ownership &amp; harmonisation…</span><br><span class="meta"><span class="chip">Imported</span> ✓ approved by you · Jul 1</span></span></div>
+      <div class="lrow"><span class="ref">A-R5</span><span><span>Owned global process harmonisation via the Ideal Outsourcing model…</span><br><span class="meta"><span class="chip">Coached</span> ✓ approved by you · Jul 1</span></span></div>
+      <div class="lrow"><span class="ref">G2</span><span><span>Established global process governance…</span><br><span class="meta"><span class="chip">Imported</span> ✓ approved by you · Jul 1</span></span></div>
+    </div>
+    <p style="margin:8px 0 0;font-size:12.5px;color:var(--muted)"><b style="color:var(--proof-deep)">12 / 12 lines, 100% traced</b> — computed, not asserted (verified on the seeded CV).</p>
+  </div>
+
+  <div class="card">
+    <h2>✅ What I changed</h2>
+    <div class="row"><span class="tick">✓</span><div><b>Provenance backbone:</b> tailoring rows now carry how a line entered (<code>prov_source</code>) and when you approved it (<code>approved_at</code>).</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Computed guarantee:</b> "0 unverifiable claims" comes from <code>provenanceCoverage</code> — if a Kept line ever lacked a source it would show a caution, not a false 100%.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Left out, on purpose:</b> dropped evidence sits <em>outside</em> the CV paper — "if they ask, here's your honest answer."</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>.docx re-skinned</b> to proof-green.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Tested invariant</b> (5 tests): coverage is 100% iff every Kept line has a ref.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>🔍 Code review (agent)</h2>
+    <p style="margin:0;font-size:13px;color:var(--muted)">Findings + resolutions are in <code>docs/milestones/M7.md</code>. Addressed before commit.</p>
+  </div>
+
+  <div class="card">
+    <h2>🧪 How to check it yourself</h2>
+    <ol style="margin:0;padding-left:20px">
+      <li><code>npm run seed &amp;&amp; npm run dev</code> → open <b>Change Manager @ RHI Magnesita</b>.</li>
+      <li>Expand <b>Show sources on every line</b> → ref / source / "approved by you" per line.</li>
+      <li>Download the <code>.docx</code> → proof-green accent.</li>
+    </ol>
+  </div>
+
+  <div class="foot">RoleProof · M7 of M0–M7 · the final milestone · generated for morning review</div>
+</div>
+</body>
+</html>

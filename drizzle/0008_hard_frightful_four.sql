@@ -1,0 +1,1 @@
+ALTER TABLE "coaching_answers" ADD COLUMN "revert" jsonb;

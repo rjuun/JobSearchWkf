@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>M1 · Strength that compounds — morning review</title>
+<style>
+  :root{--proof:#0f7d5a;--proof-soft:#e6f4ee;--proof-deep:#0a5c42;--ink:#1a1c1a;--muted:#5c6360;--hair:#e3e6e4;--canvas:#f7f9f8;--surface:#fff;--amber:#b7791f;--amber-soft:#fdf6e7}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:32px 16px}
+  .wrap{max-width:860px;margin:0 auto}
+  header{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+  .badge{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:11px;background:var(--proof);color:#fff;font-weight:800}
+  h1{font-size:23px;margin:0;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin:2px 0 24px;font-size:13.5px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+  .pill.ok{background:var(--proof-soft);color:var(--proof-deep)}
+  .pill.warn{background:var(--amber-soft);color:var(--amber)}
+  .card{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:20px 22px;margin:16px 0;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .card h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  code{background:#f0f2f1;border-radius:5px;padding:1px 6px;font-size:12.5px;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+  .row{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--hair)}
+  .row:last-child{border-bottom:0}
+  .tick{color:var(--proof);font-weight:800}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  td,th{text-align:left;padding:7px 8px;border-bottom:1px solid var(--hair);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px}
+  .meter{margin:14px 0}
+  .bar{position:relative;height:10px;border-radius:999px;background:#eef1f0;overflow:hidden}
+  .bar .ceil{position:absolute;inset:0 auto 0 0;background:var(--proof-soft);border-radius:999px}
+  .bar .fill{position:absolute;inset:0 auto 0 0;background:var(--proof);border-radius:999px}
+  .comp{display:grid;grid-template-columns:150px 1fr 54px;gap:10px;align-items:center;margin:7px 0;font-size:13px}
+  .comp .track{height:8px;border-radius:999px;background:#eef1f0;overflow:hidden}
+  .comp .t{height:100%;background:var(--proof);border-radius:999px}
+  .comp .t.locked{background:var(--amber)}
+  .foot{color:var(--muted);font-size:12.5px;text-align:center;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="badge">M1</div>
+    <div>
+      <h1>A strength model that compounds</h1>
+      <div class="sub">The meter is alive again — mid-band, with real headroom · <span class="pill ok">✓ Complete</span></div>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>✨ The one-line</h2>
+    <p style="margin:0">The old meter saturated at 100 and went dead. The new one is five honest dimensions, and the biggest slice —
+    <b>Relevancy to the roles you're chasing</b> — only fills as you prove those roles' requirements. Flagging a target unlocks
+    <em>headroom</em> (the ceiling grows) rather than dropping your score. The seed now reads a living <b>72/100 "Solid start"</b>.</p>
+  </div>
+
+  <div class="card">
+    <h2>📊 What the seed looks like now</h2>
+    <div class="meter">
+      <div class="bar"><div class="ceil" style="width:100%"></div><div class="fill" style="width:72%"></div></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px">72 / 100 · <b style="color:var(--proof-deep)">Solid start</b> · 28 points of headroom (ceiling unlocked by 3 flagged targets)</div>
+    </div>
+    <div class="comp"><span>Foundation</span><span class="track"><span class="t" style="width:100%"></span></span><span>25/25</span></div>
+    <div class="comp"><span>Quantified impact</span><span class="track"><span class="t" style="width:71%"></span></span><span>15.7/22</span></div>
+    <div class="comp"><span>ATS coverage</span><span class="track"><span class="t" style="width:76%"></span></span><span>9.9/13</span></div>
+    <div class="comp"><span>Freshness</span><span class="track"><span class="t" style="width:100%"></span></span><span>15/15</span></div>
+    <div class="comp"><span>Relevancy to targets</span><span class="track"><span class="t" style="width:26%"></span></span><span>6.5/25</span></div>
+  </div>
+
+  <div class="card">
+    <h2>✅ What I changed</h2>
+    <div class="row"><span class="tick">✓</span><div><b>Five-dimension model.</b> Foundation, Quantified impact, ATS coverage, Freshness, and Relevancy-to-targets — replacing the flat formula that maxed out on any decent profile.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Never saturates.</b> Relevancy follows a curve that approaches but never reaches its cap, and freshness decays over time — so there's always somewhere to grow.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Flag a target = new headroom.</b> A ★ toggle on each role. Flagging raises the ceiling (75 → 100) and pulls that role's requirements into the coach — it never <em>drops</em> your score.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Breakdown on the profile.</b> The strength hero now shows all five bars, the headroom, and a "flag a target to unlock" nudge when relevancy is locked.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>7 new tests</b> (33 total) — coverage grows, never-saturation, flag-raises-ceiling, no-drop-on-flag, freshness decay.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>🔍 Code review (agent) — all addressed</h2>
+    <table>
+      <tr><th>Finding</th><th>Fix</th></tr>
+      <tr><td>Relevancy kept counting a target after you applied/archived it</td><td>Coverage query now filters to in-play roles (matches the coach)</td></tr>
+      <tr><td>Freshness ignored education/languages edits</td><td>Added them to the freshness scan</td></tr>
+      <tr><td>A stray diagnostic file sat in the typecheck glob</td><td>Deleted</td></tr>
+      <tr><td>Headroom copy read oddly at a maxed graph</td><td>Reworded around the ceiling</td></tr>
+    </table>
+    <p style="margin:8px 0 0;font-size:13px;color:var(--muted)">Reviewer verified the strength math, ceiling/headroom, freshness decay, and coverage SQL are sound.</p>
+  </div>
+
+  <div class="card">
+    <h2>💭 A judgment call to sanity-check</h2>
+    <div class="row"><span style="color:var(--amber);font-weight:800">?</span><div>The plan said "seed lands ~60"; it lands <b>72</b>. This profile genuinely maxes Foundation and Freshness, so I widened the "Solid start" band to 50–79 rather than distort the model to hit a literal 60. The <em>intent</em> — not saturated, big visible headroom, a meter that moves — holds. If you'd prefer it read closer to 60, say the word and I'll rebalance the weights.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>🧪 How to check it yourself</h2>
+    <ol style="margin:0;padding-left:20px">
+      <li><code>npm run db:migrate &amp;&amp; npm run seed &amp;&amp; npm run dev</code></li>
+      <li><code>/profile</code> → strength <b>72 · Solid start</b>, five-bar breakdown, "28 points of headroom".</li>
+      <li>Open a lead → <b>☆ Flag as target</b> → coach gains its requirements; profile relevancy/headroom shifts.</li>
+    </ol>
+  </div>
+
+  <div class="foot">RoleProof · M1 of M0–M7 · generated for morning review</div>
+</div>
+</body>
+</html>

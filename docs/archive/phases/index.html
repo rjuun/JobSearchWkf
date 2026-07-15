@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Review · JobSearch Camunda</title>
+<style>
+  :root{--bg:#f5f6fb;--ink:#1e2233;--muted:#6b7280;--line:#e6e8f0;--brand:#4f46e5;--green:#16a34a;--card:#fff;--shadow:0 1px 2px rgba(16,24,40,.04),0 10px 30px rgba(16,24,40,.07)}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:30px 22px 80px}
+  a{text-decoration:none;color:inherit}
+  .hero{position:relative;overflow:hidden;border-radius:22px;padding:40px;color:#fff;background:linear-gradient(120deg,#312e81 0%,#4f46e5 50%,#7c3aed 100%);box-shadow:var(--shadow)}
+  .hero:after{content:"";position:absolute;right:-50px;top:-70px;width:300px;height:300px;border-radius:50%;background:rgba(255,255,255,.08)}
+  .eyebrow{font-size:12px;letter-spacing:.2em;text-transform:uppercase;font-weight:700;opacity:.85}
+  .hero h1{margin:.3em 0 .2em;font-size:34px;letter-spacing:-.025em}
+  .hero p{margin:0;max-width:64ch;opacity:.95}
+  .lead{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px;font-size:13px}
+  .lead span{display:inline-flex;align-items:center;gap:7px;opacity:.95}
+  .lead b{font-weight:700}
+  h2{font-size:15px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:34px 0 14px}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .pcard{display:block;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:var(--shadow);transition:transform .12s ease,box-shadow .12s ease}
+  .pcard:hover{transform:translateY(-3px);box-shadow:0 16px 40px rgba(16,24,40,.12)}
+  .pcard .top{display:flex;align-items:center;justify-content:space-between}
+  .pkey{font-size:12px;font-weight:800;letter-spacing:.08em;color:var(--brand)}
+  .done{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--green);background:#ecfdf5;border:1px solid #bbf7d0;border-radius:999px;padding:3px 10px}
+  .pcard h3{margin:12px 0 6px;font-size:18px;letter-spacing:-.01em}
+  .pcard p{margin:0;color:var(--muted);font-size:13.5px}
+  .pcard .go{margin-top:12px;font-size:13px;font-weight:600;color:var(--brand)}
+  .bar{height:5px;border-radius:5px;margin-top:14px;background:linear-gradient(90deg,#6366f1,#a855f7)}
+  .retro{display:block;background:linear-gradient(120deg,#0f172a,#1e1b4b);color:#fff;border-radius:18px;padding:24px 26px;box-shadow:var(--shadow);transition:transform .12s ease}
+  .retro:hover{transform:translateY(-3px)}
+  .retro h3{margin:0 0 6px;font-size:20px}
+  .retro p{margin:0;opacity:.85;font-size:14px;max-width:70ch}
+  .retro .go{margin-top:12px;font-weight:700;font-size:13px;color:#c4b5fd}
+  .foot{margin-top:30px;color:var(--muted);font-size:13px}
+  .foot code{font-family:ui-monospace,Menlo,monospace;background:#eef1f7;border-radius:5px;padding:1px 5px}
+  @media(max-width:780px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="eyebrow">JobSearch Camunda · Build Review</div>
+    <h1>From methodology to working prototype</h1>
+    <p>A document-driven, agentic job-search system — rebuilt across five phases into a runnable,
+       demo-ready SaaS. Each card opens that phase's review page; the retrospective ties it together.</p>
+    <div class="lead">
+      <span><b>5</b> phases</span>
+      <span><b>134</b> real leads</span>
+      <span><b>B1–B6</b> screening</span>
+      <span><b>C1–C7</b> tailoring</span>
+      <span><b>2-page .docx</b> output</span>
+    </div>
+  </div>
+
+  <a class="retro" href="roots-review.html" style="margin-top:22px;background:linear-gradient(120deg,#1e1b4b 0%,#4338ca 40%,#7c3aed 85%)">
+    <div class="eyebrow" style="opacity:.85;color:#fff">Roots review · updated 30 Jun 2026</div>
+    <h3 style="margin-top:8px">Manual process vs what you have now</h3>
+    <p>Full comparison with live screenshots of RoleProof — now <b>including the refactor + presentation pass</b>
+       (live DeepSeek tailoring, real-template CV, restored CI dashboard, before/after shots). The single
+       canonical copy, mapped step-by-step to <code style="background:rgba(255,255,255,.12);color:#e9d5ff;border-radius:5px;padding:1px 6px;font-family:ui-monospace,Menlo,monospace;font-size:12px">Process/*.md</code>.</p>
+    <div class="go" style="color:#c4b5fd">Open the roots review →</div>
+  </a>
+
+  <a class="retro" href="o4-multitenant.html" style="margin-top:16px;background:linear-gradient(120deg,#0f172a,#334155 50%,#4f46e5)">
+    <div class="eyebrow" style="opacity:.85;color:#fff">Latest · O4 — Multi-tenant</div>
+    <h3 style="margin-top:8px">Sign up → your own isolated Career Graph</h3>
+    <p>Anyone can create an account and gets their own empty, private graph — real multi-tenancy on the
+       <code style="background:rgba(255,255,255,.12);color:#e9d5ff;border-radius:5px;padding:1px 6px;font-family:ui-monospace,Menlo,monospace;font-size:12px">owner_id = auth.uid()</code>
+       model that becomes Supabase RLS on deploy. With screenshots proving isolation, the reasoning, and the open gaps.</p>
+    <div class="go" style="color:#c4b5fd">Open the O4 review →</div>
+  </a>
+
+  <a class="retro" href="o3-coaching.html" style="margin-top:16px;background:linear-gradient(120deg,#0f172a,#0d9488 60%,#4f46e5)">
+    <div class="eyebrow" style="opacity:.85;color:#fff">Phase · O3 — Coach &amp; enrich</div>
+    <h3 style="margin-top:8px">Spots what's under-told → asks → your graph gets stronger</h3>
+    <p>The AI finds the missing metric, the missing keyword, the missing scope — and asks one question
+       at a time. Answers become honest evidence (never an invented number), and every node now shows
+       where it came from. With screenshots, reasoning, and the open gaps.</p>
+    <div class="go" style="color:#c4b5fd">Open the O3 review →</div>
+  </a>
+
+  <a class="retro" href="o2-onboarding.html" style="margin-top:16px;background:linear-gradient(120deg,#0f172a,#4338ca 55%,#7c3aed)">
+    <div class="eyebrow" style="opacity:.85;color:#fff">Phase · O2 — Build with AI</div>
+    <h3 style="margin-top:8px">Import → AI drafts → you curate → committed</h3>
+    <p>Paste a CV; the AI drafts a Career Graph; you approve what's true. The import half of hybrid
+       onboarding — staged, never auto-saved, and it never invents a metric. With screenshots, reasoning,
+       and the gaps still open.</p>
+    <div class="go" style="color:#c4b5fd">Open the O2 review →</div>
+  </a>
+
+  <a class="retro" href="user-journey.html" style="margin-top:16px;background:linear-gradient(120deg,#0f172a,#312e81 45%,#4f46e5)">
+    <div class="eyebrow" style="opacity:.85;color:#fff">Plan · User Journey &amp; the Career Graph</div>
+    <h3 style="margin-top:8px">Your inputs are the moat → a plan for new users</h3>
+    <p>A first-principles plan to make the system approachable and extensible to new users: build the
+       evidence base — the <b>Career Graph</b> — in minutes via hybrid onboarding (import, then AI
+       coaching), with the human curating every claim. Strategy, journey, roadmap, and a buildable
+       onboarding spec.</p>
+    <div class="go" style="color:#c4b5fd">Open the user-journey plan →</div>
+  </a>
+
+  <a class="retro" href="design-system.html" style="margin-top:16px;background:linear-gradient(120deg,#312e81,#4f46e5 55%,#7c3aed)">
+    <div class="eyebrow" style="opacity:.85;color:#fff">Phase · Experience &amp; Design System</div>
+    <h3 style="margin-top:8px">Quiet confidence, a journey you can feel →</h3>
+    <p>After P1–P5, the prototype was refined into a polished design language and a re-architected,
+       journey-first UX — a visible pipeline spine, a score-forward "mission control," and one obvious
+       next move at every step. Tokens, the component kit, the journey model and accessibility.</p>
+    <div class="go" style="color:#c4b5fd">Open the design-system review →</div>
+  </a>
+
+  <h2>The five phases</h2>
+  <div class="grid">
+    <a class="pcard" href="P1-foundation.html">
+      <div class="top"><span class="pkey">PHASE 1</span><span class="done">✓ done</span></div>
+      <h3>Foundation</h3>
+      <p>Schema, auth and a seed importer — the app serves 134 of your real leads straight from Postgres.</p>
+      <div class="go">Open review →</div><div class="bar" style="width:100%"></div>
+    </a>
+    <a class="pcard" href="P2-screening.html">
+      <div class="top"><span class="pkey">PHASE 2</span><span class="done">✓ done</span></div>
+      <h3>Screening &amp; scoring</h3>
+      <p>The B1–B6 pipeline producing a reproducible Role Fit Score — the LLM judges, the code computes.</p>
+      <div class="go">Open review →</div><div class="bar" style="width:100%"></div>
+    </a>
+    <a class="pcard" href="P3-tailoring.html">
+      <div class="top"><span class="pkey">PHASE 3</span><span class="done">✓ done</span></div>
+      <h3>Tailoring &amp; CV</h3>
+      <p>C1–C7 with a human Keep/Maybe/Drop gate, generating a downloadable, evidence-backed CV.</p>
+      <div class="go">Open review →</div><div class="bar" style="width:100%"></div>
+    </a>
+    <a class="pcard" href="P4-dashboard.html">
+      <div class="top"><span class="pkey">PHASE 4</span><span class="done">✓ done</span></div>
+      <h3>Dashboard &amp; polish</h3>
+      <p>Funnel, fit distribution, the improvement loop and AI usage — plus loading, error and empty states.</p>
+      <div class="go">Open review →</div><div class="bar" style="width:100%"></div>
+    </a>
+    <a class="pcard" href="P5-deploy.html">
+      <div class="top"><span class="pkey">PHASE 5</span><span class="done">✓ done</span></div>
+      <h3>Deploy &amp; share</h3>
+      <p>Supabase-ready storage, a health probe and a concrete runbook to a shareable, auth-gated URL.</p>
+      <div class="go">Open review →</div><div class="bar" style="width:100%"></div>
+    </a>
+    <a class="pcard" href="retrospective.html" style="display:flex;flex-direction:column;justify-content:center;background:linear-gradient(135deg,#faf5ff,#eff6ff);border-color:#ddd6fe">
+      <div class="top"><span class="pkey" style="color:#7c3aed">SUMMARY</span></div>
+      <h3>Retrospective →</h3>
+      <p>Decisions, gaps, what's pending, and the suggested future phases (P6–P10).</p>
+      <div class="go" style="color:#7c3aed">Open the retrospective →</div>
+    </a>
+  </div>
+
+  <h2 style="margin-top:34px">Read the technical detail</h2>
+  <a class="retro" href="retrospective.html">
+    <h3>Decisions, gaps &amp; the road ahead</h3>
+    <p>Every phase also has a long-term Markdown write-up in <code style="background:rgba(255,255,255,.12);color:#e9d5ff;border-radius:5px;padding:1px 6px;font-family:ui-monospace,Menlo,monospace;font-size:12px">docs/phases/*.md</code>, and the full retrospective lives in <code style="background:rgba(255,255,255,.12);color:#e9d5ff;border-radius:5px;padding:1px 6px;font-family:ui-monospace,Menlo,monospace;font-size:12px">docs/RETROSPECTIVE.md</code>. The HTML pages are for review; the Markdown is the long-term record.</p>
+    <div class="go">Open the retrospective →</div>
+  </a>
+
+  <p class="foot">
+    Run it: <code>npm run db:migrate &amp;&amp; npm run seed &amp;&amp; npm run dev</code> → <code>localhost:3000</code>.
+    Architecture &amp; data model in <code>docs/</code>.
+  </p>
+
+</div>
+</body>
+</html>

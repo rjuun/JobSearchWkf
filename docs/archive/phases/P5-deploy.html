@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>P5 — Deploy &amp; Share · JobSearch Camunda</title>
+<style>
+  :root{--bg:#f5f6fb;--ink:#1e2233;--muted:#6b7280;--line:#e6e8f0;--brand:#4f46e5;--green:#16a34a;--card:#fff;--shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06)}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 22px 80px}
+  a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85em;background:#f1f3f9;border-radius:5px;padding:1px 5px}
+  .hero{position:relative;overflow:hidden;border-radius:20px;padding:34px;color:#fff;background:linear-gradient(135deg,#059669 0%,#0d9488 50%,#0891b2 100%);box-shadow:var(--shadow)}
+  .hero:after{content:"";position:absolute;right:-60px;top:-60px;width:240px;height:240px;border-radius:50%;background:rgba(255,255,255,.10)}
+  .eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;opacity:.85}
+  .hero h1{margin:.3em 0 .15em;font-size:30px;letter-spacing:-.02em}
+  .hero p{margin:.2em 0 0;max-width:64ch;opacity:.94}
+  .status{display:inline-flex;align-items:center;gap:7px;margin-top:16px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.28);padding:5px 12px;border-radius:999px;font-size:13px;font-weight:600}
+  .dot{width:8px;height:8px;border-radius:50%;background:#fde68a;box-shadow:0 0 0 3px rgba(253,230,138,.3)}
+  h2{font-size:19px;margin:34px 0 14px;letter-spacing:-.01em}
+  h2 .num{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:7px;background:#ecfdf5;color:#059669;font-size:13px;margin-right:9px;vertical-align:middle}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 17px;box-shadow:var(--shadow)}
+  .card h3{margin:0 0 6px;font-size:15px}.card p{margin:0;color:var(--muted);font-size:14px}
+  .tag{display:inline-block;font-size:11px;font-weight:600;color:#059669;background:#ecfdf5;border-radius:6px;padding:2px 7px;margin-bottom:8px}
+  ol.run{counter-reset:s;list-style:none;padding:0;margin:0;display:grid;gap:10px}
+  ol.run li{position:relative;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px 13px 50px;box-shadow:var(--shadow);font-size:14px}
+  ol.run li:before{counter-increment:s;content:counter(s);position:absolute;left:13px;top:12px;width:24px;height:24px;border-radius:50%;background:#059669;color:#fff;display:grid;place-items:center;font-size:13px;font-weight:700}
+  ol.run b{color:var(--ink)}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .ok{border-left:3px solid #16a34a}.todo{border-left:3px solid #f59e0b}
+  ul.list{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+  ul.list li{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px 13px;box-shadow:var(--shadow);font-size:13px}
+  .note{font-size:13px;color:var(--muted);background:#f8f9ff;border:1px dashed var(--line);border-radius:12px;padding:13px 15px}
+  footer{margin-top:42px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  @media(max-width:760px){.grid,.split{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="eyebrow">Phase 5 · Deploy</div>
+    <h1>Hardening &amp; share prep</h1>
+    <p>Everything needed to put the prototype behind a shareable, auth-gated URL — a Supabase-ready
+       storage backend, a health probe, server-only secrets, and a concrete deploy runbook.</p>
+    <div class="status"><span class="dot"></span> Code-ready · provisioning is the owner's step</div>
+  </div>
+
+  <h2><span class="num">1</span>Production hardening</h2>
+  <div class="grid">
+    <div class="card"><span class="tag">Storage</span><h3>Supabase or filesystem, by env</h3>
+      <p>Storage switches to a Supabase bucket when <code>SUPABASE_URL</code> +
+         <code>SUPABASE_SERVICE_ROLE_KEY</code> are set (Vercel's disk is ephemeral); local dev stays
+         on the filesystem. Same API.</p></div>
+    <div class="card"><span class="tag">Probe</span><h3>/api/health</h3>
+      <p>Public readiness check → <code>{ ok, db, storage, llm }</code> with 200/503, so you can see at
+         a glance that prod is wired correctly.</p></div>
+    <div class="card"><span class="tag">Secrets</span><h3>Server-only, secure cookies</h3>
+      <p>Service-role and Anthropic keys never reach the browser; the session cookie is
+         <code>secure</code> in production; all LLM calls run server-side.</p></div>
+    <div class="card"><span class="tag">Live LLM</span><h3>One env switch</h3>
+      <p><code>LLM_MODE=live</code> + <code>ANTHROPIC_API_KEY</code> flips every step from deterministic
+         mocks to real Claude calls — no code change.</p></div>
+  </div>
+
+  <h2><span class="num">2</span>The deploy runbook</h2>
+  <ol class="run">
+    <li><b>Supabase project</b> — copy the Postgres URL into <code>DATABASE_URL</code>; create a private <code>jobsearch</code> bucket; set the Supabase env vars.</li>
+    <li><b>Schema</b> — <code>npm run db:migrate</code> against the prod database.</li>
+    <li><b>Seed</b> — locally, with prod env, <code>npm run seed</code> (your real workbooks → prod Postgres + Storage).</li>
+    <li><b>Secrets</b> — set <code>APP_EMAIL/PASSWORD</code>, a strong <code>SESSION_SECRET</code>, <code>LLM_MODE=live</code>, <code>ANTHROPIC_API_KEY</code> in Vercel.</li>
+    <li><b>Vercel</b> — import the repo (Next.js auto-detected), add env vars, deploy.</li>
+    <li><b>Share</b> — add a domain; the login middleware already gates everything, so a shared link shows a sign-in wall. Check <code>/api/health</code>.</li>
+  </ol>
+
+  <h2><span class="num">3</span>Verified vs. needs your accounts</h2>
+  <div class="split">
+    <div>
+      <ul class="list">
+        <li class="ok"><b>✓ Verified here:</b> build with the Supabase client bundled; the filesystem storage path (CV generates &amp; downloads); the health route registered.</li>
+      </ul>
+    </div>
+    <div>
+      <ul class="list">
+        <li class="todo"><b>Needs your cloud:</b> the live Supabase Storage round-trip, live Anthropic calls, and the Vercel deploy — all in place, selected by env.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2><span class="num">4</span>Recorded deviations</h2>
+  <div class="note">
+    <b>Drizzle migrations</b> (not the Supabase CLI) — Supabase is just the Postgres host.
+    <b>Custom single-user auth</b> (not Supabase Auth): the app connects with a privileged role, so RLS
+    isn't the enforcement boundary yet — app-layer <code>owner_id</code> scoping is. Going multi-user
+    means adopting Supabase Auth + RLS (the schema already carries <code>owner_id</code>).
+    <b>Cost:</b> Anthropic usage is the only real spend — single-digit dollars for a demo; Supabase +
+    Vercel free tiers suffice.
+  </div>
+
+  <footer>
+    <span>JobSearch&nbsp;Camunda · Phase 5 of 5</span>
+    <span><a href="P4-dashboard.html">← P4 · Dashboard</a> &nbsp;·&nbsp; <a href="index.html">Review index →</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

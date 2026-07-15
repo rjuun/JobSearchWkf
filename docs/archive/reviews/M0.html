@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>M0 · Demo integrity — morning review</title>
+<style>
+  :root {
+    --proof:#0f7d5a; --proof-soft:#e6f4ee; --proof-deep:#0a5c42;
+    --ink:#1a1c1a; --muted:#5c6360; --hair:#e3e6e4; --canvas:#f7f9f8; --surface:#fff;
+    --amber:#b7791f; --amber-soft:#fdf6e7; --rose:#b4443a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:32px 16px}
+  .wrap{max-width:860px;margin:0 auto}
+  header{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+  .badge{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:11px;background:var(--proof);color:#fff;font-weight:800;font-size:15px}
+  h1{font-size:23px;margin:0;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin:2px 0 24px;font-size:13.5px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+  .pill.ok{background:var(--proof-soft);color:var(--proof-deep)}
+  .pill.warn{background:var(--amber-soft);color:var(--amber)}
+  .card{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:20px 22px;margin:16px 0;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .card h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .card h2 .ic{font-size:16px}
+  ul{margin:8px 0;padding-left:20px}
+  li{margin:5px 0}
+  .row{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--hair)}
+  .row:last-child{border-bottom:0}
+  .tick{color:var(--proof);font-weight:800}
+  .warnmark{color:var(--amber);font-weight:800}
+  code{background:#f0f2f1;border-radius:5px;padding:1px 6px;font-size:12.5px;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:640px){.grid{grid-template-columns:1fr}}
+  .kpi{background:var(--proof-soft);border-radius:10px;padding:12px 14px}
+  .kpi b{font-size:20px;color:var(--proof-deep);display:block}
+  .kpi span{font-size:12px;color:var(--muted)}
+  .foot{color:var(--muted);font-size:12.5px;text-align:center;margin-top:24px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  td,th{text-align:left;padding:7px 8px;border-bottom:1px solid var(--hair);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="badge">M0</div>
+    <div>
+      <h1>Demo integrity — the blocker</h1>
+      <div class="sub">The demo now tells the same story as the pitch · <span class="pill ok">✓ Complete</span></div>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2><span class="ic">✨</span> The one-line</h2>
+    <p style="margin:0">A fresh seed used to saturate the strength meter, leave the coach with nothing to ask, show a
+    name/email mismatch, and — quietly — leave <em>every</em> CV empty. M0 fixes all of that: one coherent persona,
+    believable gaps that give the coach 27 real prompts, and a genuine finished CV whose every line traces to approved evidence.</p>
+  </div>
+
+  <div class="grid">
+    <div class="kpi"><b>27</b><span>coach prompts, across all 4 engines</span></div>
+    <div class="kpi"><b>12/12</b><span>lines traced on the ready CV</span></div>
+    <div class="kpi"><b>4</b><span>funnel stages populated</span></div>
+    <div class="kpi"><b>0</b><span>dev chrome in the demo</span></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="ic">✅</span> What I changed</h2>
+    <div class="row"><span class="tick">✓</span><div><b>Coherent persona.</b> Reginaldo "Reggie" Silva Junior now has his own email <code>reginaldo.silvajr@gmail.com</code>, separate from the off-screen login. No more Reggie/rafael.perez3d mismatch.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Deliberate, believable gaps.</b> 2 stories without a metric, 6 skills without ATS variants, 1 role without a one-line scope — so the meter isn't dead and the coach has specific asks.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>A real "ready" CV.</b> "Change Manager @ RHI Magnesita" now carries 12 human-approved, traced lines and a downloadable <code>.docx</code>. (A fresh seed linked <em>no</em> tailoring to any lead before — every CV was empty.)</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Dev chrome gone.</b> The MOCK/LIVE pill is off unless <code>SHOW_LLM_PILL=1</code>.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>A 5-minute runbook</b> at <code>docs/DEMO_RUNBOOK.md</code>.</div></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="ic">🔍</span> Code review (agent) — all addressed</h2>
+    <table>
+      <tr><th>Finding</th><th>Fix</th></tr>
+      <tr><td>Golden CV could silently vanish if no lead matched</td><td>Loud warning on miss</td></tr>
+      <tr><td>Metric-gap could no-op silently if refs change</td><td>Parameterized <code>inArray</code> + row-count guard</td></tr>
+      <tr><td>Hand-built SQL <code>IN</code>-list</td><td>Replaced with drizzle <code>inArray</code></td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2><span class="ic">⚠️</span> One thing to know (by design)</h2>
+    <div class="row"><span class="warnmark">!</span><div><b>The meter reads ~89 "Strong", not ~60 "Solid" yet.</b> That number is an <b>M1</b> mechanism, not a bug: today's formula has a hard floor of ~60, so gaps can't pull it into mid-band. M1's new model adds Relevancy + Freshness dimensions that start empty on a fresh seed — that's what creates the headroom and lands the same seed at ~60. <span class="pill warn">fixed in M1</span></div></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="ic">🧪</span> How to check it yourself</h2>
+    <ol style="margin:0;padding-left:20px">
+      <li><code>npm run db:migrate &amp;&amp; npx tsx scripts/seed-users.ts &amp;&amp; npm run seed</code></li>
+      <li><code>npm run dev</code> → sign in.</li>
+      <li><code>/profile/coach</code> — 3+ specific, varied prompts.</li>
+      <li><code>/roleproof</code> → open <b>Change Manager @ RHI Magnesita</b> → expand <b>Provenance</b> → Download.</li>
+      <li>Header has no MOCK/LIVE pill.</li>
+    </ol>
+  </div>
+
+  <div class="foot">RoleProof · M0 of M0–M7 · generated for morning review</div>
+</div>
+</body>
+</html>

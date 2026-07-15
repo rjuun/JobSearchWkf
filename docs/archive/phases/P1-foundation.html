@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>P1 — Foundation · JobSearch Camunda</title>
+<style>
+  :root{
+    --bg:#f5f6fb; --ink:#1e2233; --muted:#6b7280; --line:#e6e8f0;
+    --brand:#4f46e5; --brand2:#7c3aed; --green:#16a34a; --amber:#d97706; --rose:#e11d48;
+    --card:#ffffff; --shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;
+    line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 22px 80px}
+  a{color:var(--brand);text-decoration:none} a:hover{text-decoration:underline}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.86em}
+
+  .hero{position:relative;overflow:hidden;border-radius:20px;padding:34px 34px 30px;color:#fff;
+    background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 55%,#9333ea 100%);box-shadow:var(--shadow)}
+  .hero:after{content:"";position:absolute;right:-60px;top:-60px;width:240px;height:240px;border-radius:50%;
+    background:rgba(255,255,255,.10)}
+  .eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;opacity:.85}
+  .hero h1{margin:.3em 0 .15em;font-size:30px;letter-spacing:-.02em}
+  .hero p{margin:.2em 0 0;max-width:62ch;opacity:.94}
+  .status{display:inline-flex;align-items:center;gap:7px;margin-top:16px;background:rgba(255,255,255,.18);
+    border:1px solid rgba(255,255,255,.28);padding:5px 12px;border-radius:999px;font-size:13px;font-weight:600}
+  .dot{width:8px;height:8px;border-radius:50%;background:#86efac;box-shadow:0 0 0 3px rgba(134,239,172,.3)}
+
+  .stats{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin:22px 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 12px;text-align:center;box-shadow:var(--shadow)}
+  .stat b{display:block;font-size:24px;letter-spacing:-.02em}
+  .stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+
+  h2{font-size:19px;margin:34px 0 14px;letter-spacing:-.01em}
+  h2 .num{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:7px;background:#eef2ff;color:var(--brand);font-size:13px;margin-right:9px;vertical-align:middle}
+
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 17px;box-shadow:var(--shadow)}
+  .card h3{margin:0 0 6px;font-size:15px}
+  .card p{margin:0;color:var(--muted);font-size:14px}
+  .tag{display:inline-block;font-size:11px;font-weight:600;color:var(--brand);background:#eef2ff;border-radius:6px;padding:2px 7px;margin-bottom:8px}
+
+  ul.checks{list-style:none;padding:0;margin:0;display:grid;gap:9px}
+  ul.checks li{display:flex;gap:11px;align-items:flex-start;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;padding:12px 14px;box-shadow:var(--shadow)}
+  .ck{flex:none;width:20px;height:20px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;font-size:12px;margin-top:1px}
+
+  .flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:18px;box-shadow:var(--shadow)}
+  .node{flex:1;min-width:120px;text-align:center;padding:12px 8px}
+  .node .ic{font-size:22px}
+  .node b{display:block;font-size:13px;margin-top:6px}
+  .node span{font-size:11px;color:var(--muted)}
+  .arrow{display:flex;align-items:center;color:#c7cbe0;font-size:20px;padding:0 2px}
+
+  .barrow{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:13px}
+  .barrow .lbl{width:150px;color:var(--muted);text-align:right}
+  .bar{height:9px;border-radius:6px;background:linear-gradient(90deg,#6366f1,#a855f7)}
+  .barrow .v{font-variant-numeric:tabular-nums;font-weight:600}
+
+  .note{font-size:13px;color:var(--muted);background:#f8f9ff;border:1px dashed var(--line);border-radius:12px;padding:13px 15px}
+  pre{background:#0f1222;color:#e7e9f5;border-radius:12px;padding:14px 16px;overflow:auto;font-size:12.5px;line-height:1.5}
+  footer{margin-top:42px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  @media(max-width:760px){.stats{grid-template-columns:repeat(3,1fr)}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="eyebrow">Phase 1 · Foundation</div>
+    <h1>Schema, Auth &amp; Seed</h1>
+    <p>Stand up a real, authenticated app holding the owner's actual career data — the skeleton
+       every later phase builds on. No mock rows: the lead board reads 134 real opportunities
+       straight from Postgres.</p>
+    <div class="status"><span class="dot"></span> Complete &amp; verified</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b>134</b><span>Leads</span></div>
+    <div class="stat"><b>197</b><span>Requirements</span></div>
+    <div class="stat"><b>24</b><span>Tables</span></div>
+    <div class="stat"><b>21</b><span>Bullet bank</span></div>
+    <div class="stat"><b>25</b><span>Skills</span></div>
+    <div class="stat"><b>10</b><span>CI items</span></div>
+  </div>
+
+  <h2><span class="num">1</span>What was built</h2>
+  <div class="grid">
+    <div class="card"><span class="tag">Database</span><h3>Drizzle schema + migration</h3>
+      <p>24 tables &amp; 4 enums covering the evidence side (STARs, bullet bank, skills) and the
+         pipeline side (leads, requirements, tailoring), generated &amp; applied to Postgres.</p></div>
+    <div class="card"><span class="tag">Auth</span><h3>Single-user session gate</h3>
+      <p>jose-signed cookie + edge-safe <code>lib/session.ts</code>; middleware gates every route
+         except <code>/login</code> and the bookmarklet endpoint.</p></div>
+    <div class="card"><span class="tag">Seed</span><h3>Workbook → Postgres importer</h3>
+      <p>One idempotent script reads both Excel workbooks + 25 JD markdown files, linking
+         requirements and captured JDs to their leads.</p></div>
+    <div class="card"><span class="tag">Storage</span><h3>Filesystem adapter</h3>
+      <p>Bucket-relative read/write API for JD captures &amp; CVs — maps 1:1 to Supabase Storage
+         in production.</p></div>
+    <div class="card"><span class="tag">UI</span><h3>Lead board &amp; detail</h3>
+      <p>Sortable board with fit scores + a rich lead detail (screening snapshot, 17-skill grid,
+         requirements table, captured JD).</p></div>
+    <div class="card"><span class="tag">Client</span><h3>Hot-reload-safe DB</h3>
+      <p>Drizzle over postgres.js as a singleton, with typed query helpers and the B6 rank-weight
+         map ready for scoring.</p></div>
+  </div>
+
+  <h2><span class="num">2</span>How the data flows</h2>
+  <div class="flow">
+    <div class="node"><div class="ic">📊</div><b>Excel workbooks</b><span>profile + tracker</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="ic">🌱</div><b>seed.ts</b><span>parse + link</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="ic">🐘</div><b>Postgres</b><span>24 tables</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="ic">▲</div><b>Next.js</b><span>RSC + queries</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="ic">🖥️</div><b>Lead board</b><span>authenticated</span></div>
+  </div>
+
+  <h2><span class="num">3</span>What was seeded</h2>
+  <div class="card">
+    <div class="barrow"><span class="lbl">Job leads</span><div class="bar" style="width:100%"></div><span class="v">134</span></div>
+    <div class="barrow"><span class="lbl">Companies</span><div class="bar" style="width:99%"></div><span class="v">133</span></div>
+    <div class="barrow"><span class="lbl">Requirements</span><div class="bar" style="width:74%"></div><span class="v">197</span></div>
+    <div class="barrow"><span class="lbl">STAR actions</span><div class="bar" style="width:38%"></div><span class="v">51</span></div>
+    <div class="barrow"><span class="lbl">Skills master</span><div class="bar" style="width:19%"></div><span class="v">25</span></div>
+    <div class="barrow"><span class="lbl">Bullet bank</span><div class="bar" style="width:16%"></div><span class="v">21</span></div>
+    <div class="barrow"><span class="lbl">Tailoring examples</span><div class="bar" style="width:19%"></div><span class="v">26</span></div>
+    <p style="margin:12px 0 0;color:var(--muted);font-size:13px">…plus 6 positions, 7 STARs, 22 results, education, languages, 18 offices, 6 JD groups, 10 CV variants and 10 CI initiatives.</p>
+  </div>
+
+  <h2><span class="num">4</span>Acceptance — verified end to end</h2>
+  <ul class="checks">
+    <li><span class="ck">✓</span><div><b>Auth gate works.</b> Unauthenticated <code>GET /leads</code> redirects to <code>/login</code> (307).</div></li>
+    <li><span class="ck">✓</span><div><b>Real data renders.</b> The authenticated board lists all 134 leads — ABN AMRO, Miro, Western Union… — read from Postgres.</div></li>
+    <li><span class="ck">✓</span><div><b>Lead detail is rich.</b> Requirements, role-fit breakdown, 17-dimension skill ratings and the captured JD all render (HTTP 200).</div></li>
+    <li><span class="ck">✓</span><div><b>Build is green.</b> All routes + middleware compile; typecheck passes including the seed scripts.</div></li>
+  </ul>
+
+  <h2><span class="num">5</span>Key decisions</h2>
+  <div class="grid">
+    <div class="card"><h3>Local Postgres, Supabase-shaped</h3>
+      <p>No Docker on the build box → the demo runs on Homebrew Postgres via Drizzle. Supabase
+         <em>is</em> Postgres, so the same schema + <code>DATABASE_URL</code> point at the cloud in P5
+         with no code change.</p></div>
+    <div class="card"><h3>Adapters for auth &amp; storage</h3>
+      <p>Thin <code>lib/auth.ts</code> and <code>lib/storage.ts</code> mean swapping to Supabase
+         Auth/Storage later is an implementation detail, not a rewrite.</p></div>
+    <div class="card"><h3>owner_id everywhere, RLS later</h3>
+      <p>Every table carries <code>owner_id</code> (one demo owner). App-layer scoping now; Supabase
+         RLS <code>owner_id = auth.uid()</code> is the clean multi-user step.</p></div>
+    <div class="card"><h3>Index-based seed parsing</h3>
+      <p>Banner rows + multi-word headers make the workbooks fiddly; the importer reads by fixed
+         column index and maps free-text status to the enum heuristically.</p></div>
+  </div>
+
+  <h2><span class="num">6</span>Polish — the simplify pass</h2>
+  <div class="note">
+    Extracted <code>lib/session.ts</code> so the session cookie name + signing key live in
+    <b>one place</b> (they were duplicated across middleware/auth/env — a real drift hazard).
+    The seed now captures JDs <b>before</b> inserting leads and links on insert, removing ~20
+    sequential <code>UPDATE</code> round-trips; lead-detail I/O was parallelized; and a handful of
+    null-checks and helpers were tightened. Intentionally kept: the <code>cn()</code> className seam
+    and the UI status-style map.
+  </div>
+
+  <footer>
+    <span>JobSearch&nbsp;Camunda · Phase 1 of 5</span>
+    <span>Next → <a href="P2-screening.html">P2 · Screening &amp; Scoring</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

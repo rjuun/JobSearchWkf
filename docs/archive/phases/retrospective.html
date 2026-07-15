@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Retrospective · JobSearch Camunda</title>
+<style>
+  :root{--bg:#f5f6fb;--ink:#1e2233;--muted:#6b7280;--line:#e6e8f0;--brand:#4f46e5;--green:#16a34a;--amber:#d97706;--rose:#e11d48;--card:#fff;--shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06)}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:28px 22px 80px}
+  a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85em;background:#f1f3f9;border-radius:5px;padding:1px 5px}
+  .hero{position:relative;overflow:hidden;border-radius:22px;padding:38px;color:#fff;background:linear-gradient(120deg,#1e1b4b 0%,#4f46e5 45%,#7c3aed 80%,#c026d3 100%);box-shadow:var(--shadow)}
+  .hero:after{content:"";position:absolute;right:-50px;top:-70px;width:280px;height:280px;border-radius:50%;background:rgba(255,255,255,.08)}
+  .hero:before{content:"";position:absolute;left:-40px;bottom:-90px;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.06)}
+  .eyebrow{font-size:12px;letter-spacing:.2em;text-transform:uppercase;font-weight:700;opacity:.85}
+  .hero h1{margin:.3em 0 .2em;font-size:34px;letter-spacing:-.025em}
+  .hero p{margin:0;max-width:66ch;opacity:.95;font-size:15px}
+  .stats{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin:22px 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 10px;text-align:center;box-shadow:var(--shadow)}
+  .stat b{display:block;font-size:23px;letter-spacing:-.02em}.stat span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  h2{font-size:20px;margin:38px 0 14px;letter-spacing:-.01em}
+  h2 .num{display:inline-grid;place-items:center;width:25px;height:25px;border-radius:7px;background:#eef2ff;color:var(--brand);font-size:13px;margin-right:9px;vertical-align:middle}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow);font-size:13.5px}
+  th{background:#f8fafc;text-align:left;padding:11px 14px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+  td{padding:11px 14px;border-top:1px solid var(--line);vertical-align:top}
+  td b{color:var(--ink)}
+  .cols{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  .box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 16px;box-shadow:var(--shadow)}
+  .box h3{margin:0 0 9px;font-size:14px;display:flex;align-items:center;gap:8px}
+  .pip{width:9px;height:9px;border-radius:50%}
+  .pip.s{background:#94a3b8}.pip.b{background:#f59e0b}.pip.d{background:#6366f1}.pip.o{background:#0891b2}
+  .box ul{margin:0;padding-left:18px;font-size:13px;color:#475569}
+  .box li{margin:4px 0}
+  .timeline{display:grid;gap:10px}
+  .ph{display:grid;grid-template-columns:64px 1fr;gap:14px;align-items:start;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)}
+  .ph .pk{font-weight:800;color:var(--brand);font-size:15px}
+  .ph .pt{font-weight:600;font-size:14px}
+  .ph .pd{font-size:13px;color:var(--muted);margin-top:2px}
+  pre{background:#0f1222;color:#e7e9f5;border-radius:12px;padding:15px 17px;overflow:auto;font-size:12.5px;line-height:1.6}
+  .pillrow{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
+  .pill{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:3px 11px;background:#fafaff;color:#475569}
+  footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  @media(max-width:780px){.stats{grid-template-columns:repeat(3,1fr)}.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="eyebrow">JobSearch Camunda · Retrospective</div>
+    <h1>What we built, decided &amp; what's next</h1>
+    <p>Five phases turned a document-driven job-search methodology into a runnable, demo-ready SaaS
+       prototype — screening leads into a reproducible fit score and tailoring evidence-backed CVs
+       with a human in the loop. Here's the full picture: decisions, gaps, and the road ahead.</p>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b>5</b><span>Phases shipped</span></div>
+    <div class="stat"><b>13</b><span>Pipeline steps</span></div>
+    <div class="stat"><b>24</b><span>DB tables</span></div>
+    <div class="stat"><b>134</b><span>Real leads</span></div>
+    <div class="stat"><b>3</b><span>Verifiers</span></div>
+    <div class="stat"><b>100%</b><span>Builds green</span></div>
+  </div>
+
+  <h2><span class="num">1</span>What shipped, phase by phase</h2>
+  <div class="pillrow" style="margin-bottom:14px">
+    <a class="pill" href="P1-foundation.html">P1 · Foundation</a>
+    <a class="pill" href="P2-screening.html">P2 · Screening</a>
+    <a class="pill" href="P3-tailoring.html">P3 · Tailoring</a>
+    <a class="pill" href="P4-dashboard.html">P4 · Dashboard</a>
+    <a class="pill" href="P5-deploy.html">P5 · Deploy</a>
+  </div>
+  <table>
+    <tr><th>Phase</th><th>Delivered</th><th>Proof</th></tr>
+    <tr><td><b>P1</b> Foundation</td><td>Schema, auth, seed — app serves 134 real leads from Postgres</td><td>board renders migrated data</td></tr>
+    <tr><td><b>P2</b> Screening</td><td>B1–B6 pipeline + the deterministic Role Fit Score</td><td>persisted 6.9 = recomputed 6.9</td></tr>
+    <tr><td><b>P3</b> Tailoring</td><td>C1–C7, Keep/Maybe/Drop gate, 2-page .docx</td><td>valid 8.7 KB CV · ATS 73/100</td></tr>
+    <tr><td><b>P4</b> Dashboard</td><td>Funnel, fit distribution, CI loop, AI usage + polish</td><td>/dashboard 200, all panels</td></tr>
+    <tr><td><b>P5</b> Deploy</td><td>Supabase-ready storage, health probe, runbook</td><td>build w/ Supabase bundled</td></tr>
+  </table>
+
+  <h2><span class="num">2</span>Key decisions</h2>
+  <table>
+    <tr><th>Decision</th><th>Why</th></tr>
+    <tr><td><b>LLM judges, code computes</b></td><td>The Role Fit Score must be reproducible — the model emits 0–10 judgments; all arithmetic is TypeScript.</td></tr>
+    <tr><td><b>Mock-first LLM</b></td><td>Run &amp; verify the whole pipeline offline with no API key; deterministic demos. The live path switches on by env.</td></tr>
+    <tr><td><b>Your Process notes are the prompts</b></td><td>Refining a step = editing markdown, not code — keeps the improvement loop meaningful.</td></tr>
+    <tr><td><b>Human-gated tailoring</b></td><td>Only Keep-approved, evidenced claims reach the CV — the system's trust differentiator.</td></tr>
+    <tr><td><b>Local Postgres + Drizzle</b></td><td>No Docker needed; Supabase <em>is</em> Postgres, so the same schema/URL go to the cloud unchanged.</td></tr>
+    <tr><td><b>Single-user custom auth</b></td><td>Fastest path to a gated demo; schema carries <code>owner_id</code> so multi-user (Supabase Auth + RLS) is a clean step.</td></tr>
+  </table>
+
+  <h2><span class="num">3</span>Gaps &amp; missing elements</h2>
+  <div class="cols">
+    <div class="box"><h3><span class="pip s"></span>Out of scope (prototype boundary)</h3>
+      <ul>
+        <li>Multi-tenant signup (single-user by design)</li>
+        <li>D-phase: application + target-company monitoring</li>
+        <li>Automated, values-aligned lead discovery</li>
+        <li>Cover-letter generation &amp; B7 summary</li>
+        <li>Camunda 8 runtime (BPMN stays documentation)</li>
+      </ul></div>
+    <div class="box"><h3><span class="pip b"></span>Simplifications to deepen</h3>
+      <ul>
+        <li>CV: programmatic <code>docx</code> → fill the real template via docxtemplater</li>
+        <li>Group achievements by role (not one section)</li>
+        <li>C7 should be an Opus judgment, not a coverage metric</li>
+        <li>C2 live path should use the Sonnet prompt (not token overlap)</li>
+      </ul></div>
+    <div class="box"><h3><span class="pip d"></span>Data-model gaps</h3>
+      <ul>
+        <li>Add <code>skill_category</code> (C4 groups by proficiency for now)</li>
+        <li>Persist the C7 rating + ATS breakdown on the lead</li>
+        <li>Log <code>applications</code> records</li>
+      </ul></div>
+    <div class="box"><h3><span class="pip o"></span>Operational</h3>
+      <ul>
+        <li>Live LLM unexercised — tune prompts against the real API</li>
+        <li>RLS policies not written (app-layer scoping for now)</li>
+        <li>No unit/e2e tests beyond the 3 verifiers</li>
+        <li>Bookmarklet host hardcoded; dashboard aggregates in JS</li>
+      </ul></div>
+  </div>
+
+  <h2><span class="num">4</span>Suggested future phases</h2>
+  <div class="timeline">
+    <div class="ph"><div class="pk">P6</div><div><div class="pt">Go live</div><div class="pd">Enable the real LLM: run B/C on live JDs, tune step prompts, add prompt caching, compare mock vs live.</div></div></div>
+    <div class="ph"><div class="pk">P7</div><div><div class="pt">Multi-tenant</div><div class="pd">Supabase Auth + RLS (<code>owner_id = auth.uid()</code>); per-user onboarding and profile-import wizard.</div></div></div>
+    <div class="ph"><div class="pk">P8</div><div><div class="pt">CV fidelity</div><div class="pd">docxtemplater on your real template; per-role grouping; cover-letter generation; PDF preview.</div></div></div>
+    <div class="ph"><div class="pk">P9</div><div><div class="pt">Proactive</div><div class="pd">D-phase application tracking, target-company monitoring, and automated values-aligned lead discovery.</div></div></div>
+    <div class="ph"><div class="pk">P10</div><div><div class="pt">Orchestration (optional)</div><div class="pd">Camunda 8 runtime — map step modules to job workers and gates to BPMN gateways.</div></div></div>
+    <div class="ph"><div class="pk">✦</div><div><div class="pt">Cross-cutting</div><div class="pd">Unit tests for <code>lib/scoring</code>, e2e smoke, <code>skill_category</code>, stored C7/application records, richer cost/trace observability.</div></div></div>
+  </div>
+
+  <h2><span class="num">5</span>Run it yourself</h2>
+  <pre>createdb jobsearch_camunda
+npm install
+npm run db:migrate && npm run seed     # schema + your real data
+npm run dev                            # http://localhost:3000
+
+npx tsx scripts/verify-screening.ts    # B1–B6 + deterministic rollup
+npx tsx scripts/verify-tailoring.ts    # C1–C7 + a valid 2-page .docx</pre>
+  <p style="color:var(--muted);font-size:13.5px;margin-top:10px">
+    Demo path: <b>/leads</b> → open a lead → <b>Run screening</b> → <b>Promote</b> →
+    <b>Map evidence</b> → approve (Keep) → <b>Generate CV</b> → <b>Download</b>.
+    The <b>/dashboard</b> tells the whole story.
+  </p>
+
+  <footer>
+    <span>JobSearch&nbsp;Camunda · Retrospective</span>
+    <span><a href="index.html">← Review index</a> &nbsp;·&nbsp; <a href="../RETROSPECTIVE.md">Technical version (.md)</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

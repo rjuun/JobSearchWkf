@@ -1,0 +1,85 @@
+# ============================================================================
+# JobSearch_Camunda — .gitignore
+# ----------------------------------------------------------------------------
+# Strategy (decided 2026-06-28): local git, PERSONAL DATA NEVER COMMITTED.
+# The repo tracks the *system* — methodology (Process/), AI operating
+# instructions, and the new /docs blueprint. It does NOT track personal
+# career data (CVs, profile, application tracker, captured job descriptions).
+# When the SaaS app is built, that personal data becomes gitignored SEED data.
+# ============================================================================
+
+# --- Personal / sensitive career data (NEVER COMMIT) -----------------------
+# Anchored to repo root: macOS is case-insensitive, so an unanchored `Profile/`
+# also ignores app paths like `app/profile/`. Match ONLY the top-level personal dirs.
+/Profile/
+/Group CVs/
+/Job Descriptions/
+/Job Hunting Lists.xlsx
+
+# Any stray personal binaries anywhere in the tree
+*.xlsx
+*.docx
+*.doc
+*.pdf
+*.url
+*.canvas
+*.drawio
+*.Rmd
+*.rmd
+# NOTE: personal *.html (e.g. Profile/Testing-R.html) is already covered by the
+# Profile/ ignore above. The docs/ review pages (.html) ARE tracked deliverables.
+
+# Future SaaS seed data (extracted from the workbooks — see docs/DEPLOYMENT.md)
+/app/**/seed/data/
+/supabase/seed/data/
+seed/data/
+
+# --- Secrets ---------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# --- OS / editor -----------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# --- Claude Code local settings (keep shared settings.json if added later) --
+.claude/settings.local.json
+
+# --- Local agent / skill tooling (not part of the app) ---------------------
+.agents/
+.claude/skills/
+skills-lock.json
+
+# --- Local-only bucket: design-input, launch videos, scratch, scaffolding -----
+# Consolidated here so they don't clutter the repo root; kept on disk, never
+# committed. Nothing in the app reads from _local/. See _local/README.md.
+/_local/
+
+# --- Bulky one-off handoff artifacts ---------------------------------------
+*.zip
+
+# --- Node / Next.js / Supabase (for the upcoming app phases) ---------------
+node_modules/
+.next/
+out/
+build/
+dist/
+# Root-anchored: the test-coverage report dir at the repo root only. WITHOUT the
+# leading slash this also matched app/profile/coverage/, silently excluding that
+# route from git (and every deploy) while it still ran locally off-disk.
+/coverage/
+*.tsbuildinfo
+next-env.d.ts
+.vercel/
+/.storage/
+.turbo/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+.supabase/

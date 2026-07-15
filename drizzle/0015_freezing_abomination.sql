@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "applications_owner_lead_uq" ON "applications" USING btree ("owner_id","job_lead_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "profiles_public_token_uq" ON "profiles" USING btree ("public_token") WHERE public_token is not null;

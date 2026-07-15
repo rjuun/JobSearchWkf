@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Additive Plan · Wave B — applied changes</title>
+<style>
+  :root{--proof:#0f7d5a;--proof-soft:#e6f4ee;--proof-deep:#0a5c42;--ink:#1a1c1a;--muted:#5c6360;--hair:#e3e6e4;--canvas:#f7f9f8;--surface:#fff;--amber:#b7791f;--amber-soft:#fdf6e7}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:32px 16px}
+  .wrap{max-width:860px;margin:0 auto}
+  header{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+  .badge{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:11px;background:var(--proof);color:#fff;font-weight:800}
+  h1{font-size:23px;margin:0;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin:2px 0 24px;font-size:13.5px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+  .pill.ok{background:var(--proof-soft);color:var(--proof-deep)}
+  .pill.flag{background:var(--amber-soft);color:var(--amber)}
+  .card{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:20px 22px;margin:16px 0;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .card h2{font-size:15px;margin:0 0 12px}
+  .row{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--hair)}
+  .row:last-child{border-bottom:0}
+  .tick{color:var(--proof);font-weight:800}
+  .num{display:inline-grid;place-items:center;width:26px;height:22px;flex:0 0 26px;border-radius:6px;background:var(--proof-soft);color:var(--proof-deep);font-size:11px;font-weight:800}
+  code{background:#f0f2f1;border-radius:5px;padding:1px 6px;font-size:12.5px;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+  .ledger{border:1px solid var(--hair);border-radius:10px;overflow:hidden}
+  .lrow{display:flex;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--hair);font-size:12.5px}
+  .lrow:last-child{border-bottom:0}
+  .lrow.head{background:#fafbfb;font-weight:700;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  .ref{font-family:"JetBrains Mono",monospace;font-size:10.5px;font-weight:700;color:var(--proof-deep);background:var(--proof-soft);border:1px solid #cfe7dd;border-radius:5px;padding:2px 6px;white-space:nowrap}
+  .grow{flex:1}
+  .meta{color:var(--muted);font-size:12px}
+  .foot{color:var(--muted);font-size:12.5px;text-align:center;margin-top:24px}
+  ul.tight{margin:6px 0 0;padding-left:20px}
+  ul.tight li{margin:2px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="badge">B</div>
+    <div>
+      <h1>Additive Plan · Wave B — additive migrations</h1>
+      <div class="sub">Two small schema adds, no existing behaviour changed · <span class="pill ok">✓ Applied</span> <span class="pill flag">⚑ flag-gated</span></div>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>✨ The one-line</h2>
+    <p style="margin:0">Four new lenses now bolt onto the shipped app — a <b>Statement</b> of what you did, a <b>Returns</b> panel that
+    tracks applications and their outcomes, a <b>Coverage Matrix</b> of your targets' must-haves, and a <b>Sourcing Compass</b> that
+    ranks your capture channels by the fit they produce. Nothing was removed. Two columns were added (<code>job_leads.source</code>,
+    an <code>activity_events</code> table); <code>is_target</code> and the <code>applications</code> table already existed and were finally put to work.</p>
+  </div>
+
+  <div class="card">
+    <h2>✅ What shipped (Wave B)</h2>
+    <div class="row"><span class="num">B1</span><div><b>Events log → the Statement.</b> New <code>activity_events</code> table; existing server actions append one line each
+      (evidence kept, target flagged, role screened, CV made, applied, outcome). A read-only <code>/statement</code> page re-projects the
+      last 30 days into a re-entry ritual — "here's what you did." <span class="meta">Monthly email deferred — in-app for now.</span></div></div>
+    <div class="row"><span class="num">B2</span><div><b>Application outcomes → Returns.</b> Downloading a tailored CV now opens an <code>applications</code> row (idempotent, best-effort);
+      the dashboard <b>Returns</b> panel logs response / interview / offer / screened-out and nudges stale ones. Tracking first — no "lessons" until n is honest.</div></div>
+    <div class="row"><span class="num">B3</span><div><b>Coverage Matrix tab.</b> A new lens beside the strength meter (<code>/profile/coverage</code>): each target's Core/Important
+      requirements as covered/gap cells. The meter stays; a <span style="color:var(--amber)">⚑ gap</span> deep-links to the coach prompts that close it.</div></div>
+    <div class="row"><span class="num">B4</span><div><b>Source → Sourcing Compass.</b> A free-text <code>source</code> on capture (paste form + bookmarklet both pass it through);
+      a panel on the board ranks channels by average fit produced, so a noisy alert becomes visible and retireable.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>📡 Reaction signals emitted</h2>
+    <div class="ledger">
+      <div class="lrow head"><span class="grow">surface · event</span><span>answers the fold question</span></div>
+      <div class="lrow"><span class="ref">statement · open</span><span class="grow"></span><span class="meta">Is the statement the right re-entry ritual vs. generic reminders?</span></div>
+      <div class="lrow"><span class="ref">returns · outcome_logged</span><span class="grow"></span><span class="meta">Will users actually log outcomes? (If not, the loop needs a cheaper capture.)</span></div>
+      <div class="lrow"><span class="ref">coverage_matrix · open / gap_click</span><span class="grow"></span><span class="meta">Matrix vs. meter as the Career Graph's primary face?</span></div>
+      <div class="lrow"><span class="ref">sourcing_compass · open</span><span class="grow"></span><span class="meta">Does anyone retire/add an alert because of it?</span></div>
+    </div>
+    <p style="margin:8px 0 0;font-size:12.5px;color:var(--muted)">All recording (activity + reactions) is best-effort — a logging failure can never break or block the action it records.</p>
+  </div>
+
+  <div class="card">
+    <h2>🗂️ Code changed</h2>
+    <div class="row"><span class="tick">✓</span><div><b>Schema:</b> <code>job_leads.source</code> + <code>activity_events</code> table (migration <code>0013_daily_reptil.sql</code>).</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>New:</b> <code>lib/activity.ts</code>; pages <code>/statement</code>, <code>/profile/coverage</code>; components <code>returns-panel</code>, <code>coverage-matrix</code>, <code>sourcing-compass</code>.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Append points:</b> <code>tailoring.ts</code>, <code>pipeline.ts</code>, <code>coaching.ts</code>, <code>monitoring.ts</code> each log one activity line; the CV route opens an application on download.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Queries:</b> <code>sourcingCompass()</code>, <code>targetCoverageMatrix()</code>, <code>listApplications()</code>.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Capture:</b> <code>source</code> plumbed through the paste form, the <code>createLead</code> path, and the bookmarklet ingest.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Flags:</b> <code>NEXT_STATEMENT</code>, <code>NEXT_RETURNS</code>, <code>NEXT_COVERAGE_MATRIX</code>, <code>NEXT_SOURCING_COMPASS</code> — default on, set <code>=0</code> to retire.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>🧪 Verification</h2>
+    <div class="row"><span class="tick">✓</span><div><code>npm run typecheck</code> — clean.</div></div>
+    <div class="row"><span class="tick">✓</span><div><code>vitest run</code> — <b>61 / 61</b> passing (added <code>summarizeStatement</code> unit tests).</div></div>
+    <div class="row"><span class="tick">✓</span><div><code>npm run build</code> — all routes compile, including <code>/statement</code> and <code>/profile/coverage</code>.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>🔭 How to see it yourself</h2>
+    <ol style="margin:0;padding-left:20px">
+      <li><b>Statement:</b> keep evidence / flag a target / screen a role, then open <b>Statement</b> in the nav.</li>
+      <li><b>Returns:</b> download a tailored CV → it appears on the <b>Dashboard → Returns</b> panel; log an outcome.</li>
+      <li><b>Coverage:</b> open <b>Career Graph → Coverage matrix</b> (3 targets seeded) → click a ⚑ gap to jump to the coach.</li>
+      <li><b>Compass:</b> capture a lead with a <b>Source</b> (e.g. "LinkedIn alert") → the compass appears under the board table.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>⏭️ Still ahead</h2>
+    <ul class="tight">
+      <li><b>Wave C</b> — "Your story" through-line; Mirror + Unexpected Doors (via the existing B6 scorer); Excavation sessions; Proof Link.</li>
+      <li><b>Deferred inside B</b> — the Statement's monthly <em>email</em> and B2's automated nudge-<em>timer</em> need scheduling/email infra; shipped as in-app surfaces for now.</li>
+    </ul>
+  </div>
+
+  <div class="foot">RoleProof · Additive Plan Wave B · add first, fold later · generated for review</div>
+</div>
+</body>
+</html>

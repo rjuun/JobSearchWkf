@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Current Prototype Roots Report · 30 Jun 2026</title>
+<style>
+  :root {
+    --canvas: #f3f1ec;
+    --surface: #fffdf8;
+    --raised: #f9f7f0;
+    --ink: #171713;
+    --muted: #5f635e;
+    --subtle: #8b9088;
+    --line: #dfddd3;
+    --proof: #16825f;
+    --proof-soft: #e9f5ef;
+    --amber: #b7791f;
+    --amber-soft: #fff6df;
+    --rose: #b42318;
+    --rose-soft: #fff0ed;
+    --blue: #365b9b;
+    --blue-soft: #edf3ff;
+    --shadow: 0 1px 2px rgba(23, 23, 19, .06), 0 18px 44px rgba(23, 23, 19, .08);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    line-height: 1.58;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--proof); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: .92em;
+  }
+  code {
+    background: rgba(22, 130, 95, .08);
+    border: 1px solid rgba(22, 130, 95, .14);
+    border-radius: 6px;
+    padding: 1px 6px;
+  }
+  del {
+    color: var(--subtle);
+    text-decoration-color: rgba(180, 35, 24, .65);
+    text-decoration-thickness: 2px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 22px 90px; }
+  .hero {
+    overflow: hidden;
+    border-radius: 22px;
+    padding: 42px;
+    background:
+      linear-gradient(125deg, rgba(0,0,0,.15), rgba(0,0,0,0)),
+      linear-gradient(120deg, #101410 0%, #174532 48%, #16825f 100%);
+    color: #fff;
+    box-shadow: var(--shadow);
+  }
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--subtle);
+  }
+  .hero .eyebrow { color: rgba(255,255,255,.78); }
+  h1 {
+    max-width: 18ch;
+    margin: 8px 0 12px;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(38px, 6vw, 66px);
+    font-weight: 400;
+    letter-spacing: -.04em;
+    line-height: .96;
+  }
+  .hero p { max-width: 76ch; margin: 0; color: rgba(255,255,255,.9); font-size: 15px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+  .meta span {
+    border: 1px solid rgba(255,255,255,.18);
+    background: rgba(255,255,255,.11);
+    border-radius: 999px;
+    padding: 5px 11px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .toc {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 22px 0 0;
+  }
+  .toc a {
+    display: block;
+    min-height: 52px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--ink);
+    padding: 11px 13px;
+    box-shadow: 0 1px 2px rgba(23, 23, 19, .04);
+    font-size: 13px;
+    font-weight: 750;
+  }
+  .toc a:hover { text-decoration: none; border-color: rgba(22, 130, 95, .45); }
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 46px 0 16px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 850;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+  h2:after { content: ""; height: 1px; flex: 1; background: var(--line); }
+  h3 { margin: 0 0 8px; font-size: 17px; letter-spacing: -.01em; }
+  p.lead { max-width: 78ch; margin: 0 0 14px; color: var(--muted); font-size: 15px; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    box-shadow: 0 1px 2px rgba(23, 23, 19, .04);
+  }
+  .pad { padding: 19px 21px; }
+  .callout {
+    border-left: 4px solid var(--proof);
+    background: var(--proof-soft);
+    border-radius: 0 12px 12px 0;
+    padding: 14px 16px;
+    color: #14563f;
+    font-size: 14px;
+  }
+  .callout b { color: #0f3f2f; }
+  .review-note {
+    display: block;
+    margin-top: 7px;
+    border-radius: 9px;
+    padding: 8px 10px;
+    font-size: 12.5px;
+    font-weight: 650;
+  }
+  .review-note.ok { background: var(--proof-soft); color: #14563f; }
+  .review-note.warn { background: var(--amber-soft); color: #7a4a00; }
+  .review-note.stop { background: var(--rose-soft); color: var(--rose); }
+  .review-note.info { background: var(--blue-soft); color: var(--blue); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th {
+    background: var(--raised);
+    color: var(--muted);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 850;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  td { border-bottom: 1px solid var(--line); padding: 11px 12px; vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  .status {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 850;
+    text-transform: uppercase;
+    letter-spacing: .035em;
+    white-space: nowrap;
+  }
+  .ok { background: var(--proof-soft); color: #116246; }
+  .part { background: var(--amber-soft); color: #895000; }
+  .miss { background: var(--rose-soft); color: var(--rose); }
+  .new { background: var(--blue-soft); color: var(--blue); }
+  figure { margin: 0; }
+  figure.card { overflow: hidden; }
+  .shot-link { display: block; background: #ebe8df; }
+  .shot {
+    display: block;
+    width: 100%;
+    border-bottom: 1px solid var(--line);
+  }
+  .crop .shot {
+    max-height: 680px;
+    object-fit: cover;
+    object-position: top center;
+  }
+  figcaption { padding: 13px 15px 15px; color: var(--muted); font-size: 13px; }
+  figcaption b { color: var(--ink); }
+  .row {
+    display: grid;
+    grid-template-columns: 124px 1fr;
+    gap: 14px;
+    padding: 13px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .row:last-child { border-bottom: 0; }
+  .tag {
+    width: max-content;
+    height: max-content;
+    border-radius: 7px;
+    padding: 4px 8px;
+    font-size: 10.5px;
+    font-weight: 850;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+  .t-conf { background: var(--amber-soft); color: #895000; }
+  .t-miss { background: var(--rose-soft); color: var(--rose); }
+  .t-better { background: var(--blue-soft); color: var(--blue); }
+  .row b { display: block; margin-bottom: 2px; font-size: 14px; }
+  .row p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .path {
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    background: var(--surface);
+    padding: 18px;
+  }
+  .path .rec {
+    margin-bottom: 7px;
+    color: var(--proof);
+    font-size: 11px;
+    font-weight: 850;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+  }
+  .path h3 { margin-bottom: 6px; }
+  .path p { margin: 0 0 9px; color: var(--muted); font-size: 13px; }
+  .path ul, .card ul, .card ol { margin: 8px 0 0; padding-left: 19px; color: var(--muted); font-size: 13.5px; }
+  .path li, .card li { margin: 5px 0; }
+  .scorebar {
+    display: grid;
+    grid-template-columns: 1.1fr 1.2fr .7fr;
+    gap: 12px;
+    align-items: center;
+    margin-top: 14px;
+    border-top: 1px solid rgba(255,255,255,.15);
+    padding-top: 14px;
+    font-size: 13px;
+  }
+  .scorebar span { color: rgba(255,255,255,.76); }
+  .scorebar b { display: block; color: #fff; font-size: 21px; line-height: 1.1; }
+  .filelist {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .review-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .mini {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--raised);
+    padding: 13px 14px;
+  }
+  .mini h3 { margin-bottom: 6px; font-size: 14px; }
+  .mini ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+  .filelist a {
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--raised);
+    padding: 8px 10px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  footer {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 50px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    color: var(--subtle);
+    font-size: 13px;
+  }
+  @media (max-width: 900px) {
+    .toc, .grid2, .grid3, .filelist, .review-grid { grid-template-columns: 1fr; }
+    .hero { padding: 32px 26px; }
+    .row { grid-template-columns: 1fr; gap: 6px; }
+    .scorebar { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div style="background:#fef2f2;color:#9f1239;border-bottom:1px solid #fecaca;padding:12px 22px;font:600 13.5px/-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;text-align:center">
+  Archived snapshot (30 Jun 2026) — superseded by the canonical, kept-current review:
+  <a href="../phases/roots-review.html" style="color:#9f1239">docs/phases/roots-review.html →</a>
+</div>
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Independent report · generated 30 June 2026</div>
+    <h1>Current prototype, compared to the manual roots</h1>
+    <p>
+      This is a separate assessment of the RoleProof prototype as it exists now, compared with the original
+      SharePoint, Excel, Obsidian and Claude workflow. It focuses on what is present, what is missing,
+      what may confuse you during use, and the practical refactor paths from here.
+    </p>
+    <div class="meta">
+      <span>Fresh screenshots included</span>
+      <span>No existing report overwritten</span>
+      <span>Current app: /roleproof</span>
+      <span>Mock LLM by default</span>
+      <span>134 leads in current seed</span>
+    </div>
+    <div class="scorebar">
+      <div><span>Methodology spine</span><b>Strong</b></div>
+      <div><span>Tailoring fidelity</span><b>Still prototype-grade</b></div>
+      <div><span>Best next move</span><b>C prompts + CV template</b></div>
+    </div>
+  </div>
+
+  <nav class="toc">
+    <a href="#verdict">Executive Verdict</a>
+    <a href="#refactor-pass">Refactor Pass Review</a>
+    <a href="#screenshots">Screenshots</a>
+    <a href="#manual">Manual vs App</a>
+    <a href="#missing">Missing</a>
+    <a href="#confusing">Confusing</a>
+    <a href="#better">Can Be Better</a>
+    <a href="#paths">Paths Forward</a>
+    <a href="#next">Next Steps</a>
+  </nav>
+
+  <h2 id="verdict">Executive Verdict</h2>
+  <div class="card pad">
+    <p class="lead">
+      The prototype has preserved the most important part of the manual process: a staged, gated journey from
+      lead capture to screening, evidence review and CV output. The board, lead workspace, Career Graph and
+      human Keep/Maybe/Drop gate are coherent and usable.
+    </p>
+    <p class="lead">
+      The main gap is fidelity, not architecture. Screening is relatively close to the documented process because
+      B2-B6 load the process notes and B6 scoring is deterministic in code. <del>Tailoring is much thinner: C2 uses
+      token overlap, C3 mostly reuses existing bullet text, C5 is templated text, C6 generates a generic document,
+      and C7 is a simple coverage metric.</del> The first refactor pass materially improves that: C2/C3/C5/C7 now
+      have live structured LLM paths and C6 has a real-template renderer. The remaining fidelity gap is now about
+      scoping, validation, approval integrity and template completeness rather than missing step plumbing.
+    </p>
+    <div class="callout">
+      <b>Recommendation:</b> do not full-refactor the app yet. Keep the current architecture, choose one canonical
+      workspace layout, then invest in methodology fidelity: <del>wire C2-C7 prompts</del> calibrate the new C-step
+      live paths, inject B3 values context, restore traceability surfaces, and finish the real Word-template path
+      without bypassing the human approval gate.
+    </div>
+  </div>
+
+  <!-- REVIEWER COMMENT: first refactor pass reviewed against latest commit 30308ef and current working tree. -->
+  <h2 id="refactor-pass">Refactor Pass Review</h2>
+  <div class="card pad">
+    <p class="lead">
+      Reviewed latest commit <code>30308ef</code> ("DeepSeek live mode + full tailoring core + real-template CV + CI loop + D-phase")
+      plus the current working tree. Typecheck and production build are green.
+    </p>
+    <div class="review-grid">
+      <div class="mini">
+        <h3>Closed or materially improved</h3>
+        <ul>
+          <li><del>No visible mock/live indicator.</del> Header now shows LIVE/MOCK.</li>
+          <li><del>Bookmarklet host hardcoded to localhost.</del> It now derives the request origin.</li>
+          <li><del>C2-C7 Process notes not registered.</del> C2/C3/C5/C7 are now in <code>lib/prompts.ts</code>.</li>
+          <li><del>C2 only token overlap.</del> C2 now has a live LLM path over the evidence graph.</li>
+          <li><del>C3/C5/C7 were mock/code only.</del> They now call the structured LLM wrapper in live mode.</li>
+          <li><del>C6 only programmatic DOCX.</del> A real-template docxtemplater path now exists.</li>
+          <li><del>D-phase entirely absent.</del> There is now a mark-applied scaffold.</li>
+          <li><del>Owner scoping incomplete in B/C pipeline paths.</del> Screening, tailoring, CI guidance, run logs, LLM logs, CV downloads and application actions are now owner-scoped.</li>
+          <li><del>Bookmarklet attribution depended on cookies.</del> <code>/roleproof/capture</code> now generates a signed 30-day capture token for <code>/api/ingest</code>.</li>
+          <li><del>Real-template slots could use unapproved fallback evidence.</del> C6 now fills template slots only from Keep evidence.</li>
+          <li><del><code>cvPosition</code> was free text.</del> It is now validated against the real template slot list and short codes normalize to full labels.</li>
+          <li><del>Dual workspace variants looked equally final.</del> Guided spine now carries an <code>alternative preview</code> badge.</li>
+          <li><del>Step trace required a separate expert mode.</del> Run trace is now folded into the normal workspace panels.</li>
+        </ul>
+      </div>
+      <div class="mini">
+        <h3>Still needs attention</h3>
+        <ul>
+          <li>C4 still groups by proficiency, not methodology categories.</li>
+          <li>C5 profile and C4 skills are not inserted into the real template.</li>
+          <li>CI tips now feed prompts, but the CI initiative dashboard is still missing.</li>
+          <li>B3 still lacks explicit Values &amp; Motives context injection.</li>
+          <li>Live C2/C3/C5/C7 still need calibration against manual golden examples.</li>
+          <li>No visual PDF/render check exists before CV download.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="margin-top:18px">Code review findings</h3>
+    <table>
+      <tr><th>Severity</th><th>Finding</th><th>Why it matters</th></tr>
+      <tr>
+        <td><span class="status miss">High</span></td>
+        <td><code>lib/pipeline/tailoring.ts:53-120</code>, <code>191-300</code>, <code>lib/ci.ts:15-26</code></td>
+        <td>
+          <del>C2/CV generation/CI guidance read profile evidence, skills, education, languages and tips globally.
+          In a multi-tenant app, one user's evidence and feedback can influence another user's prompts or CV.
+          Reviewer comment: before live multi-user use, pass <code>ownerId</code> through the pipeline and scope every read/write with it.</del>
+          <span class="review-note ok">Implemented: B/C pipeline reads and writes now receive an effective owner; <code>pipeline_runs</code>, <code>llm_calls</code>, CV variants, CI guidance and CV downloads are owner-scoped.</span>
+        </td>
+      </tr>
+      <tr>
+        <td><span class="status miss">High</span></td>
+        <td><code>app/api/ingest/route.ts</code> and bookmarklet fetch behavior</td>
+        <td>
+          <del>The ingest endpoint is public and <code>fetch()</code> from LinkedIn will not include app cookies by default.
+          That means <code>currentOwnerId()</code> can fall back to the demo owner, so captured leads may land under the wrong account.
+          Reviewer comment: use an authenticated capture token or include credentials with a non-wildcard CORS policy.</del>
+          <span class="review-note ok">Implemented: <code>/roleproof/capture</code> generates a signed capture token and <code>/api/ingest</code> rejects requests without it.</span>
+        </td>
+      </tr>
+      <tr>
+        <td><span class="status miss">High</span></td>
+        <td><code>lib/pipeline/tailoring.ts:89-96</code></td>
+        <td>
+          <del>Empty template slots are filled from the generic bullet bank/responsibilities. That bypasses the C2 human gate,
+          so final CV content can include evidence the user did not approve for this role.
+          Reviewer comment: blank or omit unapproved slots; do not fill them with fallback achievements unless the user explicitly approves a default set.</del>
+          <span class="review-note ok">Implemented: real-template slots now receive only Keep evidence; empty slots remain empty.</span>
+        </td>
+      </tr>
+      <tr>
+        <td><span class="status part">Medium</span></td>
+        <td><code>lib/anthropic/schemas.ts:C2</code> and <code>lib/pipeline/tailoring.ts:145-163</code></td>
+        <td>
+          <del><code>cvPosition</code> is free text. If the model returns an invalid label, the approved bullet can silently miss every
+          real-template slot.
+          Reviewer comment: make <code>cvPosition</code> an enum of <code>CV_SLOTS</code> or normalize and validate before insert.</del>
+          <span class="review-note ok">Implemented: C2 schema uses the shared <code>CV_SLOTS</code> enum and the pipeline normalizes short codes before insert.</span>
+        </td>
+      </tr>
+      <tr>
+        <td><span class="status part">Medium</span></td>
+        <td><code>app/actions/monitoring.ts:13-24</code></td>
+        <td>
+          <del>Mark-applied inserts a new application every call and updates a lead by id without owner/status checks.
+          Reviewer comment: make this idempotent and scoped to the current owner; only allow transition from <code>ready</code> to <code>applied</code>.</del>
+          <span class="review-note ok">Implemented: mark-applied is owner-scoped and updates an existing application row when one already exists. Remaining: enforce allowed status transition if needed.</span>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <h2 id="screenshots">Current App Screenshots</h2>
+  <p class="lead">
+    These screenshots were captured from the local app on 30 June 2026 and stored in
+    <code>docs/reports/img/</code>. They are now treated as the pre-refactor visual baseline; the captions and
+    reviewer notes call out where the latest commit changed behavior after these images were taken.
+    Click any image to open the full PNG.
+  </p>
+
+  <div class="grid2">
+    <figure class="card crop">
+      <a class="shot-link" href="img/current-board.png"><img class="shot" src="img/current-board.png" alt="RoleProof board with needs-you queue and full lead list" /></a>
+      <figcaption><b>Lead board.</b> This is the current home. It gives momentum, next decisions and a full list of leads. The full-page screenshot is intentionally tall because it shows the actual current volume.</figcaption>
+    </figure>
+    <figure class="card">
+      <a class="shot-link" href="img/current-capture.png"><img class="shot" src="img/current-capture.png" alt="Capture a job lead page with paste form and bookmarklet" /></a>
+      <figcaption><b>Capture flow.</b> Manual paste plus bookmarklet. <del>The bookmarklet is localhost-only and lacks deployment-aware host generation.</del> <del>Remaining issue: cross-origin bookmarklet requests still need reliable logged-in user attribution.</del> <span class="review-note ok">Implementation note: route moved to <code>/roleproof/capture</code>; bookmarklet now includes a signed owner capture token.</span></figcaption>
+    </figure>
+  </div>
+
+  <div class="grid2" style="margin-top:16px">
+    <figure class="card">
+      <a class="shot-link" href="img/current-career-graph.png"><img class="shot" src="img/current-career-graph.png" alt="Career Graph screen with graph strength and evidence sections" /></a>
+      <figcaption><b>Career Graph.</b> This is the evidence store that replaces much of the Profile Reference Workbook. It is a strong product addition beyond the initial manual workflow.</figcaption>
+    </figure>
+    <figure class="card crop">
+      <a class="shot-link" href="img/current-screened-command.png"><img class="shot" src="img/current-screened-command.png" alt="Screened lead command center with fit score and checks" /></a>
+      <figcaption><b>Screened lead command center.</b> Good current representation of the B-process: score, verdict, checks, JD reader and next action. <del>It hides step IDs, model mode and evidence detail.</del> <span class="review-note ok">Implementation note: regular panels now include compact run-trace disclosures with step, mode/model, prompt source and timestamp.</span></figcaption>
+    </figure>
+  </div>
+
+  <div class="grid2" style="margin-top:16px">
+    <figure class="card">
+      <a class="shot-link" href="img/current-guided-spine.png"><img class="shot" src="img/current-guided-spine.png" alt="Guided spine variant for the same screened lead" /></a>
+      <figcaption><b>Guided spine variant.</b> Same lead, different interaction model. <del>Confusing as a permanent dual route.</del> <span class="review-note ok">Implementation note: the toggle now labels this as <code>alternative preview</code> while both layouts remain available.</span></figcaption>
+    </figure>
+    <figure class="card">
+      <a class="shot-link" href="img/current-ready-cv.png"><img class="shot" src="img/current-ready-cv.png" alt="Ready lead with CV download panel" /></a>
+      <figcaption><b>Ready CV state.</b> Shows the end-to-end prototype working. <del>The document is generated programmatically rather than from the owner template.</del> <span class="review-note ok">Reviewer comment: latest commit adds a real-template docxtemplater path. Caveat: the existing screenshot predates that refactor, and the real-template path currently fills only the experience placeholders.</span></figcaption>
+    </figure>
+  </div>
+
+  <h2 id="manual">Manual Roots vs Current Prototype</h2>
+  <div class="card">
+    <table>
+      <tr><th>Manual process</th><th>Current app</th><th>Assessment</th></tr>
+      <tr>
+        <td>LinkedIn bookmarklet sends JD to Power Automate, SharePoint, Obsidian and Excel.</td>
+        <td><del><code>/leads/new</code></del> <code>/roleproof/capture</code> and signed-token <code>/api/ingest</code> create a lead and store raw JD text. <del>Bookmarklet host is hardcoded.</del></td>
+        <td><span class="status ok">Improved</span><br />Origin is generated dynamically and capture attribution no longer depends on app cookies.</td>
+      </tr>
+      <tr>
+        <td><code>Job Hunting Lists.xlsx</code> is the operational record.</td>
+        <td>Postgres tables hold leads, requirements, tailoring rows, tips and runs.</td>
+        <td><span class="status ok">Good</span><br />The app has the right persistence direction.</td>
+      </tr>
+      <tr>
+        <td>Obsidian <code>Process/*.md</code> files drive each Claude step.</td>
+        <td><del>B2-B6 are registered in <code>lib/prompts.ts</code>; C2-C7 are not.</del> B2-B6 plus C2/C3/C5/C7 are now registered.</td>
+        <td><span class="status part">Partial</span><br />Much better. C1/C4/C6 remain code-owned, which is acceptable if documented; B3 still lacks Values &amp; Motives context.</td>
+      </tr>
+      <tr>
+        <td>B6 uses Opus judgment plus deterministic rollup.</td>
+        <td><code>lib/scoring.ts</code> owns the weights, match bands and recommendation thresholds.</td>
+        <td><span class="status ok">Strong</span><br />This is one of the best preserved parts of the original method.</td>
+      </tr>
+      <tr>
+        <td>C2 maps requirements to exact evidence, then the candidate marks Keep/Maybe/Drop.</td>
+        <td><del>Mapping is token overlap against the bullet bank.</del> C2 now has an LLM path over the broader evidence graph and records gap tips.</td>
+        <td><span class="status part">Partial</span><br />Good direction. <del>Still needs owner scoping and validated <code>cvPosition</code>.</del> Remaining: calibrate live output and standardize reference labels.</td>
+      </tr>
+      <tr>
+        <td>CV is compiled into the real Word template with role/position placement.</td>
+        <td><del>App generates a generic DOCX with a flat Selected Achievements section.</del> Real-template rendering exists, with programmatic fallback.</td>
+        <td><span class="status part">Partial</span><br />Major improvement, but not closed: C5 profile/C4 skills are not inserted. <del>Invalid slots can drop bullets, and fallback content can bypass approval.</del></td>
+      </tr>
+      <tr>
+        <td>Continuous Improvement dashboard tracks initiatives and tips.</td>
+        <td>Accuracy tips exist; C2 gaps now create tips and unresolved tips feed prompts. <code>ci_initiatives</code> are still not surfaced in the current UI.</td>
+        <td><span class="status part">Partial</span><br />Feedback loop improved. The operating dashboard/backlog view is still missing.</td>
+      </tr>
+      <tr>
+        <td>Profile workbook is maintained by hand.</td>
+        <td>Career Graph, onboarding import and coaching enrich the evidence store.</td>
+        <td><span class="status new">Added</span><br />This is a meaningful product expansion beyond the original workflow.</td>
+      </tr>
+      <tr>
+        <td>D-phase tracks applications and target companies.</td>
+        <td><del><code>applications</code> table is unused.</del> A mark-applied action creates or updates application rows and moves the lead to <code>applied</code>.</td>
+        <td><span class="status part">Scaffold</span><br />Useful first pass. <del>Needs owner checks and idempotency.</del> Outcome UI and target-company monitoring remain.</td>
+      </tr>
+    </table>
+  </div>
+
+  <h2 id="missing">What Is Missing</h2>
+  <div class="grid2">
+    <div class="card pad">
+      <h3>Methodology fidelity</h3>
+      <ul>
+        <li>B3 does not inject the mandatory Values &amp; Motives context.</li>
+        <li><del>C2-C7 process notes are not registered as runtime prompts.</del> C2/C3/C5/C7 are now registered. C1/C4/C6 remain code-owned.</li>
+        <li><del>C2 evidence mapping is token overlap, not Sonnet reasoning over the full Career Graph.</del> Live C2 now uses LLM mapping over broader owner-scoped evidence with validated CV slots.</li>
+        <li><del>C3 does not transform evidence into polished ATS bullets yet.</del> Live C3 now rewrites Keep evidence. Needs live-output calibration against manual examples.</li>
+        <li>C4 lacks the intended 3-5 skill categories because <code>skill_category</code> is not modeled.</li>
+        <li><del>C5 is template text rather than a real tailored profile generation step.</del> Live C5 exists, but the real-template DOCX currently does not insert that profile text.</li>
+        <li><del>C7 rating is not an Opus assessment.</del> Live C7 exists and stores the report output in <code>pipeline_runs</code>; rich lead-level persistence is still missing.</li>
+        <li>Real-template C6 fills only the 11 Professional Experience placeholders; profile and skills are not filled into the Word output.</li>
+        <li><del>Unapproved fallback evidence can still enter empty real-template slots.</del> C6 now leaves empty slots blank unless supported by Keep evidence.</li>
+        <li>B7 summary and cover-letter generation are absent.</li>
+      </ul>
+    </div>
+    <div class="card pad">
+      <h3>Product and operations</h3>
+      <ul>
+        <li>No active CI dashboard view for the seeded initiatives, cost panel and process backlog.</li>
+        <li><del>No in-app indication of <code>LLM_MODE=mock</code> versus live.</del> Header badge added.</li>
+        <li><del>No expert trace view showing step IDs, prompt source and model.</del> Compact trace disclosures are now folded into the regular workspace. Evidence refs are visible in triage; raw output JSON remains hidden.</li>
+        <li><del>No deployment-aware bookmarklet generator.</del> Origin-aware, signed-token bookmarklet added.</li>
+        <li><del>No application log.</del> Mark-applied scaffold added. Follow-up tracker, outcome UI and target-company monitoring remain.</li>
+        <li><del>New live/deep pipeline reads and writes are not consistently scoped to <code>currentOwnerId()</code>.</del> Main B/C, CI and D paths are now owner-scoped. Keep auditing new surfaces as they are added.</li>
+        <li>No robust e2e tests beyond verifier scripts.</li>
+        <li>No visual CV preview/PDF render check before download.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2 id="confusing">What Is Confusing</h2>
+  <div class="card pad">
+    <div class="row"><span class="tag t-conf">Naming</span><div><b><del>JobSearch_Camunda vs RoleProof.</del> RoleProof is now the product name in current guidance.</b><p>Historical repo context can remain, but active docs and UI should continue using RoleProof.</p></div></div>
+    <div class="row"><span class="tag t-conf">Routes</span><div><b><del>Old docs mention paths that are no longer primary.</del> Current guidance now uses fresh RoleProof routes.</b><p>Canonical path: <code>/roleproof</code>, <code>/roleproof/capture</code>, <code>/roleproof/leads/[id]</code>.</p></div></div>
+    <div class="row"><span class="tag t-conf">Language</span><div><b><del>Green/Yellow/Red became Keep/Maybe/Drop.</del> Keep/Maybe/Drop is now the methodology vocabulary.</b><p>The internal enum can stay <code>green|yellow|red</code>, but user-facing docs and UI should keep saying Keep/Maybe/Drop.</p></div></div>
+    <div class="row"><span class="tag t-conf">Dual UI</span><div><b><del>Command center and guided spine coexist without status.</del> Guided spine is now marked <code>alternative preview</code>.</b><p>Both still exist, but the badge makes it clear the preferred system is not decided yet.</p></div></div>
+    <div class="row"><span class="tag t-conf">Mock output</span><div><b><del>The app has no visible mode signal.</del> The header and workspace trace now show mode/model.</b><p>Next refinement: expose token/cost totals and raw output only where useful.</p></div></div>
+    <div class="row"><span class="tag t-conf">Traceability</span><div><b><del>The clean UX hides audit signals.</del> Trace is now folded into the regular panels.</b><p>Run trace shows step IDs, mode/model, prompt source and timestamp. Remaining gap: richer per-requirement rationale/output JSON on demand.</p></div></div>
+  </div>
+
+  <h2 id="better">What Can Be Better</h2>
+  <div class="card pad">
+    <div class="row"><span class="tag t-better">Quick</span><div><b><del>Add a visible mock/live badge.</del></b><p>Done in the header and expanded through per-run workspace trace.</p></div></div>
+    <div class="row"><span class="tag t-better">Quick</span><div><b><del>Pick one canonical workspace or demote one.</del></b><p>Interim decision: keep both and mark the guided spine as <code>alternative preview</code>.</p></div></div>
+    <div class="row"><span class="tag t-better">Quick</span><div><b><del>Fix docs and route language.</del></b><p>Current README, architecture, pipeline and Process notes now align to RoleProof routes and Keep/Maybe/Drop.</p></div></div>
+    <div class="row"><span class="tag t-better">Medium</span><div><b><del>Create expert mode.</del> Fold audit into regular UI.</b><p>Implemented first pass: trace disclosures show step IDs, mode/model, prompt source and timestamp. Remaining: structured output JSON/rationale views.</p></div></div>
+    <div class="row"><span class="tag t-better">Medium</span><div><b>Restore a lightweight dashboard.</b><p>Use existing <code>getDashboardData()</code> data to show CI initiatives, tips, usage, score buckets and stale leads.</p></div></div>
+    <div class="row"><span class="tag t-better">Large</span><div><b><del>Replace heuristic C-tailoring with real prompt-driven steps.</del></b><p>C2/C3/C5/C7 now have live prompt-driven, owner-scoped paths with trace. Next: calibrate against manual outputs.</p></div></div>
+    <div class="row"><span class="tag t-better">Large</span><div><b><del>Move CV generation to the real template.</del></b><p>Real-template path exists and no longer uses unapproved fallbacks. Next: insert/handle profile and skills correctly and add a render/preview check.</p></div></div>
+  </div>
+
+  <h2 id="paths">Recommended Paths Forward</h2>
+  <div class="grid3">
+    <div class="path">
+      <div class="rec">Recommended</div>
+      <h3>Faithfulness First</h3>
+      <p>Best if your goal is to trust the app as a replacement for your manual process.</p>
+      <ul>
+        <li><del>Fix owner scoping across C2-C7, CI guidance, CV variants and applications.</del></li>
+        <li>Wire B3 values context.</li>
+        <li><del>Register C2-C7 prompts and schemas.</del> Calibrate C2/C3/C5/C7 live outputs against manual examples.</li>
+        <li>Run live LLM tests on 3-5 known leads.</li>
+        <li><del>Add expert trace surfaces.</del> First pass folded into regular panels; add deeper rationale/output drawers next.</li>
+        <li><del>Move to the real CV template.</del> Finish profile/skills fidelity and render preview.</li>
+      </ul>
+    </div>
+    <div class="path">
+      <h3>Product First</h3>
+      <p>Best if the goal is to show a polished SaaS journey quickly.</p>
+      <ul>
+        <li><del>Consolidate RoleProof branding.</del> Continue cleaning historical-only docs over time.</li>
+        <li>Keep guided onboarding front and center.</li>
+        <li>Deploy with Supabase Auth and RLS.</li>
+        <li><del>Harden bookmarklet auth attribution before multi-user deploy.</del> Signed capture token added.</li>
+        <li><del>Add application tracking.</del> Expand the scaffold into outcome/follow-up tracking.</li>
+        <li><del>Keep mock C-tailoring explicit.</del> Header badge and per-run trace added.</li>
+      </ul>
+    </div>
+    <div class="path">
+      <h3>Full Refactor</h3>
+      <p>Only worth it if live prompt wiring still cannot reach manual quality.</p>
+      <ul>
+        <li>Make <code>pipeline_runs</code> the UI source of truth.</li>
+        <li>Build a step registry mirroring <code>Process/</code>.</li>
+        <li>Use graph search/RAG for evidence retrieval.</li>
+        <li>Unify board/workspace/apply flow.</li>
+        <li>Consider Camunda runtime only after the process stabilizes.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2 id="next">Prioritized Next Steps</h2>
+  <div class="card pad">
+    <ol>
+      <li><b><del>Fix data isolation first:</del></b> Main B/C/CI/D paths are owner-scoped; keep auditing any new surface before deploy.</li>
+      <li><b><del>Fix bookmarklet identity:</del></b> Signed capture token implemented on <code>/roleproof/capture</code> and <code>/api/ingest</code>.</li>
+      <li><b><del>Protect the human gate:</del></b> C6 no longer fills unapproved fallbacks and <code>cvPosition</code> is validated against the real slot list.</li>
+      <li><b><del>Protect orientation:</del></b> RoleProof routes, Keep/Maybe/Drop vocabulary, LIVE/MOCK badge, alternative-preview badge and workspace trace are in place.</li>
+      <li><b>Close the screening gap:</b> inject Values &amp; Motives into B3 and verify B1-B6 against hand-calculated examples.</li>
+      <li><b>Calibrate live tailoring:</b> compare C2/C3/C5/C7 output against existing manual C-step rows and tune prompts/schemas.</li>
+      <li><b>Finish CV fidelity:</b> decide how profile/skills enter the real template, group bullets by role/position, and add a document render check.</li>
+      <li><b>Recover operations:</b> restore CI initiatives/tips/usage/application backlog into RoleProof-native surfaces.</li>
+      <li><b>Deepen trust surfaces:</b> add per-requirement rationale, output JSON and token/cost detail where helpful.</li>
+      <li><b>Then deploy:</b> Supabase Auth/RLS, storage validation and a concise demo script.</li>
+    </ol>
+  </div>
+
+  <h2>Files Created For This Report</h2>
+  <div class="card pad">
+    <p class="lead" style="margin-bottom:0">
+      This report intentionally lives outside the existing phase reports and does not overwrite
+      <code>docs/phases/roots-review.html</code>.
+    </p>
+    <div class="filelist">
+      <a href="current-prototype-roots-report-2026-06-30.html">current-prototype-roots-report-2026-06-30.html</a>
+      <a href="img/current-board.png">img/current-board.png</a>
+      <a href="img/current-capture.png">img/current-capture.png</a>
+      <a href="img/current-career-graph.png">img/current-career-graph.png</a>
+      <a href="img/current-screened-command.png">img/current-screened-command.png</a>
+      <a href="img/current-guided-spine.png">img/current-guided-spine.png</a>
+      <a href="img/current-ready-cv.png">img/current-ready-cv.png</a>
+    </div>
+  </div>
+
+  <footer>
+    <span>Current Prototype Roots Report · 30 Jun 2026</span>
+    <span>Source context: <code>Process/</code>, <code>docs/</code>, current app screens and implementation files.</span>
+  </footer>
+</div>
+</body>
+</html>

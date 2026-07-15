@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>User Journey & the Career Graph · JobSearch Camunda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --canvas:#f7f8fb;--surface:#fff;--raised:#f8fafc;--hairline:#e2e6ec;
+    --ink:#111827;--muted:#475467;--subtle:#94a1b3;
+    --b50:#eef2ff;--b100:#e0e7ff;--b200:#c7d2fe;--b500:#6366f1;--b600:#4f46e5;--b700:#4338ca;--b900:#312e81;
+    --emerald:#059669;--amber:#f59e0b;--rose:#f43f5e;--violet:#7c3aed;--teal:#0d9488;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06);
+    --elevated:0 2px 4px -1px rgba(16,24,40,.04),0 12px 28px -8px rgba(16,24,40,.14);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);line-height:1.55;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(1200px 520px at 50% -260px,rgba(99,102,241,.06),transparent 70%);}
+  .wrap{max-width:1060px;margin:0 auto;padding:30px 22px 90px}
+  a{color:var(--b600);text-decoration:none}
+  code,.mono{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--subtle)}
+  .backlink{display:inline-block;margin-bottom:18px;font-size:13px;color:var(--muted)}
+  .hero{position:relative;overflow:hidden;border-radius:22px;padding:44px;color:#fff;
+    background:linear-gradient(120deg,#0f172a 0%,#312e81 45%,#4f46e5 100%);box-shadow:var(--elevated)}
+  .hero:after{content:"";position:absolute;right:-60px;top:-90px;width:340px;height:340px;border-radius:50%;background:rgba(255,255,255,.07)}
+  .hero .eyebrow{color:rgba(255,255,255,.85)}
+  .hero h1{margin:.35em 0 .3em;font-size:37px;letter-spacing:-.025em;line-height:1.08;max-width:18ch}
+  .hero p{margin:0;max-width:64ch;opacity:.94;font-size:15px}
+  .pills{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+  .pill{font-size:12.5px;font-weight:600;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:5px 12px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:48px 0 16px;display:flex;align-items:center;gap:12px}
+  h2:after{content:"";height:1px;flex:1;background:var(--hairline)}
+  .card{background:var(--surface);border:1px solid var(--hairline);border-radius:14px;box-shadow:var(--shadow)}
+  .pad{padding:22px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .lead{font-size:15px;color:var(--muted);max-width:74ch}
+  h3{margin:.1em 0 .4em;font-size:17px;letter-spacing:-.01em}
+  /* moat compare */
+  .vs{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--hairline);border-radius:14px;overflow:hidden}
+  .vs .col{padding:20px}
+  .vs .col.bad{background:var(--raised)}
+  .vs .col.good{background:linear-gradient(180deg,#fbfaff,#fff);border-left:1px solid var(--hairline)}
+  .vs h4{margin:0 0 10px;font-size:13px;display:flex;align-items:center;gap:8px}
+  .vs ul{margin:0;padding-left:18px;font-size:13.5px;color:var(--muted)}
+  .vs li{margin:6px 0}
+  .tag{display:inline-block;font-size:11px;font-weight:600;border-radius:6px;padding:2px 8px}
+  .tag.bad{background:#fff1f2;color:#be123c}
+  .tag.good{background:#ecfdf5;color:#047857}
+  /* journey map */
+  .journey{position:relative;border:1px solid var(--hairline);border-radius:16px;padding:22px;background:#fff;overflow:hidden}
+  .stages{display:flex;gap:10px;position:relative;z-index:2}
+  .stage{flex:1;border:1px solid var(--hairline);border-radius:12px;padding:14px;background:#fff;text-align:center;min-width:0}
+  .stage .n{width:26px;height:26px;border-radius:8px;background:var(--b600);color:#fff;font-weight:600;font-size:12px;display:grid;place-items:center;margin:0 auto 8px}
+  .stage h5{margin:0;font-size:13.5px}
+  .stage p{margin:4px 0 0;font-size:11.5px;color:var(--subtle);line-height:1.4}
+  .stage.lead-stage .n{background:linear-gradient(135deg,#4f46e5,#7c3aed)}
+  .foundation{margin-top:14px;border:1px dashed var(--b200);background:var(--b50);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px}
+  .foundation .ic{width:30px;height:30px;border-radius:8px;background:#fff;border:1px solid var(--b200);display:grid;place-items:center}
+  .loop{margin-top:10px;font-size:12px;color:var(--violet);display:flex;align-items:center;gap:8px}
+  /* onboarding flow */
+  .flow{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
+  .flow .step{position:relative;padding:18px 16px;border:1px solid var(--hairline);border-right:0;background:#fff}
+  .flow .step:first-child{border-radius:14px 0 0 14px}
+  .flow .step:last-child{border-right:1px solid var(--hairline);border-radius:0 14px 14px 0;background:linear-gradient(180deg,#f0fdf9,#fff)}
+  .flow .k{font-size:11px;font-weight:700;color:var(--b600);letter-spacing:.08em}
+  .flow h5{margin:8px 0 6px;font-size:14.5px}
+  .flow p{margin:0;font-size:12.5px;color:var(--muted);line-height:1.45}
+  .flow .arrow{position:absolute;right:-9px;top:50%;transform:translateY(-50%);z-index:3;width:18px;height:18px;border-radius:50%;background:#fff;border:1px solid var(--hairline);display:grid;place-items:center;font-size:10px;color:var(--subtle)}
+  .gatechip{display:inline-flex;gap:6px;margin-top:10px}
+  .gatechip span{font-size:10px;font-weight:600;border-radius:5px;padding:2px 7px}
+  .g-keep{background:#059669;color:#fff}.g-edit{background:#f59e0b;color:#fff}.g-drop{background:#fff;color:var(--muted);border:1px solid var(--hairline)}
+  /* principles */
+  .princ{display:flex;gap:12px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--hairline)}
+  .princ:last-child{border-bottom:0}
+  .princ .num{flex-shrink:0;width:26px;height:26px;border-radius:7px;background:var(--b50);color:var(--b700);font-weight:600;font-size:12px;display:grid;place-items:center}
+  .princ b{font-size:14px}
+  .princ p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+  /* roadmap */
+  .road{display:flex;flex-direction:column;gap:0}
+  .rstep{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--hairline)}
+  .rstep:last-child{border-bottom:0}
+  .rstep .key{flex-shrink:0;width:54px;font-weight:700;color:var(--b700);font-size:13px}
+  .rstep .body h5{margin:0 0 3px;font-size:14px}
+  .rstep .body p{margin:0;font-size:13px;color:var(--muted)}
+  .rstep.now{background:linear-gradient(90deg,var(--b50),transparent);border-radius:10px;padding:14px 12px}
+  .persona{display:flex;gap:16px;align-items:flex-start}
+  .persona .av{flex-shrink:0;width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,#312e81,#7c3aed);color:#fff;display:grid;place-items:center;font-weight:700;font-size:18px}
+  .jtbd{margin:0;padding:0;list-style:none}
+  .jtbd li{padding:8px 0;border-bottom:1px solid var(--hairline);font-size:13.5px;color:var(--muted);display:flex;gap:10px}
+  .jtbd li:last-child{border-bottom:0}
+  .jtbd .q{color:var(--ink);font-weight:500}
+  .foot{margin-top:46px;border-top:1px solid var(--hairline);padding-top:20px;color:var(--subtle);font-size:13px}
+  @media(max-width:820px){.grid2,.grid3,.vs,.flow,.stages{grid-template-columns:1fr;display:block}.stage,.flow .step{margin-bottom:8px;border-radius:12px!important;border-right:1px solid var(--hairline)!important}.flow .arrow{display:none}.persona{flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="backlink" href="index.html">← Build review hub</a>
+
+  <div class="hero">
+    <div class="eyebrow">JobSearch Camunda · User-Journey Plan</div>
+    <h1>Your inputs are the moat</h1>
+    <p>Generic AI turns a CV + a job ad into a tailored CV — generic, forgetful, prone to invention.
+       This system's power is the rich, human-curated evidence behind it. The plan: make that
+       evidence base — the <b>Career Graph</b> — something a new user can build in minutes and grow
+       forever, with an honest AI co-pilot that drafts while the human decides.</p>
+    <div class="pills">
+      <span class="pill">Career Graph as the asset</span>
+      <span class="pill">Hybrid onboarding: import → coach</span>
+      <span class="pill">AI drafts · you curate</span>
+      <span class="pill">Truthfulness as a feature</span>
+      <span class="pill">Senior operators first</span>
+    </div>
+  </div>
+
+  <h2>The moat — why this beats generic AI</h2>
+  <div class="vs">
+    <div class="col bad">
+      <h4><span class="tag bad">Generic AI CV tools</span></h4>
+      <ul>
+        <li><b>Stateless:</b> (CV + JD) → CV, every time from scratch</li>
+        <li>Generic phrasing; no memory of you</li>
+        <li>Optimises impressiveness over truth — invents metrics</li>
+        <li>Nothing compounds; you start over each app</li>
+      </ul>
+    </div>
+    <div class="col good">
+      <h4><span class="tag good">This system</span></h4>
+      <ul>
+        <li><b>A Career Graph:</b> positions → STAR stories → actions, quantified results, skills — every claim cited by <code>ref_code</code></li>
+        <li><b>Human judgment gates:</b> you approve every claim (Green/Yellow/Red); honesty is enforced</li>
+        <li>Gets <b>more personal the more it's used</b></li>
+        <li>A career asset <b>you own and grow</b></li>
+      </ul>
+    </div>
+  </div>
+  <p class="lead" style="margin-top:14px">Today that moat is a <b>12-sheet Excel wall</b> — pre-seeded, un-buildable in-product.
+     Closing that gap, approachably, is the whole plan.</p>
+
+  <h2>Who we build for first</h2>
+  <div class="card pad">
+    <div class="persona">
+      <div class="av">SO</div>
+      <div>
+        <h3 style="margin-top:0">The Senior Operator</h3>
+        <p class="lead">15+ years; exec / finance / transformation / chief-of-staff; multi-country, non-linear
+          career. Applies selectively, time-poor, reputation-sensitive — <b>won't risk a fabricated claim</b>,
+          and already distrusts AI "slop." The owner can dogfood it; truthfulness matters most where stakes are highest.</p>
+        <ul class="jtbd" style="margin-top:12px">
+          <li><span>1</span><span class="q">"Help me articulate what I've actually done, at the level it deserves."</span></li>
+          <li><span>2</span><span class="q">"Tell me honestly which roles are worth my scarce time."</span></li>
+          <li><span>3</span><span class="q">"Produce a truthful, tailored, ATS-safe CV per role in minutes."</span></li>
+          <li><span>4</span><span class="q">"Build a career asset I own that gets better over time."</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h2>The reimagined journey</h2>
+  <div class="journey">
+    <div class="stages">
+      <div class="stage lead-stage"><div class="n">0</div><h5>Build</h5><p>Onboard: import + coach into the Career Graph</p></div>
+      <div class="stage"><div class="n">B</div><h5>Screen</h5><p>B1–B6 honest role-fit (mission control)</p></div>
+      <div class="stage"><div class="n">C</div><h5>Tailor</h5><p>C1–C7 with the human Green/Yellow/Red gate</p></div>
+      <div class="stage"><div class="n">D</div><h5>Apply</h5><p>Submit &amp; track outcomes</p></div>
+      <div class="stage"><div class="n">↻</div><h5>Improve</h5><p>The loop — the graph grows</p></div>
+    </div>
+    <div class="foundation">
+      <span class="ic">◆</span>
+      <div><b style="font-size:13.5px">The Career Graph</b> <span style="color:var(--muted);font-size:13px">— the persistent asset under every stage. Screening &amp; tailoring route gaps back into it.</span></div>
+    </div>
+    <div class="loop">↻ Every gap found, every bullet you rewrite, every approval and outcome enriches the graph.</div>
+  </div>
+
+  <h2>Stage 0 · the hybrid onboarding</h2>
+  <p class="lead" style="margin-bottom:14px">Apply the system's own best pattern — <b>AI drafts, the human curates</b> — to building the profile.</p>
+  <div class="flow">
+    <div class="step"><div class="k">IMPORT</div><h5>Bootstrap</h5><p>Upload a CV / LinkedIn, or paste roles. AI extracts a draft graph — with provenance &amp; confidence.</p><div class="arrow">→</div></div>
+    <div class="step"><div class="k">CURATE</div><h5>The gate</h5><p>Approve / edit / drop each node — the same muscle as C2. Only approved evidence is trusted.</p>
+      <div class="gatechip"><span class="g-keep">Approve</span><span class="g-edit">Edit</span><span class="g-drop">Drop</span></div>
+      <div class="arrow">→</div></div>
+    <div class="step"><div class="k">COACH</div><h5>Enrich</h5><p>AI asks the questions that draw out the impact you under-told — <i>"what was the headcount, the cost/time saved?"</i> Never invents a number.</p><div class="arrow">→</div></div>
+    <div class="step"><div class="k">WIN</div><h5>First CV</h5><p>A minimally-viable graph unlocks your first tailored CV — payoff before you've finished. Then grow it over time.</p></div>
+  </div>
+
+  <h2>Design principles</h2>
+  <div class="card pad">
+    <div class="princ"><span class="num">1</span><div><b>AI drafts, the human curates &amp; enriches — everywhere.</b><p>Lowers input cost and keeps it true. One consistent, trust-building pattern across onboarding and tailoring.</p></div></div>
+    <div class="princ"><span class="num">2</span><div><b>Start with a win, not a wall.</b><p>A minimally-viable graph unlocks value; never block on completeness.</p></div></div>
+    <div class="princ"><span class="num">3</span><div><b>Make the moat visible.</b><p>Show graph completeness &amp; strength as an asset worth growing.</p></div></div>
+    <div class="princ"><span class="num">4</span><div><b>Trust by provenance.</b><p>Every claim traces to evidence the user approved. Truthfulness is a feature, not a constraint.</p></div></div>
+    <div class="princ"><span class="num">5</span><div><b>Two speeds.</b><p>A guided wizard for newcomers; a power path (bulk/table editor + Excel) for operators like the owner.</p></div></div>
+    <div class="princ"><span class="num">6</span><div><b>The graph is the product; jobs are transient.</b><p>Invert today's lead-centric IA — Profile becomes first-class.</p></div></div>
+    <div class="princ"><span class="num">7</span><div><b>Coach, don't just collect.</b><p>The STAR/impact interview draws out under-told wins — the highest-value job for senior pros.</p></div></div>
+  </div>
+
+  <h2>The roadmap</h2>
+  <div class="card pad road">
+    <div class="rstep now"><div class="key">Now</div><div class="body"><h5>This plan</h5><p>Journey strategy, the buildable onboarding spec, and this review.</p></div></div>
+    <div class="rstep"><div class="key">O1</div><div class="body"><h5>Career Graph, first-class</h5><p>A <code>/profile</code> section: view + CRUD editors over the evidence tables + a completeness meter. No AI; immediate, dogfoodable value.</p></div></div>
+    <div class="rstep"><div class="key">O2</div><div class="body"><h5>Import &amp; extract</h5><p>CV/LinkedIn → AI-drafted graph → the curation gate → committed evidence. Reuses the structured-output choke point and the C2 muscle.</p></div></div>
+    <div class="rstep"><div class="key">O3</div><div class="body"><h5>Coach &amp; enrich</h5><p>Completeness/strength, the coaching interview, gap→enrich prompts from screening, provenance surfaced on CV bullets.</p></div></div>
+    <div class="rstep"><div class="key">O4</div><div class="body"><h5>Multi-tenant (P7)</h5><p>Supabase Auth + RLS; the wizard replaces Excel for new users. The schema is already <code>owner_id</code>-ready.</p></div></div>
+  </div>
+
+  <div class="foot">
+    Durable records: <code>docs/design/USER_JOURNEY.md</code> (strategy, JTBD, journey, metrics, validation) ·
+    <code>docs/design/ONBOARDING_SPEC.md</code> (the buildable spec: routes, AI contracts, data deltas).
+    <br/>The HTML is for review; the Markdown is the record.
+  </div>
+</div>
+</body>
+</html>

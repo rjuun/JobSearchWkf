@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>M2 · Value-ranked coach — morning review</title>
+<style>
+  :root{--proof:#0f7d5a;--proof-soft:#e6f4ee;--proof-deep:#0a5c42;--ink:#1a1c1a;--muted:#5c6360;--hair:#e3e6e4;--canvas:#f7f9f8;--surface:#fff;--amber:#b7791f;--amber-soft:#fdf6e7}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:32px 16px}
+  .wrap{max-width:860px;margin:0 auto}
+  header{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+  .badge{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:11px;background:var(--proof);color:#fff;font-weight:800}
+  h1{font-size:23px;margin:0;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin:2px 0 24px;font-size:13.5px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+  .pill.ok{background:var(--proof-soft);color:var(--proof-deep)}
+  .card{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:20px 22px;margin:16px 0;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .card h2{font-size:15px;margin:0 0 12px}
+  code{background:#f0f2f1;border-radius:5px;padding:1px 6px;font-size:12.5px;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+  .row{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--hair)}
+  .row:last-child{border-bottom:0}
+  .tick{color:var(--proof);font-weight:800}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  td,th{text-align:left;padding:7px 8px;border-bottom:1px solid var(--hair);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px}
+  .q{display:flex;gap:10px;align-items:center;padding:7px 10px;border:1px solid var(--hair);border-radius:9px;margin:6px 0;font-size:13px}
+  .v{font-family:"JetBrains Mono",monospace;font-weight:700;color:var(--proof-deep);background:var(--proof-soft);border-radius:6px;padding:2px 7px;font-size:12px}
+  .src{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  .before{opacity:.6;text-decoration:line-through}
+  .foot{color:var(--muted);font-size:12.5px;text-align:center;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="badge">M2</div>
+    <div>
+      <h1>Value-ranked coach + bundled housekeeping</h1>
+      <div class="sub">The coach leads with what matters, not busywork · <span class="pill ok">✓ Complete</span></div>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>✨ The one-line</h2>
+    <p style="margin:0">Before, the coach sorted by category, so a fresh user saw a wall of near-identical "add ATS variants" cards.
+    Now one <b>value score</b> ranks every prompt across engines: a live screening watch-out and a Core requirement on a role
+    you're chasing rise to the top, and the six ATS cards collapse into <b>one</b> tidy multi-skill pass.</p>
+  </div>
+
+  <div class="card">
+    <h2>📋 The queue now (top of the list)</h2>
+    <div class="q"><span class="v">95</span><span class="src">screening</span><span>"Strategy Office Senior Manager flagged seniority — can you point to a time…"</span></div>
+    <div class="q"><span class="v">88</span><span class="src">target</span><span>A Core requirement several of your flagged roles ask for</span></div>
+    <div class="q"><span class="v">55</span><span class="src">prior role</span><span>"What was the measurable impact of <em>Transforming Governance</em>?"</span></div>
+    <div class="q"><span class="v">25</span><span class="src">ATS · bundle</span><span>"6 skills have no ATS variants yet — how might a job ad phrase them?" <b>(one card, was six)</b></span></div>
+    <p style="margin:10px 0 0;font-size:12.5px;color:var(--muted)">Group order flipped from <span class="before">Basics → … </span> to <b>Tuned to where you're aiming → Go deeper → Basics</b>.</p>
+  </div>
+
+  <div class="card">
+    <h2>✅ What I changed</h2>
+    <div class="row"><span class="tick">✓</span><div><b>One value scale across all engines.</b> screening_gap 95 · target 76–90 (by rank + how many roles ask) · metric 55 · similar 35 · ATS 25. Tiers are now just visual labels.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>ATS bundled.</b> N skills without variants → one prompt; the commit parses "Skill: variant, variant" lines and merges each — never inventing a skill.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>A hero.</b> <code>heroOf()</code> picks the single highest-value prompt — M3's "start here" stage will open on it.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>5 new tests</b> (38 total): bundling collapses N→1, ranking order, demand weighting, hero selection.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>🔍 Code review (agent)</h2>
+    <p style="margin:0;font-size:13px;color:var(--muted)">Findings + resolutions are listed in <code>docs/milestones/M2.md</code>. All addressed before commit.</p>
+  </div>
+
+  <div class="card">
+    <h2>🧪 How to check it yourself</h2>
+    <ol style="margin:0;padding-left:20px">
+      <li><code>npm run seed &amp;&amp; npm run dev</code> → <code>/profile/coach</code></li>
+      <li>Top prompts are screening watch-outs / target requirements — ATS appears once.</li>
+      <li>Open the ATS card → <code>Controlling: FP&amp;A, management accounting</code> → approve → those skills gain variants.</li>
+    </ol>
+  </div>
+
+  <div class="foot">RoleProof · M2 of M0–M7 · generated for morning review</div>
+</div>
+</body>
+</html>

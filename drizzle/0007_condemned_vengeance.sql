@@ -1,0 +1,1 @@
+ALTER TABLE "coaching_prompts" ADD COLUMN "value" real DEFAULT 0 NOT NULL;

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RoleProof · Rethink Completion — Waves D · E · F</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --canvas:#f4f5f8;--surface:#fff;--raised:#f8fafc;--hairline:#e2e6ec;
+    --ink:#111827;--muted:#475467;--subtle:#94a1b3;
+    --proof:#4f46e5;--proof-soft:#eef2ff;--proof-deep:#312e81;
+    --emerald:#059669;--amber:#d97706;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06);
+    --elevated:0 2px 4px -1px rgba(16,24,40,.04),0 14px 32px -10px rgba(16,24,40,.16);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);line-height:1.58;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(1100px 480px at 50% -240px,rgba(79,70,229,.07),transparent 70%);}
+  .wrap{max-width:960px;margin:0 auto;padding:28px 22px 96px}
+  a{color:var(--proof);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:.88em;background:var(--raised);border:1px solid var(--hairline);border-radius:5px;padding:1px 5px}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.82)}
+  .hero{position:relative;overflow:hidden;border-radius:22px;padding:44px 46px;color:#fff;
+    background:linear-gradient(125deg,#0f172a 0%,#312e81 42%,#4f46e5 72%,#7c3aed 100%);box-shadow:var(--elevated)}
+  .hero:after{content:"";position:absolute;right:-70px;top:-100px;width:360px;height:360px;border-radius:50%;background:rgba(255,255,255,.07)}
+  .hero h1{margin:.35em 0 .3em;font-family:'Instrument Serif',Georgia,serif;font-size:44px;font-weight:400;letter-spacing:-.02em;line-height:1.05;max-width:20ch}
+  .hero p{margin:0;max-width:72ch;opacity:.94;font-size:15px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:44px 0 16px;display:flex;align-items:center;gap:12px}
+  h2:after{content:"";height:1px;flex:1;background:var(--hairline)}
+  .wave{display:block;background:var(--surface);border:1px solid var(--hairline);border-radius:16px;box-shadow:var(--shadow);padding:22px 24px;margin-bottom:14px;transition:transform .1s,box-shadow .1s}
+  a.wave:hover{transform:translateY(-2px);box-shadow:var(--elevated);text-decoration:none}
+  .wave .top{display:flex;align-items:baseline;justify-content:space-between;gap:14px}
+  .wave h3{margin:0;font-size:19px;letter-spacing:-.01em;color:var(--ink)}
+  .wave p{margin:6px 0 0;font-size:13.5px;color:var(--muted);max-width:72ch}
+  .st{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;border-radius:6px;padding:3px 9px;white-space:nowrap}
+  .st-ok{background:#ecfdf5;color:#047857}.st-next{background:var(--proof-soft);color:var(--proof-deep)}.st-todo{background:var(--raised);color:var(--subtle)}
+  .items{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+  .items span{font-size:11.5px;background:var(--raised);border:1px solid var(--hairline);border-radius:999px;padding:4px 11px;color:var(--muted)}
+  .rule{font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--hairline);border-left:3px solid var(--proof);border-radius:0 12px 12px 0;padding:14px 18px;margin:18px 0}
+  footer{margin-top:56px;font-size:12.5px;color:var(--subtle);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">RoleProof · First-Principles Rethink</div>
+    <h1>Rethink Completion</h1>
+    <p>Finishing what the Rethink board promises but the repo didn't yet deliver (R1–R7), in the additive
+       spirit of Waves A/B/C: ship beside what exists, behind a flag, with one <code>ux_events</code> signal and
+       a pre-decided fold question. Source plan: <code>RoleProof_Rethink_Completion_Milestones.md</code>.</p>
+  </div>
+
+  <div class="rule"><b>Rule (unchanged):</b> nothing removed or replaced until a fold question is answered by real
+    behaviour · deterministic where it counts (priority, fit, verdict never call the LLM) · one honest signal per
+    surface, no vanity dashboards.</div>
+
+  <h2>Wave D — the half-built loops</h2>
+  <a class="wave" href="./wave-d.html">
+    <div class="top"><h3>Wave D · close the loops users feel</h3><span class="st st-ok">✓ shipped</span></div>
+    <p>The three cheapest, highest-emotional-payoff finishers — the interview moment, the excavation invitation,
+       and the return to the Statement.</p>
+    <div class="items"><span>R1 · Interview Armament</span><span>R2 · Excavation surfaced</span><span>R3 · Statement re-entry</span></div>
+  </a>
+
+  <h2>Wave E — the honest-verdict surface</h2>
+  <a class="wave" href="./wave-e.html">
+    <div class="top"><h3>Wave E · Test a Door</h3><span class="st st-ok">✓ shipped</span></div>
+    <p>An honest verdict on an unexpected role <em>before</em> you commit to it — the beat that makes Discover
+       more than a list.</p>
+    <div class="items"><span>R4 · Test a Door (#5c)</span></div>
+  </a>
+
+  <h2>Wave F — the IA-shifting bets</h2>
+  <a class="wave" href="./wave-f.html">
+    <div class="top"><h3>Wave F · the three big bets, taken last</h3><span class="st st-ok">✓ shipped</span></div>
+    <p>The full weekly triage, the transition ledger, and the assembled Career-Graph page + recruiter's-phone
+       proof view — each additive, the old view one click away.</p>
+    <div class="items"><span>R5 · Weekly Triage (#6a)</span><span>R6 · Transition Ledger (#4b)</span><span>R7 · Assembled graph + mobile proof (#3a #3b)</span></div>
+  </a>
+
+  <div class="rule" style="border-left-color:#059669;margin-top:34px">
+    <b>Rethink board · functionally complete.</b> R1–R7 all shipped, additive and instrumented. Two migrations
+    to apply on deploy (<code>0016</code> statement-seen, <code>0017</code> weekly-capacity); three on-by-default
+    IA flags to confirm or retire once their <code>ux_events</code> earn the fold call. Details in each wave doc.
+  </div>
+
+  <h2>External review</h2>
+  <a class="wave" href="./grok-review.html">
+    <div class="top"><h3>Grok review · verified &amp; resolved</h3><span class="st st-ok">9 shipped · 2 moot</span></div>
+    <p>An external pass over the D–F branch flagged 11 items; each re-checked against the code. Seven real
+       fixes shipped (two flag-gating leaks, a vanishing held pile, two telemetry-accuracy issues, a self-contradicting
+       brief, a seen-marker race), plus two design questions decided and implemented (assembled-face coupling, a real
+       excavation snooze). Only a testing-strategy preference remains open.</p>
+    <div class="items"><span>gating</span><span>telemetry accuracy</span><span>truthful bridges</span><span>2 decisions shipped</span></div>
+  </a>
+
+  <footer>Kept with the code · each wave links a verification doc generated during its build.</footer>
+</div>
+</body>
+</html>

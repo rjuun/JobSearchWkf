@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>M4 · Screen-first onboarding — morning review</title>
+<style>
+  :root{--proof:#0f7d5a;--proof-soft:#e6f4ee;--proof-deep:#0a5c42;--ink:#1a1c1a;--muted:#5c6360;--hair:#e3e6e4;--canvas:#f7f9f8;--surface:#fff;--amber:#b7791f;--amber-soft:#fdf6e7}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:32px 16px}
+  .wrap{max-width:860px;margin:0 auto}
+  header{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+  .badge{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:11px;background:var(--proof);color:#fff;font-weight:800}
+  h1{font-size:23px;margin:0;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin:2px 0 24px;font-size:13.5px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+  .pill.ok{background:var(--proof-soft);color:var(--proof-deep)}
+  .card{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:20px 22px;margin:16px 0;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .card h2{font-size:15px;margin:0 0 12px}
+  code{background:#f0f2f1;border-radius:5px;padding:1px 6px;font-size:12.5px;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+  .row{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--hair)}
+  .row:last-child{border-bottom:0}
+  .tick{color:var(--proof);font-weight:800}
+  .flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12.5px}
+  .step{background:var(--proof-soft);color:var(--proof-deep);border-radius:8px;padding:6px 10px;font-weight:600}
+  .arr{color:var(--muted)}
+  .before{background:#fbeceb;color:#b4443a;border-radius:8px;padding:6px 10px;text-decoration:line-through;opacity:.8}
+  .foot{color:var(--muted);font-size:12.5px;text-align:center;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="badge">M4</div>
+    <div>
+      <h1>Screen-first onboarding</h1>
+      <div class="sub">The cold start now answers the user's question, not ours · <span class="pill ok">✓ Complete</span></div>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>✨ The one-line</h2>
+    <p style="margin:0">New users used to hit a <b>curation wall</b> — draft 24–60 items and Keep/Drop every one before seeing anything.
+    Now they paste a <b>CV + one job ad</b> and get a <b>real Role-Fit verdict</b> in a couple of minutes; the Career Graph is
+    born from it, and they curate only the ~6 lines the CV actually needs.</p>
+  </div>
+
+  <div class="card">
+    <h2>🔀 Before → after</h2>
+    <div class="flow" style="margin-bottom:10px"><span class="before">paste → draft 24–60 → curate ALL → then find a role</span></div>
+    <div class="flow">
+      <span class="step">paste CV + job ad</span><span class="arr">→</span>
+      <span class="step">verdict (from your history)</span><span class="arr">→</span>
+      <span class="step">Keep ~6 for the CV</span><span class="arr">→</span>
+      <span class="step">download CV</span>
+    </div>
+    <p style="margin:10px 0 0;font-size:12.5px;color:var(--muted)">≈ 8 decisions, no forms — inside the ≤10 / ≤5-min activation bar.</p>
+  </div>
+
+  <div class="card">
+    <h2>✅ What I changed</h2>
+    <div class="row"><span class="tick">✓</span><div><b>A real front door</b> at <code>/start</code> — two paste boxes (with samples) → "Screen this role". Established users skip it.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>One action wires it all:</b> extract graph from the CV → commit as imported history → create the lead → screen → queue the coach's first session → land on the verdict.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Signup routes here</b>, not the old wall. The wall stays only as an "import more" path.</div></div>
+    <div class="row"><span class="tick">✓</span><div><b>Honest label:</b> "your Career Graph is born — this verdict is based on your imported history; it firms up as you approve."</div></div>
+  </div>
+
+  <div class="card">
+    <h2>💭 A scope call to sanity-check</h2>
+    <div class="row"><span style="color:var(--amber);font-weight:800">?</span><div>I commit the imported CV as <em>history</em> up-front and screen against it (labelled), rather than the purest "every node stays draft until you Keep it" model — which would need a draft/approved flag on every evidence row. This reuses the whole existing pipeline and hits the activation bar; the truer per-Keep-of-draft version is noted as a follow-up. Flag if you want the stricter model.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>🔍 Code review (agent)</h2>
+    <p style="margin:0;font-size:13px;color:var(--muted)">Findings + resolutions are in <code>docs/milestones/M4.md</code>. Addressed before commit.</p>
+  </div>
+
+  <div class="card">
+    <h2>🧪 How to check it yourself</h2>
+    <ol style="margin:0;padding-left:20px">
+      <li>Sign up a fresh account → you land on <code>/start</code>.</li>
+      <li><b>Use a sample</b> on both boxes → <b>Screen this role</b> → verdict + "imported history" banner.</li>
+      <li>Map evidence → Keep a few → <b>Generate</b> → download the CV.</li>
+    </ol>
+  </div>
+
+  <div class="foot">RoleProof · M4 of M0–M7 · generated for morning review</div>
+</div>
+</body>
+</html>
