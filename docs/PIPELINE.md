@@ -77,8 +77,8 @@ keeps scoring unbiased and reproducible.
 | **C1** Format & compliance | `C1. Overall Application Content and Format Guidance.md` | DeepSeek | CV format/length, cover-letter required?, **headshot decision** (country/DEI tree), HR contact |
 | **C2** Map requirements → evidence | `C2. Map JD Requirements to Supporting Evidence.md` | DeepSeek | `requirement_tailoring[]`: evidence `ref_code`, original_text, `cv_position` → **`approval_status=pending`** |
 | ⟶ **Human gate** | — | — | Each link marked **Keep / Maybe / Drop**. Only **Keep** proceeds. One evidence piece → one requirement (dedup by specificity). |
-| **C3** Evidence → CV bullets | `C3. Transform Evidence into CV Bullets.md` | DeepSeek | `cv_bullet` per Keep row (7 principles: truthful, natural keywords, strong verbs, real metrics, skill tags, concise) |
-| **C4** Skills section | `C4. Build and Manage the Skills Section.md` | DeepSeek | 3–5 categories ×4–8 skills; every bullet-referenced skill must appear here |
+| **C3** Evidence → CV bullets | `C3. Transform Evidence into CV Bullets.md` | DeepSeek | `cv_bullet` per Keep row (7 principles: truthful, natural keywords, strong verbs, real metrics, skill tags, concise) + `requirement_skills` (Job-Lead-facing skills this bullet demonstrates — the bracketed tag) |
+| **C4** Skills section | `C4. Build and Manage the Skills Section.md` | **code** | 3–5 categories ×4–8 skills, built primarily from Keep rows' `my_skills` (consistency rule, uncapped) + a requirement-overlap top-up across Skills/STAR Competences/STAR Attributes |
 | **C5** CV profile | `C5. Drafting CV Profile (Per Job Lead).md` | DeepSeek | 4–7 line profile leading with seniority + core-requirement alignment |
 | **C6** Compile CV | `C6. Compile Complete CV Document.md` | **code** | `docxtemplater` fills the 2-page template; space rules enforced as a content budget |
 | **C7** ATS rating | `C7. Run Reviewed ATS Matching Rating.md` *(status: dev)* | DeepSeek | 0–100 rating + per-requirement breakdown |

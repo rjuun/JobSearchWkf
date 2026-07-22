@@ -415,7 +415,9 @@ export async function buildDemoTenant(): Promise<void> {
       cvPosition: txt(g(11)),
       cvBullet: bullet,
       cvPlacement: txt(g(13)),
-      actualSkills: list(g(14)),
+      mySkills: list(g(14)),
+      // No historical "Requirement Skills" column in the source workbook — stays
+      // empty until this lead's C2 is re-run under the new two-column model.
       approvalStatus: 'green' as const,
     };
   }));

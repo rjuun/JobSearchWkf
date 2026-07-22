@@ -12,7 +12,7 @@ pr-target: "[[B4. Translate Requirements to Areas of Expertise and Define JD Gro
 ---
 
 ```simple-time-tracker
-{"entries":[{"name":"Segment 1","startTime":"2026-07-22T20:14:07.959Z","endTime":"2026-07-22T20:46:06.214Z"}]}
+{"entries":[{"name":"Development","startTime":"2026-07-22T20:14:07.000Z","endTime":"2026-07-22T20:46:06.000Z"},{"name":"Development","startTime":"2026-07-22T20:54:16.000Z","endTime":null}]}
 ```
 
 ---

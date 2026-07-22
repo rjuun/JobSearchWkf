@@ -54,6 +54,8 @@ export type RpReq = {
   description: string | null;
   initialScore: number | null;
   initialMatchStrength: string | null;
+  // Requirement Skills — JD-facing language extracted at B5 (never AoE codes).
+  skills: string[];
 };
 export type RpRow = {
   id: string;
@@ -65,6 +67,11 @@ export type RpRow = {
   approvalStatus: string;
   provSource: string; // imported | coached | swapped
   approvedAt: string | null;
+  // CI · Requirement Skills vs My Skills — mySkills is the candidate's own
+  // vocabulary for this evidence; requirementSkills is the Job-Lead-facing
+  // language this evidence/bullet demonstrates. Never the same list.
+  mySkills: string[];
+  requirementSkills: string[];
 };
 export type RunTrace = {
   step: string;
@@ -722,6 +729,19 @@ function JdReader({
                         {r.rank && <span className="font-semibold uppercase tracking-wide">{r.rank}</span>}
                         {r.initialMatchStrength && <span>· {r.initialMatchStrength}</span>}
                       </div>
+                      {r.skills.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {r.skills.slice(0, 4).map((s) => (
+                            <span
+                              key={s}
+                              className="rounded bg-surface px-1.5 py-0.5 text-[10px] text-ink-subtle ring-1 ring-inset ring-hairline"
+                              title="Requirement Skills — the Job Lead's own language"
+                            >
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     {r.initialScore != null && (
                       <span
@@ -1355,6 +1375,14 @@ function TriageCard({ c }: { c: Ctx }) {
               <div className="text-[13.5px] leading-relaxed text-ink">
                 {cur.originalText ?? 'Evidence from your career graph.'}
               </div>
+              {(cur.mySkills.length > 0 || cur.requirementSkills.length > 0) && (
+                <div className="mt-3 flex flex-col gap-1.5 border-t border-hairline pt-3">
+                  {cur.requirementSkills.length > 0 && (
+                    <SkillBadgeRow label="Requirement Skills" tone="proof" items={cur.requirementSkills} />
+                  )}
+                  {cur.mySkills.length > 0 && <SkillBadgeRow label="My Skills" tone="neutral" items={cur.mySkills} />}
+                </div>
+              )}
             </div>
           </div>
           <div className="grid grid-cols-[1fr_1fr_1.3fr] gap-2.5 px-5 pb-2 pt-4">
@@ -1465,6 +1493,26 @@ function VoteBtn({
     >
       {children}
     </button>
+  );
+}
+
+// CI · Requirement Skills vs My Skills — a small labelled badge row so the two
+// columns are visibly distinct wherever they're shown, not just two unlabelled
+// tag lists.
+function SkillBadgeRow({ label, tone, items }: { label: string; tone: 'proof' | 'neutral'; items: string[] }) {
+  const badge =
+    tone === 'proof'
+      ? 'bg-proof-soft text-proof-deep ring-proof/20'
+      : 'bg-surface text-ink-subtle ring-hairline';
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-subtle">{label}</span>
+      {items.map((s) => (
+        <span key={s} className={cn('rounded px-1.5 py-0.5 text-[10.5px] ring-1 ring-inset', badge)}>
+          {s}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -1601,6 +1649,14 @@ function CvCard({ c }: { c: Ctx }) {
                       <span className="text-caution-deep">source pending</span>
                     )}
                   </span>
+                  {(r.requirementSkills.length > 0 || r.mySkills.length > 0) && (
+                    <span className="mt-1 flex flex-col gap-1">
+                      {r.requirementSkills.length > 0 && (
+                        <SkillBadgeRow label="Req. Skills" tone="proof" items={r.requirementSkills} />
+                      )}
+                      {r.mySkills.length > 0 && <SkillBadgeRow label="My Skills" tone="neutral" items={r.mySkills} />}
+                    </span>
+                  )}
                 </span>
               </li>
             ))}

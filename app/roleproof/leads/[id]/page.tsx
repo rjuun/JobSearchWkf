@@ -87,6 +87,7 @@ export default async function RoleProofWorkspacePage({
     description: r.description,
     initialScore: r.initialScore,
     initialMatchStrength: r.initialMatchStrength,
+    skills: r.skills ?? [],
   }));
 
   const tailoringRp: RpRow[] = tailoring.map((t) => ({
@@ -99,6 +100,8 @@ export default async function RoleProofWorkspacePage({
     approvalStatus: t.approvalStatus,
     provSource: t.provSource,
     approvedAt: t.approvedAt ? t.approvedAt.toISOString() : null,
+    mySkills: t.mySkills ?? [],
+    requirementSkills: t.requirementSkills ?? [],
   }));
 
   const dims = [

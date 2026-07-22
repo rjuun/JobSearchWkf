@@ -18,6 +18,8 @@ import {
   bulletBank,
   skillsMaster,
   starActions,
+  starCompetences,
+  starAttributes,
   responsibilities,
   education,
   languages,
@@ -202,7 +204,11 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
         evidenceRef: ev.ref,
         originalText: ev.text,
         cvPosition: normalizeCvPosition(link.cvPosition ?? ev.cvPosition),
-        actualSkills: ev.skills,
+        // My Skills: the evidence's own vocabulary. Requirement Skills: the
+        // matched requirement's JD-language skills (B5 output) — CI · Requirement
+        // Skills vs My Skills. Never conflate either with B4's AoE codes (A–Q).
+        mySkills: ev.skills,
+        requirementSkills: req.skills ?? [],
         // M7 proof trail: stamp provenance from the matched evidence node's source so
         // coached evidence renders as "Coached", not the default "Imported".
         provSource: provFromSource(ev.source),
@@ -274,60 +280,84 @@ export async function generateCv(
         `${lead.atsSystem ? ` · ATS: ${lead.atsSystem}` : ''}\n\n` +
         `Rewrite each Keep evidence item into one CV bullet. Keep every claim supportable by the original text.\n\n` +
         green
-          .map((g) => `[${g.evidenceRef}] requirement: ${g.requirementLine}\n   original: ${g.originalText}\n   skills: ${(g.actualSkills ?? []).join(', ')}`)
+          .map((g) => `[${g.evidenceRef}] requirement: ${g.requirementLine}\n   original: ${g.originalText}\n   my skills: ${(g.mySkills ?? []).join(', ')}`)
           .join('\n\n'),
       tool: C3.tool,
       zod: C3.zod,
-      mock: () => ({ bullets: green.map((g) => ({ ref: g.evidenceRef ?? '', bullet: g.originalText ?? '', skills: g.actualSkills ?? [] })) }),
+      mock: () => ({ bullets: green.map((g) => ({ ref: g.evidenceRef ?? '', bullet: g.originalText ?? '', skills: g.requirementSkills ?? g.mySkills ?? [] })) }),
       leadId,
       ownerId: effectiveOwnerId,
     });
+    // r.data.bullets[].skills is C3's judgment of which Job-Lead-facing skills
+    // this bullet demonstrates — i.e. Requirement Skills, not My Skills (the
+    // bracketed tag per Process/C3...md §B.5). Persist it; previously discarded.
     for (const b of r.data.bullets) if (b.ref) bulletByRef.set(b.ref, { bullet: b.bullet, skills: b.skills ?? [] });
     for (const row of green) {
-      const rewritten = (row.evidenceRef && bulletByRef.get(row.evidenceRef)?.bullet) || row.originalText || '';
+      const matched = row.evidenceRef ? bulletByRef.get(row.evidenceRef) : undefined;
+      const rewritten = matched?.bullet || row.originalText || '';
       await db
         .update(requirementTailoring)
-        .set({ cvBullet: rewritten })
+        .set({ cvBullet: rewritten, requirementSkills: matched?.skills ?? row.requirementSkills ?? [] })
         .where(and(eq(requirementTailoring.id, row.id), eq(requirementTailoring.ownerId, effectiveOwnerId)));
     }
     reports.push(await recordStep(leadId, { step: 'C3', label: 'Draft CV bullets', model: r.model, summary: `${r.data.bullets.length} bullets rewritten from Keep evidence`, output: { count: r.data.bullets.length }, ms: r.ms }, effectiveOwnerId));
   }
 
-  // C4 — skills section: top skills by requirement overlap, PLUS every skill used
-  // in a bullet (the methodology's consistency rule), grouped by proficiency.
+  // C4 — skills section. CI · Requirement Skills vs My Skills: the primary
+  // source is now the Keep-gated rows' My Skills (single source of truth +
+  // consistency rule — every skill a Keep bullet is tagged with goes in,
+  // unconditionally), topped up with a requirement-overlap ranking across the
+  // profile's Skills, STAR Competences and STAR Attributes tables. All three
+  // count as "Skills" on the CV — Job Descriptions don't distinguish them,
+  // even though the profile tables do (per Reggie's clarification on this CI).
   let skillsModel: CvModel['skills'] = [];
   {
     const t = Date.now();
     const reqTokens = tokens(reqs.map((r) => `${r.requirement} ${(r.skills ?? []).join(' ')}`).join(' '));
-    const skills = await db.select().from(skillsMaster).where(eq(skillsMaster.ownerId, effectiveOwnerId));
-    const ranked = skills
-      .map((s) => ({ s, score: overlap(reqTokens, tokens(`${s.skill ?? ''} ${(s.atsKeywordVariants ?? []).join(' ')}`)) }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 12);
+    const [skills, competences, attributes] = await Promise.all([
+      db.select().from(skillsMaster).where(eq(skillsMaster.ownerId, effectiveOwnerId)),
+      db.select().from(starCompetences).where(eq(starCompetences.ownerId, effectiveOwnerId)),
+      db.select().from(starAttributes).where(eq(starAttributes.ownerId, effectiveOwnerId)),
+    ]);
+    // Unified candidate vocabulary (name → proficiency + ATS variants, when
+    // known) so ranking/categorisation works the same regardless of which
+    // profile table a name came from.
+    type Candidate = { name: string; proficiency: string | null; atsTokens: string };
+    const known = new Map<string, Candidate>();
+    for (const s of skills) if (s.skill) known.set(s.skill.toLowerCase(), { name: s.skill, proficiency: s.proficiency, atsTokens: (s.atsKeywordVariants ?? []).join(' ') });
+    for (const c of competences) if (c.competence && !known.has(c.competence.toLowerCase())) known.set(c.competence.toLowerCase(), { name: c.competence, proficiency: null, atsTokens: '' });
+    for (const a of attributes) if (a.attribute && !known.has(a.attribute.toLowerCase())) known.set(a.attribute.toLowerCase(), { name: a.attribute, proficiency: null, atsTokens: '' });
+
     const byCat = new Map<string, string[]>();
+    const inList = new Set<string>();
     const push = (cat: string, name: string) => {
+      const key = name.toLowerCase();
+      if (inList.has(key)) return;
       if (!byCat.has(cat)) byCat.set(cat, []);
-      const list = byCat.get(cat)!;
-      if (!list.includes(name)) list.push(name);
+      byCat.get(cat)!.push(name);
+      inList.add(key);
     };
-    for (const { s } of ranked) {
-      if (!s.skill) continue;
-      push((s.proficiency ?? '').toLowerCase().includes('expert') ? 'Expert' : 'Proficient', s.skill);
+    const catFor = (name: string) => ((known.get(name.toLowerCase())?.proficiency ?? '').toLowerCase().includes('expert') ? 'Expert' : 'Proficient');
+
+    // Consistency rule (mandatory, uncapped): every My Skills tag on a Keep row
+    // must appear in the top Skills List.
+    for (const g of green) for (const name of g.mySkills ?? []) push(catFor(name), name);
+
+    // Top up with a requirement-overlap ranking across the known vocabulary,
+    // capped so the section stays scannable (Process/C4...md: 3–5 categories
+    // × 4–8 skills).
+    const TARGET = 12;
+    const ranked = [...known.values()]
+      .filter((c) => !inList.has(c.name.toLowerCase()))
+      .map((c) => ({ c, score: overlap(reqTokens, tokens(`${c.name} ${c.atsTokens}`)) }))
+      .sort((a, b) => b.score - a.score);
+    for (const { c } of ranked) {
+      if (inList.size >= TARGET) break;
+      push(catFor(c.name), c.name);
     }
-    // Consistency rule: any skill named on a bullet must appear in the skills list.
-    const known = new Set(skills.map((s) => (s.skill ?? '').toLowerCase()));
-    const inList = new Set([...byCat.values()].flat().map((x) => x.toLowerCase()));
-    for (const { skills: bs } of bulletByRef.values()) {
-      for (const name of bs) {
-        const key = name.toLowerCase();
-        if (known.has(key) && !inList.has(key)) {
-          push('Proficient', name);
-          inList.add(key);
-        }
-      }
-    }
+
     skillsModel = [...byCat.entries()].map(([category, items]) => ({ category, items }));
-    reports.push(await recordStep(leadId, { step: 'C4', label: 'Skills section', model: 'code', summary: `${[...inList].length} skills · ${skillsModel.length} groups`, output: { groups: skillsModel.length }, ms: Date.now() - t }, effectiveOwnerId));
+    reports.push(await recordStep(leadId, { step: 'C4', label: 'Skills section', model: 'code', summary: `${inList.size} skills · ${skillsModel.length} groups`, output: { groups: skillsModel.length }, ms: Date.now() - t }, effectiveOwnerId));
   }
 
   // C5 — tailored profile (4–7 lines, supportable by the evidence)

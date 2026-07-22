@@ -355,7 +355,7 @@ export const C3 = {
   tool: {
     name: 'emit_cv_bullets',
     description:
-      'Rewrite each Keep evidence item into ONE tight CV bullet: lead with a strong past-tense verb, keep every claim supportable by the original text, weave in JD keywords only where genuinely supported, and tag the skills demonstrated. Never invent a metric or outcome not present in the original text.',
+      'Rewrite each Keep evidence item into ONE tight CV bullet: lead with a strong past-tense verb, keep every claim supportable by the original text, weave in JD keywords only where genuinely supported, and tag the Requirement Skills demonstrated — the Job-Lead-facing skill language this bullet proves (the bracketed tag), not the candidate\'s own vocabulary for the evidence. Never invent a metric or outcome not present in the original text.',
     input_schema: {
       type: 'object',
       properties: {
@@ -364,7 +364,10 @@ export const C3 = {
           properties: {
             ref: { type: 'string', description: 'The evidence ref code this bullet rewrites.' },
             bullet: { type: 'string', description: 'The rewritten CV bullet (no leading dash).' },
-            skills: arr(str),
+            skills: arr({
+              type: 'string',
+              description: 'A Requirement Skill this bullet demonstrates, in Job-Lead language (not the candidate\'s own skill vocabulary).',
+            }),
           },
           required: ['ref', 'bullet'],
         }),
