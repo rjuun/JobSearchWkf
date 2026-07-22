@@ -87,3 +87,4 @@ pnpm-debug.log*
 fix-email.ts
 Pasted image*.png
 *.tsbuildinfo
+/templates

@@ -127,6 +127,13 @@
       "when": 1783053413423,
       "tag": "0017_pale_gideon",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1784752076835,
+      "tag": "0018_requirement_skills_my_skills",
+      "breakpoints": true
     }
   ]
 }

@@ -49,7 +49,7 @@ migrations in [`drizzle/`](../drizzle/).
 | `jd_groups` | code, name | 6 fixed rows: SCD, CSEO, OSS, CFPA, TPM, POESG |
 | `job_leads` | external_id, title, company_id→, office_id→, source_url, posted_days, applicant_count, **status**, roadblocks jsonb, misalignments jsonb, jd_group_primary, jd_group_secondary, `skill_ratings jsonb` (17 A–Q), ats_system, **b6 dimension scores + overall + recommendation**, bullet_bank_version | ~140 leads — the hub |
 | `job_requirements` | job_lead_id→, requirement_order, **rank**, requirement_group, requirement, description, skills[], **initial_match_strength**, initial_key_strengths, initial_missing_weak, **initial_score** | ~209 rows |
-| `requirement_tailoring` | requirement_id→, evidence_ref (the `ref_code`), original_text, **cv_position**, cv_bullet, cv_placement, actual_skills[], **approval_status** | ~27 rows — the C2 bridge / human-in-the-loop |
+| `requirement_tailoring` | requirement_id→, evidence_ref (the `ref_code`), original_text, **cv_position**, cv_bullet, cv_placement, my_skills[] (candidate's own vocabulary, renamed from actual_skills), requirement_skills[] (JD-language skills this row demonstrates), **approval_status** | ~27 rows — the C2 bridge / human-in-the-loop |
 | `cv_variants` | name, focus_jd_groups[], storage_path | 6 archetypes (SCD-TPM, CFPA-OSS, POESG, CSEO, TPM-SCD, ATS_Safe) |
 | `applications` | job_lead_id→, cv_variant_id→, applied_at, status, outcome_notes | post-application (phase D) |
 

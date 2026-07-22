@@ -58,7 +58,7 @@ Let me follow-up with your proposed Implementation steps overview:
 			3. Work Experience section which will run for 5 to 6 pages with all the 23 bullets for each Position
 			4. the final standard Education, Executive Education and Language sections
 		3. B. Input Documents would remain the same, 
-		4. The current B5 will be retired and placed on a "Past Versions" folder with the "Valid Date" [[+ Continuous Improvement Procedure#Introducing Properties to Process Template]]
+		4. The current B5 will be retired and placed on a "Past Versions" folder with the "Valid Date" [[++ Continuous Improvement Procedure#Introducing Properties to Process Template]]
 		5. C.1 and C.2 subsections from C. Scoring Rules are still applied (Per-Requirement Score) and should not be changed.
 			1. The "Per-Requirement Score" will still  feed E.1 and E.2 - Export 1 outputs
 		6. C.3 Overall fit score will need to be expanded to consider the new dimensions

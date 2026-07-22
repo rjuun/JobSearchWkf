@@ -2,7 +2,7 @@
 
 
 ```dataviewjs
-const pages = dv.pages('"JobSearch Camunda/Process/CI"')
+const pages = dv.pages('"Process/CI"')
     .sort(p => p["ci-date"], 'desc');
 const groups = pages.groupBy(p => p["ci-status"] || "No Status");
 let grandEst = 0;

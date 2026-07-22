@@ -320,7 +320,12 @@ export const requirementTailoring = pgTable('requirement_tailoring', {
   cvPosition: text('cv_position'),
   cvBullet: text('cv_bullet'),
   cvPlacement: text('cv_placement'),
-  actualSkills: jsonb('actual_skills').$type<string[]>().default([]),
+  // CI · Requirement Skills vs My Skills — mySkills is the candidate's own
+  // vocabulary for this evidence (renamed from actual_skills); requirementSkills
+  // is the JD's own skill language this evidence/row is proving. Never conflate
+  // either with the B4 Areas-of-Expertise codes (A–Q).
+  mySkills: jsonb('my_skills').$type<string[]>().default([]),
+  requirementSkills: jsonb('requirement_skills').$type<string[]>().default([]),
   approvalStatus: approvalStatusEnum('approval_status').notNull().default('pending'),
   // M7 · provenance backbone — how a CV line entered and when you approved it.
   provSource: text('prov_source').notNull().default('imported'), // imported | coached | swapped
