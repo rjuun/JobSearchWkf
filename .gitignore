@@ -83,3 +83,7 @@ npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
 .supabase/
+.obsidian/
+fix-email.ts
+Pasted image*.png
+*.tsbuildinfo

@@ -7,6 +7,8 @@
 
 ## 0. Principles this spec must honour
 
+- **Onboarding is guided reflection, not data scraping.** The Career Graph's value is the _trustworthiness and depth_ of the user's self-knowledge — not the speed of populating fields. The intended primary onboarding path is a **consultant-guided session**: a trained career professional works with the job seeker through structured, reflective interviews (grounded in the BDO career-design method — purpose, passions, personality, strengths → story → positioning) and captures the results in the **Profile Reference Workbook**. That completed workbook is then imported to seed the graph. The workbook is therefore a **first-class instrument of the system**, not a migration artifact: a populated, illustrative copy is preserved in `docs/onboarding/` so both humans and future AI agents can see exactly how a well-constructed profile looks and works.
+- **Document import is deliberately secondary.** Auto-populating a Career Graph from an uploaded CV or LinkedIn export inverts the method — a CV is the _output_ of good positioning, not a trustworthy _input_ to self-understanding. This path is retained in the codebase but disabled in the interface, pending a future design that preserves the reflective, human-verified standard (ideally an in-app consultant-style interview agent that elicits rather than scrapes).
 - **LLM judges, code computes.** Extraction/coaching emit *judgments* via forced tool-use + zod
   (reuse `lib/llm/client.ts` `runStructured<T>`); all gating/IDs/rollups are TypeScript.
 - **Process notes are prompts.** New step prompts live as `Process/Onboarding/*.md` and are loaded
