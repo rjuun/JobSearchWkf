@@ -213,7 +213,9 @@ export default async function RoleProofBoard() {
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-ink">{l.title}</div>
                     <div className="truncate text-xs text-ink-subtle">
-                      {[l.company, l.city].filter(Boolean).join(' · ') || '—'}
+                      {[l.company && l.hiringAgency ? `${l.company} (via ${l.hiringAgency})` : l.company, l.city]
+                        .filter(Boolean)
+                        .join(' · ') || '—'}
                       {reqCounts.get(l.id) ? ` · ${reqCounts.get(l.id)} must-haves` : ''}
                     </div>
                   </div>

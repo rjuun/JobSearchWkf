@@ -1,18 +1,18 @@
 ---
 ci-title: Requirement Skills vs My Skills — Two-Column Redesign (Epic for Claude Code)
 ci-area: Screening (B4-B5) / Tailoring (C2-C4, C7)
-ci-status: 1 - Development
+ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-07-22
 ci-estimated-time: 6
-ci-time-spent:
+ci-time-spent: 1.5
 pr-source: "[[Introduce Requirement Skills to Job Requirements List]]"
 pr-target: "[[B4. Translate Requirements to Areas of Expertise and Define JD Groups]], [[B5. Extract Requirements from Job Description]], [[C2. Map JD Requirements to Supporting Evidence]], [[C3. Transform Evidence into CV Bullets]], [[C4. Build and Manage the Skills Section]], [[C7. Run Reviewed ATS Matching Rating]]"
 ---
 ---
 
 ```simple-time-tracker
-{"entries":[{"name":"Development","startTime":"2026-07-22T20:14:07.000Z","endTime":"2026-07-22T20:46:06.000Z"},{"name":"Development","startTime":"2026-07-22T20:54:16.000Z","endTime":null}]}
+{"entries":[{"name":"Development","startTime":"2026-07-22T20:14:07.000Z","endTime":"2026-07-22T20:46:06.000Z"},{"name":"Development","startTime":"2026-07-22T20:54:16.000Z","endTime":"2026-07-22T21:49:59.125Z"}]}
 ```
 
 ---

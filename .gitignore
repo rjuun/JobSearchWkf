@@ -88,3 +88,12 @@ fix-email.ts
 Pasted image*.png
 *.tsbuildinfo
 /templates
+
+certificates
+
+# --- Playwright MCP (browser-driven AI capture, A.3) ------------------------
+# The persistent login profile itself lives OUTSIDE the repo by default
+# (%LOCALAPPDATA%\ms-playwright-mcp\mcp-{channel}-{hash} on Windows — verified
+# 2026-07-23), so there's nothing there to ignore. This is just the tool's
+# per-run snapshot/console-log output dir, written into the project root.
+/.playwright-mcp/

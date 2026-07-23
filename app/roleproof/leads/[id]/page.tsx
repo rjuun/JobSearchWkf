@@ -68,6 +68,7 @@ export default async function RoleProofWorkspacePage({
     isTarget: lead.isTarget,
     jdGroupPrimary: lead.jdGroupPrimary,
     atsSystem: lead.atsSystem,
+    hiringAgency: lead.hiringAgency,
     sourceUrl: lead.sourceUrl,
     jobPostLink: lead.jobPostLink,
     overallFitScore: lead.overallFitScore,

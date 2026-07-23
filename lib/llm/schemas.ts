@@ -15,6 +15,36 @@ export type ToolDef = {
 const arr = (items: Record<string, unknown>) => ({ type: 'array', items });
 const str = { type: 'string' };
 
+// ── A1 · Capture-time extraction (company/city/remote/format signals) ───────
+export const A1 = {
+  zod: z.object({
+    company: z.string().nullable().optional(),
+    city: z.string().nullable().optional(),
+    remote: z.enum(['on-site', 'hybrid', 'remote', 'unspecified']).default('unspecified'),
+    formatSignals: z.string().nullable().optional(),
+  }),
+  tool: {
+    name: 'emit_capture_extraction',
+    description:
+      'Extract only what is explicitly present or unambiguously inferable from the job description: the hiring company, the primary work-location city, remote/hybrid/on-site status, and verbatim quotes of any explicit application-format instructions. Never guess — leave a field null/unspecified rather than invent a value. Extraction only, no judgment or scoring.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        company: str,
+        city: str,
+        remote: { type: 'string', enum: ['on-site', 'hybrid', 'remote', 'unspecified'] },
+        formatSignals: {
+          type: 'string',
+          description:
+            'Verbatim (not paraphrased) quotes of explicit application-format instructions: CV length/page limits, required file type, file naming convention, cover-letter requirement, photo/headshot mention, language of application, HR/Talent Acquisition contact name. Concatenate as short quoted fragments; leave empty if nothing explicit is stated.',
+        },
+      },
+      required: ['remote'],
+    },
+  } satisfies ToolDef,
+};
+export type A1Out = z.infer<typeof A1.zod>;
+
 // ── B2 · Roadblocks ─────────────────────────────────────────────────────────
 export const B2 = {
   zod: z.object({

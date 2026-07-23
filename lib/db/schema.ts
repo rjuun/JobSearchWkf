@@ -252,6 +252,12 @@ export const jobLeads = pgTable('job_leads', {
   company: text('company'),
   companyId: uuid('company_id'),
   city: text('city'),
+  // A1 · capture-time enrichment (Section B/C of "Capture and Store Job Leads").
+  // Deterministic (URL cleanup) and one-shot AI extraction, both run at capture —
+  // never the B/C-phase judgment steps, which stay untouched.
+  remote: text('remote'), // on-site | hybrid | remote | unspecified
+  jdText: text('jd_text'), // mirrors rawJdPath's Storage blob into Postgres so it's queryable
+  formatSignals: text('format_signals'), // verbatim application-format quotes, raw material for C1
   sourceUrl: text('source_url'),
   jobPostLink: text('job_post_link'),
   status: leadStatusEnum('status').notNull().default('captured'),
@@ -275,6 +281,12 @@ export const jobLeads = pgTable('job_leads', {
   atsSystem: text('ats_system'),
   atsSpecifics: text('ats_specifics'),
   keyPatterns: text('key_patterns'),
+  // B.3 · bare third-party recruiting-agency name (e.g. "Iventa") when the
+  // off-site apply link was routed through one before reaching the ATS — see
+  // lib/pipeline/capture-enrich.ts. Deliberately its own column: atsSpecifics
+  // already carries unrelated seed data (application-format notes like "Clean
+  // PDF recommended") for ~20% of existing leads, so it can't double as this.
+  hiringAgency: text('hiring_agency'),
   // B6 (dimension scores + rollup are computed in lib/scoring, never the LLM)
   scoreRelevance: real('score_relevance'),
   scoreSeniority: real('score_seniority'),

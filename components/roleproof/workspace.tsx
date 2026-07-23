@@ -36,6 +36,10 @@ export type RpLead = {
   isTarget: boolean;
   jdGroupPrimary: string | null;
   atsSystem: string | null;
+  // Bare third-party recruiting-agency name (e.g. "Iventa") when the off-site
+  // apply link was routed through one — see lib/pipeline/capture-enrich.ts. Null
+  // for the common case (ATS/company hires directly).
+  hiringAgency: string | null;
   sourceUrl: string | null;
   jobPostLink: string | null;
   overallFitScore: number | null;
@@ -578,11 +582,14 @@ function TwoPane({ c }: { c: Ctx }) {
 
 function LeadHeader({ c }: { c: Ctx }) {
   const { lead } = c;
+  // Hiring through a third-party agency (vs. the ATS/company directly) is a
+  // signal worth surfacing right next to the company name, not buried in a badge.
+  const companyLabel = lead.company && lead.hiringAgency ? `${lead.company} (via ${lead.hiringAgency})` : lead.company;
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
         <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-subtle">
-          {[lead.company, lead.city].filter(Boolean).join(' · ') || 'Job lead'}
+          {[companyLabel, lead.city].filter(Boolean).join(' · ') || 'Job lead'}
         </div>
         <h1 className="mt-1 font-serif text-[34px] leading-tight text-ink">{lead.title}</h1>
         <div className="mt-3 flex flex-wrap items-center gap-2">
