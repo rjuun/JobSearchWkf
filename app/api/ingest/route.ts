@@ -5,6 +5,14 @@ import { verifyCaptureToken } from '@/lib/auth';
 
 const ALLOWED_REMOTE = new Set(['on-site', 'hybrid', 'remote', 'unspecified']);
 
+// createLead() now runs A1 extraction *and* B1–B3 inline (Scoring Phase
+// Redesign), so capture went from one Sonnet call to three. 60s matches the
+// three existing page-level maxDuration exports in this repo and sits inside
+// the ceiling on every Vercel plan the CI names (Hobby allows 1–60s; Pro and
+// Fluid Compute allow more). Cheap insurance against a 504 losing the B1–B3
+// half of a capture — the lead itself is already committed by then.
+export const maxDuration = 60;
+
 // Public endpoint (excluded from auth in middleware) so an AI-driven capture agent
 // can POST a captured JD from its own HTTP call — never a script running inside the
 // posting page's own document (see A.1/A.2: that's the CSP wall the bookmarklet

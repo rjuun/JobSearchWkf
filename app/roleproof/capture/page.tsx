@@ -3,6 +3,10 @@ import { AppShell } from '@/components/app-shell';
 import { Card, Field, Input, Textarea, Button } from '@/components/ui';
 import { createLeadAction } from '@/app/actions/leads';
 
+// Same reason as app/api/ingest/route.ts: createLeadAction now runs A1 + B1–B3
+// inline, and a Server Action inherits its route segment's duration budget.
+export const maxDuration = 60;
+
 export default async function CaptureLeadPage({ searchParams }: { searchParams: { error?: string } }) {
   return (
     <AppShell>

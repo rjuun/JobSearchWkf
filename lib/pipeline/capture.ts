@@ -2,11 +2,15 @@
  * Create a job lead from captured JD text (AI-driven capture or manual paste).
  * A1 · runs deterministic enrichment (URL cleanup, ATS detection) synchronously,
  * then one AI extraction pass (company/city/remote/formatSignals) immediately
- * after insert — extraction only, never the B/C-phase judgment steps. Section C
- * precedence: fields the caller already supplied (the AI-driven path reads the
- * JD itself) are used as-is and skip the Claude call for whatever's missing;
- * a plain manual paste supplies none of remote/formatSignals, so it always falls
- * back to the model.
+ * after insert. Section C precedence: fields the caller already supplied (the
+ * AI-driven path reads the JD itself) are used as-is and skip the Claude call
+ * for whatever's missing; a plain manual paste supplies none of
+ * remote/formatSignals, so it always falls back to the model.
+ *
+ * Since the Scoring Phase Redesign this also fires B1–B3 (`runInitialChecks`)
+ * before returning, so a lead arrives on the board already sorted into
+ * `selected` or `scoring_queue`. B4–B6 stay out of the capture path on purpose —
+ * they run as a batch from Ready to score.
  */
 import { and, eq, ilike } from 'drizzle-orm';
 import { db } from '../db';
@@ -16,6 +20,7 @@ import { runStructured } from '../llm/client';
 import { A1, type A1Out } from '../llm/schemas';
 import { NON_NEGOTIABLES } from '../prompts';
 import { ciGuidanceFor } from '../ci';
+import { runInitialChecks } from './screening';
 
 export type CaptureInput = {
   title: string;
@@ -136,6 +141,20 @@ export async function createLead(input: CaptureInput, ownerId: string): Promise<
       formatSignals: resolvedFormatSignals,
     })
     .where(eq(jobLeads.id, row.id));
+
+  // B1–B3 · the automatic half of screening, run inline so a captured lead has
+  // already sorted itself into `selected` or `scoring_queue` by the time it
+  // reaches the board — no manual "Screen" click on leads that can screen
+  // themselves. Same contract as the A1 call above: awaited, best-effort,
+  // swallowed on error. A failure just leaves the lead at `captured`, where
+  // rpNextAction's existing "Screen" affordance is the unchanged manual
+  // fallback. B4–B6 deliberately do NOT run here — they belong to the batch
+  // (see runScoring's doc comment for the prompt-cache reasoning).
+  try {
+    await runInitialChecks(row.id, ownerId);
+  } catch (err) {
+    console.error(`[capture] runInitialChecks failed for lead ${row.id}: ${String(err instanceof Error ? err.message : err)}`);
+  }
 
   return row.id;
 }
