@@ -49,12 +49,20 @@ flowchart TD
 
 All B steps read the captured JD; outputs land on `job_leads` / `job_requirements`.
 
+**B runs in two halves, not one pass** (`lib/pipeline/screening.ts`). `runInitialChecks` (B1→B2→B3)
+fires automatically from `createLead()` at capture; the G1 gate above is a real short-circuit, so a
+posting ≥60 days old reaches `hold` with **no B2/B3 rows in `pipeline_runs` at all**. A lead nothing
+flagged auto-advances to `selected`; anything flagged parks at `scoring_queue` for a human decision.
+`runScoring` (B4→B5→B6) then runs later, once, over the whole `selected` pile from the Ready-to-score
+batch runner — deliberately sequential, so the calls land seconds apart and hit the warm 1h prompt
+cache. `runScreening` remains as a back-compat wrapper that chains both halves.
+
 | Step | Note | Model | Output (tool schema) |
 | --- | --- | --- | --- |
 | **B1** Freshness & saturation | `B1. Capture Posting Freshness and Market Saturation.md` | **code** | days_since_publication, applicant_count, freshness/saturation bands. **Gate:** ≥60 days → `hold`. |
 | **B2** Roadblocks | `B2. Identify Roadblocks.md` | Sonnet 5 | hard ineligibility across {language, technical, certification, geographic, industry} or `None` |
 | **B3** Misalignments | `B3. Identify Misalignments.md` | Sonnet 5 | flags (not blockers) across {values/culture, city, seniority}. Context: `Values & Motives Summary.md` |
-| **B4** Skills + JD Group + ATS | `B4. Translate Requirements to Areas of Expertise and Define JD Groups.md` | Sonnet 5 | 17 ratings (A–Q, 1/2/3), `jd_group_primary/secondary`, detected `ats_system`, tailoring notes |
+| **B4** Skills + JD Group + ATS | `B4. Translate Requirements to Areas of Expertise and Define JD Groups.md` | Sonnet 5 | 17 ratings (A–Q, 1/2/3), `jd_group_primary/secondary`, detected `ats_system`, and the "Key Patterns & CV Tailoring Notes" text (§B step 3 of the note) → `job_leads.key_patterns` |
 | **B5** Extract requirements | `B5. Extract Requirements from Job Description.md` | Sonnet 5 | `job_requirements[]`: order, rank (Core/Important/Nice), requirement, description, skills |
 | **B6** Role Fit & Investment Worthiness Score | `B6. Role Fit & Investment Worthiness Score.md` | **Opus 4.8 + code** | per-dimension scores + per-requirement match/score → **code computes overall + tier** |
 

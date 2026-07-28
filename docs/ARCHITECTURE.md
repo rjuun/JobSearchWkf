@@ -45,6 +45,7 @@ Browser (LinkedIn)                          Next.js on Vercel
 /app
   /roleproof                  # board
   /roleproof/capture          # manual paste + signed bookmarklet generator
+  /roleproof/scoring-queue    # Queue (flagged leads, inline triage) + Ready to score (batch runner)
   /roleproof/leads/[id]       # workspace, C2 gate, C6 CV download
   /api/ingest/route.ts        # bookmarklet endpoint (POST, CORS)
 /lib
@@ -136,16 +137,26 @@ Approach:
 ```
 1. CAPTURE  /roleproof/capture bookmarklet → POST /api/ingest {md, sourceUrl, captureToken}
             → Storage raw.md; INSERT job_leads(status='captured'); upsert company/office
-2. B-SCREEN "Screen" on the lead
-   B1 parse header (days, applicants) in code → freshness/saturation; ≥60d → status='hold'
+2. INITIAL CHECKS  runInitialChecks() — fires automatically at capture, no click
+   B1 parse header (days, applicants) in code → freshness/saturation
+      ≥60d → status='hold' and RETURN — a real short-circuit; B2/B3 are not spent on a stale posting
    B2 LLM → roadblocks {language, tech, cert, geo, industry}
    B3 LLM → misalignments (context: Values & Motives Summary)
-   B4 LLM → 17 skill ratings (A–Q) + JD group primary/secondary + ATS system
+      nothing flagged → status='selected' (auto)   |   anything flagged → status='scoring_queue'
+3. SCREENING GATE  /roleproof/scoring-queue · Queue tab — flagged leads ONLY
+   user picks per lead: 'roadblocked' | 'misaligned' (both out of play) | 'selected'
+   Clean leads never appear here; they are already waiting in Ready to score.
+4. B-SCORE  Ready to score tab, "Run scoring · N leads" over the 'selected' pile
+   Client loops SEQUENTIALLY, one runScoring() server action per lead (status='screening' while in flight)
+   B4 LLM → 17 skill ratings (A–Q) + JD group primary/secondary + ATS + key_patterns tailoring notes
    B5 LLM → requirements[] (order, rank Core/Important/Nice, skills)
    B6 LLM (scoring tier) → 5 dimension scores + per-requirement match+score
               → lib/scoring computes reqAlign, overall, recommendation tier  (DETERMINISTIC)
-3. B6 GATE  UI shows score + tier. Proceed/Caution → user promotes to Tailoring; Low/No → stop.
-4. C-TAILOR (promoted leads only)
+              → status='screened' (or 'hold' if the freshness gate trips at B6)
+   Sequential is deliberate: seconds-apart calls hit the warm 1h prompt cache on B4–B6's step notes,
+   which one-lead-at-a-time-across-hours never did.
+5. B6 GATE  UI shows score + tier. Proceed/Caution → user promotes to Tailoring; Low/No → stop.
+6. C-TAILOR (promoted leads only)
    C1 format/compliance + headshot decision (country/DEI tree)
    C2 evidence map[] (requirement → evidence ref + original_text + cv_position), status='pending'
       → USER reviews each: Keep / Maybe / Drop
@@ -153,7 +164,7 @@ Approach:
    C4 skills section (≤4 cats); C5 profile (≤5 lines)
    C6 docxtemplater fills CV_Template → cv-output/{lead}/{variant}.docx (+ PDF preview)
    C7 LLM (scoring tier) → ATS rating (0–100)
-5. DOWNLOAD preview PDF in-app, download .docx; (later) log an Application row.
+7. DOWNLOAD preview PDF in-app, download .docx; (later) log an Application row.
 ```
 
 ## Key risks & decisions
@@ -164,7 +175,8 @@ Approach:
 | **Agent determinism & cost** | Tool-use with forced schema + Zod + one retry; all arithmetic in TS; persist results, never re-score on read; prompt-cache the long step notes; log every call. |
 | **Human-in-the-loop (C2)** | `approval_status` enum on `requirement_tailoring`; per-row review queue; only Keep flows to C3. Build this UI well — it's the demo centrepiece. |
 | **Prompt management** | `Process/*.md` notes *are* the prompt templates, loaded at runtime. Refining a step = editing markdown, no code change. Keeps the CI "Accuracy Improvement Tips" loop meaningful. |
-| **Vercel function duration on batch B6** | Per-lead chunking already mitigates. For full-batch scoring, run a manual local script against prod rather than building worker infra. |
+| **Vercel function duration on batch B6** | Per-lead chunking already mitigates. **Implemented** by the Scoring Queue split (below): B1–B3 run one lead at a time at capture; B4–B6 run as N separate per-lead server-action calls driven sequentially from the client, so no single invocation ever spans the batch. A hard kill therefore costs one lead, not the run. For a full historical re-score, still run a manual local script against prod rather than building worker infra. |
+| **A lead stuck mid-scoring** | `runScoring` marks the lead `screening` before B4, so a hard kill leaves it there — invisible to both Ready-to-score and Results. Ready-to-score flags any `screening` row whose `updatedAt` is >2 min old with a retry action. Retrying is safe by construction: B4/B6 overwrite columns and B5 skips re-extraction when `job_requirements` rows exist. |
 
 ## Camunda-later migration path {#camunda-later}
 
