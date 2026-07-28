@@ -1,18 +1,18 @@
 ---
 ci-area: Monitoring / D-Phase
 ci-title: Scoring Phase Redesign — Part 2 (Monitoring / Applications / Archive)
-ci-status: 1 - Development
+ci-status: 2 - Testing
 ci-priority: high
 ci-date: 2026-07-28
 ci-estimated-time: 5
-ci-time-spent: 0
+ci-time-spent: 1.35
 pr-source: "[[D1. Monitoring Applications]]"
 pr-target: "[[D1. Monitoring Applications]]"
 ---
 
 ---
 ```simple-time-tracker
-{"entries":[{"name":"Development","startTime":"2026-07-28T20:15:00.000Z","endTime":"2026-07-28T20:30:00.000Z"}]}
+{"entries":[{"name":"Development","startTime":"2026-07-28T20:15:00.000Z","endTime":"2026-07-28T21:36:00.000Z"}]}
 ```
 ---
 
@@ -452,3 +452,108 @@ in case a future feature is tempted to reach for `dnd-kit` without checking this
   `drizzle-kit generate` produced `drizzle/0024_superb_scorpion.sql` — five plain `ALTER TABLE ... ADD
   COLUMN` statements, no `ALTER TYPE`, so none of Part 1's enum-sequencing/deploy-order concern applies
   (§2.2.A was right about that). Applied via `npm run db:migrate`, clean. `tsc --noEmit` clean.
+- **Steps 2–4 · actions, storage, the drop hook.** Three actions added as designed. Two details §2 left
+  as pseudo-code had to be settled in the code:
+  1. **The stored link is this app's own route, not a signed URL.** §2.2.C's sketch said "signed URL as
+     the link". That doesn't survive contact with `lib/storage.ts`: signed URLs expire, and don't exist
+     at all on the local-filesystem backend the adapter falls back to. The repo already had the right
+     precedent in `/api/cv/[leadId]` — an owner-scoped, middleware-gated route reading through the
+     storage adapter — so `confirmationEmailLink`/`outcomeEmailLink` now hold
+     `/api/applications/{leadId}/email/{file}`. This also keeps §2.4's wording exactly ("a resolvable
+     link to the archived copy") and means a dropped *text* link can go in the same column verbatim.
+  2. **The three-way branch is a pure function, not a hook internal.** `classifyEmailDrop` lives in
+     `lib/applications.ts` rather than inside `use-email-drop.ts`, because §2.3 step 12 asks for it to
+     be unit-tested and vitest here is plain node — there is no `DragEvent` to construct. One
+     deliberate deviation from §2.2.C's sketch: a **zero-byte** file falls through to the text shapes
+     instead of counting as a capture.
+  Step 3 confirmed `lib/storage.ts` needed no change, as §2.3 predicted — the bucket-relative adapter
+  took the `applications/{leadId}/` prefix as-is (13 checks green in `scripts/verify-monitoring.ts`).
+- **Step 5 · the one place the CI's current-state read was wrong.** §2.1/§2.2.H both say the drop target
+  replaces "the Results row action for `status = 'ready'`". There is no such row: `lib/queries.ts`'s
+  `scoringQueueData()` filters `results` to `status === 'screened'` **only**, so a `ready` lead never
+  renders on the Results tab at all. `rpNextAction('ready') → "Application sent"` actually renders on the
+  board's All-leads table (as inert text inside a row-wide `<Link>`), the This-week strip and Weekly
+  Triage — and the *real* "I sent it" click was a **"Mark applied"** button on the lead workspace calling
+  `markAppliedAction`. Part 1's own §2.2.G carries the same mis-description, so this was inherited, not
+  introduced here. **Resolved with Reggie mid-implementation:** the control goes on the board row *and*
+  the workspace panel. The workspace button was **replaced**, not kept alongside — `markAppliedAction`
+  writes `applications.status = 'applied'`, which the new Applications list doesn't query, so a send
+  confirmed there would silently never have appeared in the very list this CI exists to build.
+  `markAppliedAction` itself is left untouched for back-compat, just no longer wired to any UI.
+  Board rows became `div + Link + action cell`: a drop target nested inside an anchor is neither valid
+  HTML nor droppable.
+- **Steps 6–8 · Applications, the decline pop-up, Archive.** Built as specified. Two small extensions
+  worth recording: the decline drop target is offered on `interview` rows too, not only
+  `response_pending` as §2.2.D describes (a decline can land *after* an interview, and that's the same
+  terminal move — the harness covers it); and `setInterviewAtAction` is split out from
+  `logInterviewScheduledAction` because the invite arrives (drop) and the slot gets pinned down
+  (typing) days apart, so folding them into one write would force a re-drop to change a date.
+- **Steps 9–10 · nav.** The tab strip had to be extracted from `app/roleproof/scoring-queue/page.tsx`
+  into a shared `FlowTabs`: §2.2.D says Applications "joins the existing Flow tab group", but that group
+  was inline markup switching a `?tab=` on one page, and Applications is its own route. `flowCounts()`
+  feeds every badge from two grouped aggregates so the strip costs the same on all five surfaces.
+  `nextMonitoring` landed a step early (with step 6) because the new route imports it.
+- **Step 11 · Returns panel retired.** Checked before removing, as §2.2.G insists: nothing else on
+  `/dashboard` read the `listApplications()` result, so the import, the render, the query and the
+  then-unused `env` import all went. `listApplications()` itself stays exported-but-uncalled and
+  `env.nextReturns` stays live — `/api/cv/[leadId]` still gates its download-tracking insert on it.
+- **Step 12 · tests, and a refactor the harness forced.** `lib/__tests__/monitoring.test.ts` covers the
+  drop branch (including the cases that make it easy to get wrong: an empty `FileList` is truthy, a
+  zero-byte file isn't a capture, `getData` can throw outside a real drop event) and the label map +
+  stale rule. Suite: **154 tests / 14 files green, `tsc --noEmit` clean, `next build` clean** with all
+  three new routes emitted.
+  Two things had to move for the tests to be able to reach the code at all — both worth knowing before
+  writing the next one:
+  1. **A test cannot import a `.tsx` module here.** vitest runs the repo tsconfig, which leaves
+     `jsx: preserve`, so importing `decline-popup.tsx` fails at transform. `declineReplyText` moved to
+     `lib/applications.ts`. Same class of trap as Part 1's mock-mode bug: the thing that looks obviously
+     fine is defeated by module-loading mechanics.
+  2. **A `'use server'` module can't expose an owner-taking function**, and the harness has no request,
+     so no `currentOwnerId()`. The write path therefore moved to `lib/monitoring.ts` with
+     `app/actions/monitoring.ts` reduced to session-resolving wrappers. This is what makes
+     `verify-monitoring.ts` drive the *real* write path instead of re-implementing it — the difference
+     between a harness that proves something and one that only agrees with itself.
+  `scripts/verify-monitoring.ts`: **41 checks, 0 failures**, covering every §2.4 criterion that doesn't
+  need Outlook — including three the checklist implied but never stated: a re-drop **corrects** the row
+  rather than duplicating it (and preserves the original send date), `interviewAt` starts null because no
+  email carries a future fact, and a decline leaves the Applications list and enters the Archive in the
+  same write with no intermediate state.
+- **Step 13 · NOT DONE — needs Reggie and Outlook.** Deliberately not marked complete. Everything
+  reachable without a real drag is verified: the write path (harness, 41 checks), the classifier (unit
+  tests, all three branches), and a clean `next build` emitting `/roleproof/applications`,
+  `/roleproof/archive` and `/api/applications/[leadId]/email/[file]`. What is **not** verified is the
+  only thing that matters here — that Outlook Classic's actual `dataTransfer` payload behaves as
+  designed on each of the three targets. Browser click-testing wasn't possible either: the app requires
+  a login, and I don't enter credentials. See "Open for Reggie" below.
+- **Step 14 · docs.** `docs/PIPELINE.md`'s D-phase was a two-row "idea" stub; it now carries the
+  sub-state table, the reasoning for putting them on `applications.status`, and a D subgraph in the
+  mermaid flow. `docs/ARCHITECTURE.md` gained the `applications/` storage prefix (with the
+  route-not-signed-URL reasoning), lifecycle step 8, and a drag-and-drop row in the risk table so a
+  future feature reaching for `dnd-kit` hits this precedent first. Beyond the checklist: filled
+  `Process/Development/D1. Monitoring Applications.md`, the stub this CI is filed against (§3), empty
+  since 2026-06-24 — flagged in-file as **not** a prompt template, since unlike the B/C notes nothing
+  loads it at runtime (`lib/prompts.ts`'s `STEP_NOTE` covers B/C/O2 only).
+
+### Open for Reggie
+
+1. **Step 13, the live drag-and-drop test — the one genuinely open item.** Drag a real `.msg` out of
+   Outlook Classic onto each of the three targets and confirm the file lands, the link resolves and the
+   columns update:
+   - **Board** (`/roleproof`) — a `ready` lead's row action now reads "Application sent" as a dashed
+     drop target. Drop a confirmation from **Bewerbungen**. Expect: row moves to Applied, and the lead
+     appears in Applications as *Response pending* with a working "Confirmation ↗" link.
+   - **Applications** (`/roleproof/applications`) — drop an invite from Bewerbungen on that row
+     ("Interview invited"), then a decline from **Absagen** ("Declined"). Expect: the invite populates
+     the invite link and reveals the interview date/time picker; the decline moves the row into the
+     Archive *and* opens the reply pop-up.
+   - Also worth one click each without dropping anything: the manual fallbacks (two-step confirm on the
+     board; the today-prefilled form on the other two).
+   If Outlook hands over something other than a file, the classifier already falls back to a text link
+   and then to the manual form — so the failure mode to watch for is a *silent* one (nothing happens at
+   all), not an error.
+2. **Part 1's Queue / Ready-to-score surfaces still haven't been browser-tested** — its own §4 left this
+   open, and the same login constraint applied here, so it's still open. Both CIs' UI now wants one
+   click-through pass together, which was the stated reason for building both before testing either.
+3. **Nothing was backfilled.** Applications sent before this ships have `applications.status = 'applied'`
+   (or `downloaded`) and so appear in neither the Applications list nor the Archive. Forward-only by
+   design; moving them would mean guessing which are still live.
