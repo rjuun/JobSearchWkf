@@ -76,6 +76,11 @@ export const env = {
   // call are unconditional, since they change how leads are *stored*, and
   // flipping this off must not strand leads at a status no surface can reach.
   nextScoringQueue: str('NEXT_SCORING_QUEUE', '1') !== '0', //   B-phase Scoring Queue
+  // Scoring Phase Redesign Part 2 · the D-phase Applications + Archive surfaces
+  // and the drop targets that feed them. Unlike nextScoringQueue this can gate
+  // the writes too: applications.status sub-states are only ever read by these
+  // surfaces, so flipping it off strands nothing that another view needs.
+  nextMonitoring: str('NEXT_MONITORING', '1') !== '0', //        D-phase monitoring
 } as const;
 
 export const isLiveLlm = env.llmMode === 'live' && env.anthropicApiKey !== '';

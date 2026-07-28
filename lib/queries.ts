@@ -25,6 +25,7 @@ import {
   applications,
 } from './db/schema';
 import { currentOwnerId } from './auth';
+import { ARCHIVED_APPLICATION_STATUS, OPEN_APPLICATION_STATUSES } from './applications';
 import { activationMetrics } from './activation';
 import { EMPTY_TARGETS, evidenceTokens, graphCoversRequirement } from './career-graph';
 import type { CareerGraph, TargetCoverage } from './career-graph';
@@ -505,6 +506,74 @@ export async function listApplications(): Promise<ApplicationRow[]> {
     .innerJoin(jobLeads, eq(jobLeads.id, applications.jobLeadId))
     .where(eq(applications.ownerId, owner))
     .orderBy(desc(applications.appliedAt));
+}
+
+// ── D-phase monitoring (CI · Scoring Phase Redesign Part 2) ─────────────────
+// One row per tracked application, joined to its lead. The Applications list
+// and the Archive read the same shape and differ only in which statuses they
+// ask for — §2.2.D/F.
+export type MonitoredApplication = {
+  id: string;
+  leadId: string;
+  title: string;
+  company: string | null;
+  city: string | null;
+  status: string | null;
+  appliedAt: Date | null;
+  updatedAt: Date;
+  confirmationEmailLink: string | null;
+  outcomeEmailLink: string | null;
+  outcomeAt: Date | null;
+  interviewAt: Date | null;
+  overallFitScore: number | null;
+};
+
+const MONITORED_COLUMNS = {
+  id: applications.id,
+  leadId: applications.jobLeadId,
+  title: jobLeads.title,
+  company: jobLeads.company,
+  city: jobLeads.city,
+  status: applications.status,
+  appliedAt: applications.appliedAt,
+  updatedAt: applications.updatedAt,
+  confirmationEmailLink: applications.confirmationEmailLink,
+  outcomeEmailLink: applications.outcomeEmailLink,
+  outcomeAt: applications.outcomeAt,
+  interviewAt: applications.interviewAt,
+  overallFitScore: jobLeads.overallFitScore,
+};
+
+/**
+ * The Applications list: everything still in play. `response_pending` and
+ * `interview` render in the *same* list — the difference is a status pill and a
+ * few extra columns, not a second screen (§2.2.D). `screened_out` never appears
+ * here; it's in the Archive.
+ */
+export async function listOpenApplications(): Promise<MonitoredApplication[]> {
+  const owner = await currentOwnerId();
+  return db
+    .select(MONITORED_COLUMNS)
+    .from(applications)
+    .innerJoin(jobLeads, eq(jobLeads.id, applications.jobLeadId))
+    .where(and(eq(applications.ownerId, owner), inArray(applications.status, [...OPEN_APPLICATION_STATUSES])))
+    .orderBy(desc(applications.appliedAt));
+}
+
+/**
+ * The Archive: stopped applications only (§2.2.F). Deliberately *not* the
+ * roadblocked/misaligned triage drops from Part 1 — those never had an
+ * application to stop. This is a body of finished cases to pattern-match a new
+ * lead against, not everything terminal.
+ */
+export async function listArchivedApplications(): Promise<MonitoredApplication[]> {
+  const owner = await currentOwnerId();
+  return db
+    .select(MONITORED_COLUMNS)
+    .from(applications)
+    .innerJoin(jobLeads, eq(jobLeads.id, applications.jobLeadId))
+    .where(and(eq(applications.ownerId, owner), eq(applications.status, ARCHIVED_APPLICATION_STATUS)))
+    .orderBy(desc(applications.outcomeAt), desc(applications.appliedAt));
 }
 
 /** Map of leadId → requirement count for the user's leads, for the lead board. */
