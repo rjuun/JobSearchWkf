@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { scoringQueueData } from '@/lib/queries';
+import { flowCounts, scoringQueueData } from '@/lib/queries';
 import { env } from '@/lib/env';
 import { RpShell } from '@/components/roleproof/rp-shell';
 import { ScoringQueue } from '@/components/roleproof/scoring-queue';
 import { ReadyToScore } from '@/components/roleproof/ready-to-score';
+import { FlowTabs } from '@/components/roleproof/flow-tabs';
 import { Frame } from '@/components/layout';
 import { RpScore, RpVerdictPill, rpNextAction, cn } from '@/components/roleproof/kit';
 
@@ -15,17 +16,13 @@ export const maxDuration = 60;
 export const metadata: Metadata = { title: 'RoleProof — scoring queue' };
 
 type Tab = 'queue' | 'ready' | 'results';
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'queue', label: 'Queue' },
-  { key: 'ready', label: 'Ready to score' },
-  { key: 'results', label: 'Results' },
-];
+const TABS: Tab[] = ['queue', 'ready', 'results'];
 
 /**
  * Queue → Ready to score → Results, the B-phase's three states as one page.
  *
- * Part 2 of the design doc adds Applications and Archive as siblings here;
- * that's a separate CI and deliberately not built yet.
+ * Part 2 added Applications to the same strip (a separate route, hence the
+ * shared FlowTabs component) and Archive as a distinguished sibling after it.
  */
 export default async function ScoringQueuePage({
   searchParams,
@@ -34,14 +31,11 @@ export default async function ScoringQueuePage({
 }) {
   if (!env.nextScoringQueue) notFound();
 
-  const { queue, ready, running, results } = await scoringQueueData();
-  const tab: Tab = TABS.some((t) => t.key === searchParams.tab) ? (searchParams.tab as Tab) : 'queue';
-
-  const counts: Record<Tab, number> = {
-    queue: queue.length,
-    ready: ready.length + running.length,
-    results: results.length,
-  };
+  const [{ queue, ready, running, results }, counts] = await Promise.all([
+    scoringQueueData(),
+    flowCounts(),
+  ]);
+  const tab: Tab = TABS.includes(searchParams.tab as Tab) ? (searchParams.tab as Tab) : 'queue';
 
   return (
     <RpShell back={{ href: '/roleproof', label: 'Board' }}>
@@ -56,33 +50,7 @@ export default async function ScoringQueuePage({
           </div>
         </div>
 
-        {/* ── Tabs ── */}
-        <div className="mt-7 flex items-center gap-1 border-b border-hairline">
-          {TABS.map((t) => (
-            <Link
-              key={t.key}
-              href={`/roleproof/scoring-queue?tab=${t.key}`}
-              className={cn(
-                '-mb-px border-b-2 px-4 py-2.5 text-[13px] font-semibold transition',
-                tab === t.key
-                  ? 'border-proof text-ink'
-                  : 'border-transparent text-ink-muted hover:text-ink'
-              )}
-            >
-              {t.label}
-              {counts[t.key] > 0 && (
-                <span
-                  className={cn(
-                    'ml-2 rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                    t.key === 'queue' ? 'bg-caution-soft text-caution-deep' : 'bg-raised text-ink-muted'
-                  )}
-                >
-                  {counts[t.key]}
-                </span>
-              )}
-            </Link>
-          ))}
-        </div>
+        <FlowTabs active={tab} counts={counts} showMonitoring={env.nextMonitoring} />
 
         <div className="mt-6">
           {tab === 'queue' && (

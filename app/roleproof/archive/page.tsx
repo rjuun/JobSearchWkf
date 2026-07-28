@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { listArchivedApplications } from '@/lib/queries';
+import { flowCounts, listArchivedApplications } from '@/lib/queries';
 import { env } from '@/lib/env';
 import { RpShell } from '@/components/roleproof/rp-shell';
 import { ArchiveList } from '@/components/roleproof/archive-list';
+import { FlowTabs } from '@/components/roleproof/flow-tabs';
 import { Frame } from '@/components/layout';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +17,7 @@ export const metadata: Metadata = { title: 'RoleProof — archive' };
  */
 export default async function ArchivePage() {
   if (!env.nextMonitoring) notFound();
-  const rows = await listArchivedApplications();
+  const [rows, counts] = await Promise.all([listArchivedApplications(), flowCounts()]);
 
   return (
     <RpShell back={{ href: '/roleproof', label: 'Board' }}>
@@ -27,7 +28,9 @@ export default async function ArchivePage() {
           — the scores, the must-haves and the CV that went out are all still there.
         </p>
 
-        <div className="mt-7">
+        <FlowTabs active="archive" counts={counts} showMonitoring />
+
+        <div className="mt-6">
           <ArchiveList rows={rows} />
         </div>
       </Frame>

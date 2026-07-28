@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { listOpenApplications } from '@/lib/queries';
+import { flowCounts, listOpenApplications } from '@/lib/queries';
 import { env } from '@/lib/env';
 import { RpShell } from '@/components/roleproof/rp-shell';
 import { ApplicationsList } from '@/components/roleproof/applications-list';
+import { FlowTabs } from '@/components/roleproof/flow-tabs';
 import { Frame } from '@/components/layout';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +17,7 @@ export const metadata: Metadata = { title: 'RoleProof — applications' };
  */
 export default async function ApplicationsPage() {
   if (!env.nextMonitoring) notFound();
-  const rows = await listOpenApplications();
+  const [rows, counts] = await Promise.all([listOpenApplications(), flowCounts()]);
 
   return (
     <RpShell back={{ href: '/roleproof', label: 'Board' }}>
@@ -28,7 +29,9 @@ export default async function ApplicationsPage() {
           and the copy of the email are recorded for you.
         </p>
 
-        <div className="mt-7">
+        <FlowTabs active="applications" counts={counts} showMonitoring />
+
+        <div className="mt-6">
           <ApplicationsList
             rows={rows.map((r) => ({
               id: r.id,

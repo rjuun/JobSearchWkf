@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { listLeads, requirementCountsByLead, getProfile, thisWeekPicks, sourcingCompass, weeklyTriage } from '@/lib/queries';
+import { listLeads, requirementCountsByLead, getProfile, thisWeekPicks, sourcingCompass, weeklyTriage, flowCounts } from '@/lib/queries';
 import { env } from '@/lib/env';
 import { isOutOfPlay } from '@/lib/ui';
 import { currentOwnerId } from '@/lib/auth';
@@ -27,7 +27,7 @@ export const metadata: Metadata = { title: 'RoleProof — your board' };
 
 // Act I · 1C — "the board: momentum across many leads", in the plain-language voice.
 export default async function RoleProofBoard() {
-  const [leads, reqCounts, profile, weekPicks, sources, triage] = await Promise.all([
+  const [leads, reqCounts, profile, weekPicks, sources, triage, counts] = await Promise.all([
     listLeads(),
     requirementCountsByLead(),
     getProfile(),
@@ -35,7 +35,10 @@ export default async function RoleProofBoard() {
     env.nextThisWeek && !env.nextTriage ? thisWeekPicks() : Promise.resolve([]),
     env.nextSourcingCompass ? sourcingCompass() : Promise.resolve([]),
     env.nextTriage ? weeklyTriage() : Promise.resolve(null),
+    env.nextMonitoring ? flowCounts() : Promise.resolve(null),
   ]);
+  // Applications still in play — the count the board's Applications entry wears.
+  const outstanding = counts?.applications ?? 0;
 
   // R3 · the Statement's re-entry ritual — roll up what accrued since the owner last
   // looked at their Statement, so the board greets a returning user with momentum.
@@ -147,6 +150,19 @@ export default async function RoleProofBoard() {
                 {flagged > 0 && (
                   <span className="ml-2 rounded-full bg-caution-soft px-2 py-0.5 text-[11px] text-caution-deep">
                     {flagged}
+                  </span>
+                )}
+              </Link>
+            )}
+            {env.nextMonitoring && (
+              <Link
+                href="/roleproof/applications"
+                className="rounded-[9px] border border-hairline px-[18px] py-[11px] text-[13px] font-bold text-ink-muted transition hover:border-proof-ring hover:text-ink"
+              >
+                Applications
+                {outstanding > 0 && (
+                  <span className="ml-2 rounded-full bg-raised px-2 py-0.5 text-[11px] text-ink-muted">
+                    {outstanding}
                   </span>
                 )}
               </Link>

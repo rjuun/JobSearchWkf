@@ -576,6 +576,41 @@ export async function listArchivedApplications(): Promise<MonitoredApplication[]
     .orderBy(desc(applications.outcomeAt), desc(applications.appliedAt));
 }
 
+/**
+ * Badge counts for the Flow tab strip, in two cheap aggregates rather than the
+ * five full reads the strip would otherwise need on every page it appears on.
+ */
+export async function flowCounts(): Promise<{
+  queue: number;
+  ready: number;
+  results: number;
+  applications: number;
+  archive: number;
+}> {
+  const owner = await currentOwnerId();
+  const [leadRows, appRows] = await Promise.all([
+    db
+      .select({ status: jobLeads.status, n: sql<number>`count(*)::int` })
+      .from(jobLeads)
+      .where(eq(jobLeads.ownerId, owner))
+      .groupBy(jobLeads.status),
+    db
+      .select({ status: applications.status, n: sql<number>`count(*)::int` })
+      .from(applications)
+      .where(eq(applications.ownerId, owner))
+      .groupBy(applications.status),
+  ]);
+  const lead = (s: string) => leadRows.find((r) => r.status === s)?.n ?? 0;
+  const app = (s: string) => appRows.find((r) => r.status === s)?.n ?? 0;
+  return {
+    queue: lead('scoring_queue') + lead('hold'),
+    ready: lead('selected') + lead('screening'),
+    results: lead('screened'),
+    applications: OPEN_APPLICATION_STATUSES.reduce((n, s) => n + app(s), 0),
+    archive: app(ARCHIVED_APPLICATION_STATUS),
+  };
+}
+
 /** Map of leadId → requirement count for the user's leads, for the lead board. */
 export async function requirementCountsByLead(): Promise<Map<string, number>> {
   const owner = await currentOwnerId();
