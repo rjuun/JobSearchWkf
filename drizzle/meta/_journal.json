@@ -169,6 +169,13 @@
       "when": 1785260839989,
       "tag": "0023_sparkling_amphibian",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1785269706902,
+      "tag": "0024_superb_scorpion",
+      "breakpoints": true
     }
   ]
 }

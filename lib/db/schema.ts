@@ -372,6 +372,17 @@ export const applications = pgTable(
     appliedAt: timestamp('applied_at', { withTimezone: true }),
     status: text('status'),
     outcomeNotes: text('outcome_notes'),
+    // CI · Scoring Phase Redesign Part 2 (D-phase monitoring). All nullable —
+    // populated by the three drag-and-drop capture points, never at insert time.
+    // outcomeEmailLink/outcomeAt are deliberately dual-purpose (decline *or*
+    // interview confirmation): a lead is only ever in one outcome at a time and
+    // the UI picks the label from `status`.
+    confirmationEmailLink: text('confirmation_email_link'),
+    outcomeEmailLink: text('outcome_email_link'),
+    outcomeAt: timestamp('outcome_at', { withTimezone: true }),
+    // The one future fact — typed by hand, never present in a dropped email.
+    interviewAt: timestamp('interview_at', { withTimezone: true }),
+    thanksRepliedAt: timestamp('thanks_replied_at', { withTimezone: true }),
   },
   (t) => ({
     // One application per (owner, lead) — makes the CV-download open and
