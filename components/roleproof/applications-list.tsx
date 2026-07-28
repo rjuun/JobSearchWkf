@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logDeclineAction, logInterviewScheduledAction, setInterviewAtAction } from '@/app/actions/monitoring';
 import { applicationStatusLabel, isStaleApplication, STALE_AFTER_DAYS } from '@/lib/applications';
+import { DeclinePopup } from './decline-popup';
 import { EmailDropZone } from './email-drop-zone';
 import { RpScore, cn } from './kit';
 
@@ -78,6 +79,7 @@ type ManualForm = { leadId: string; kind: 'decline' | 'interview' };
 export function ApplicationsList({ rows }: { rows: MonitoredRow[] }) {
   const router = useRouter();
   const [manual, setManual] = useState<ManualForm | null>(null);
+  const [decline, setDecline] = useState<{ company: string | null; title: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function recordDecline(row: MonitoredRow, link: string | null, at?: Date) {
@@ -85,8 +87,10 @@ export function ApplicationsList({ rows }: { rows: MonitoredRow[] }) {
     try {
       await logDeclineAction(row.leadId, { outcomeEmailLink: link, outcomeAt: at });
       setManual(null);
-      // The status change and the Archive move are done here, with no extra
-      // click. The reply-assist pop-up bolts on next (§2.2.E).
+      // The status change and the Archive move already happened, with no extra
+      // click. The pop-up is purely the reply assist — dismissing it reverts
+      // nothing (§2.2.E).
+      setDecline({ company: row.company, title: row.title });
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not record that.');
@@ -235,6 +239,14 @@ export function ApplicationsList({ rows }: { rows: MonitoredRow[] }) {
           );
         })}
       </div>
+
+      {decline && (
+        <DeclinePopup
+          company={decline.company}
+          title={decline.title}
+          onClose={() => setDecline(null)}
+        />
+      )}
     </>
   );
 }
