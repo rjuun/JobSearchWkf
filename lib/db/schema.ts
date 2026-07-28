@@ -28,6 +28,10 @@ import { sql } from 'drizzle-orm';
 export const DEMO_OWNER_ID = '00000000-0000-0000-0000-000000000001';
 
 // ── Enums (app-controlled state) ────────────────────────────────────────────
+// Order here is the enum's *declaration* order only — `ALTER TYPE ... ADD VALUE`
+// appends, so the live pg type keeps the original 0000 order with the four new
+// values on the end. Nothing sorts on the enum itself; STATUS_ORDER in lib/ui.ts
+// is the display order, so the two need not agree.
 export const leadStatusEnum = pgEnum('lead_status', [
   'captured',
   'screening',
@@ -38,6 +42,15 @@ export const leadStatusEnum = pgEnum('lead_status', [
   'ready',
   'applied',
   'archived',
+  // Scoring Phase Redesign · the B-phase gate. `scoring_queue` = B2/B3 flagged
+  // something and a human decision is pending; `selected` = cleared the gate
+  // (auto when both came back empty) and is waiting for a batch scoring run;
+  // `roadblocked`/`misaligned` = dropped at the gate, excluded from the board
+  // the same way `archived` is.
+  'scoring_queue',
+  'roadblocked',
+  'misaligned',
+  'selected',
 ]);
 // NOTE: the human gate is labelled Keep/Maybe/Drop in the UI; the DB enum stays
 // green/yellow/red for now (single source of truth for the labels:
