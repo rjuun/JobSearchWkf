@@ -52,7 +52,7 @@ export async function AppHeader({ back }: { back?: { href: string; label: string
             gated behind SHOW_LLM_PILL so a clean demo never shows it. */}
         {env.showLlmPill && (
           <span
-            title={isLiveLlm ? `Live LLM · ${env.deepseekModelChat}` : 'Mock mode · deterministic fixtures (no API key)'}
+            title={isLiveLlm ? `Live LLM · ${env.anthropicModelSonnet} / ${env.anthropicModelOpus}` : 'Mock mode · deterministic fixtures (no API key)'}
             className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset md:inline-flex ${
               isLiveLlm ? 'bg-emerald-50 text-emerald-700 ring-emerald-100' : 'bg-amber-50 text-amber-700 ring-amber-100'
             }`}

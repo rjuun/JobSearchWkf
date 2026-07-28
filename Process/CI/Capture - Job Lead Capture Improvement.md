@@ -13,7 +13,7 @@ pr-target: "[[A1. Capture and Store Job Leads]]"
 
 ---
 ```simple-time-tracker
-{"entries":[{"name":"Draft","startTime":"2026-06-26T09:47:45.000Z","endTime":"2026-06-26T09:49:32.000Z"},{"name":"Draft","startTime":"2026-07-23T08:02:41.000Z","endTime":"2026-07-23T10:01:02.279Z"},{"name":"Development","startTime":"2026-07-23T10:01:03.000Z","endTime":"2026-07-23T10:50:29.358Z"},{"name":"Testing","startTime":"2026-07-23T11:10:15.000Z","endTime":"2026-07-23T12:36:37.000Z"},{"name":"Development","startTime":"2026-07-23T13:45:54.000Z","endTime":"2026-07-23T17:25:43.000Z"}]}
+{"entries":[{"name":"Draft","startTime":"2026-06-26T09:47:45.000Z","endTime":"2026-06-26T09:49:32.000Z"},{"name":"Draft","startTime":"2026-07-23T08:02:41.000Z","endTime":"2026-07-23T10:01:02.279Z"},{"name":"Development","startTime":"2026-07-23T10:01:03.000Z","endTime":"2026-07-23T10:50:29.358Z"},{"name":"Testing","startTime":"2026-07-23T11:10:15.000Z","endTime":"2026-07-23T12:36:37.000Z"},{"name":"Development","startTime":"2026-07-23T13:45:54.000Z","endTime":"2026-07-23T17:25:43.000Z"},{"name":"Draft","startTime":"2026-07-24T09:28:28.000Z","endTime":"2026-07-24T12:00:41.000Z"}]}
 ```
 ---
 ## 1. What is the problem or opportunity?

@@ -164,17 +164,31 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
 
     const r = await runStructured({
       step: 'C2',
-      model: 'sonnet',
+      // Truthfulness-critical (Master Instructions §6.1) → Opus tier.
+      model: 'opus',
       system: await systemPromptFor('C2', effectiveOwnerId),
-      user:
-        `ROLE: ${lead.title}${lead.company ? ` · ${lead.company}` : ''}\n\n` +
-        `REQUIREMENTS (map each by its number):\n` +
-        [...reqByOrder.entries()].map(([n, q]) => `${n}. [${q.rank}] ${q.requirement}`).join('\n') +
-        `\n\nCANDIDATE EVIDENCE (cite by exact ref code):\n` +
-        evidence.map((e) => `[${e.ref}] (${e.kind}) ${e.text}`).join('\n') +
-        `\n\nCV POSITION SLOTS — set each link's cvPosition to the best-matching label:\n` +
-        CV_SLOTS.map((s) => `- ${s}`).join('\n') +
-        `\n\nFor each requirement pick the single strongest evidence ref and assign its cvPosition slot. If none honestly fits, list it under gaps.`,
+      // The evidence graph is owner-wide and lead-independent — identical for
+      // every lead tailored in the same sitting — so it gets its own 1h cache
+      // breakpoint; the per-lead role/requirements follow as the varying suffix.
+      user: [
+        {
+          type: 'text',
+          text:
+            `CANDIDATE EVIDENCE (cite by exact ref code):\n` +
+            evidence.map((e) => `[${e.ref}] (${e.kind}) ${e.text}`).join('\n'),
+          cache_control: { type: 'ephemeral', ttl: '1h' },
+        },
+        {
+          type: 'text',
+          text:
+            `ROLE: ${lead.title}${lead.company ? ` · ${lead.company}` : ''}\n\n` +
+            `REQUIREMENTS (map each by its number):\n` +
+            [...reqByOrder.entries()].map(([n, q]) => `${n}. [${q.rank}] ${q.requirement}`).join('\n') +
+            `\n\nCV POSITION SLOTS — set each link's cvPosition to the best-matching label:\n` +
+            CV_SLOTS.map((s) => `- ${s}`).join('\n') +
+            `\n\nFor each requirement pick the single strongest evidence ref and assign its cvPosition slot. If none honestly fits, list it under gaps.`,
+        },
+      ],
       tool: C2.tool,
       zod: C2.zod,
       mock: () => mockEvidenceMap([...reqByOrder.entries()], evidence),
@@ -273,7 +287,8 @@ export async function generateCv(
   {
     const r = await runStructured({
       step: 'C3',
-      model: 'sonnet',
+      // Truthfulness-critical (Master Instructions §6.1) → Opus tier.
+      model: 'opus',
       system: await systemPromptFor('C3', effectiveOwnerId),
       user:
         `ROLE: ${lead.title}${lead.jdGroupPrimary ? ` · ${lead.jdGroupPrimary}` : ''}` +
@@ -366,7 +381,8 @@ export async function generateCv(
     const keptBullets = green.map((g) => (g.evidenceRef && bulletByRef.get(g.evidenceRef)?.bullet) || g.originalText || '').filter(Boolean);
     const r = await runStructured({
       step: 'C5',
-      model: 'sonnet',
+      // Truthfulness-critical (Master Instructions §6.1) → Opus tier.
+      model: 'opus',
       system: await systemPromptFor('C5', effectiveOwnerId),
       user:
         `ROLE: ${lead.title}${lead.company ? ` · ${lead.company}` : ''}${lead.jdGroupPrimary ? ` · ${lead.jdGroupPrimary}` : ''}\n` +

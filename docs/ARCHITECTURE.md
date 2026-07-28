@@ -8,7 +8,7 @@
 ## Stack & topology
 
 Next.js (App Router, TypeScript) on **Vercel** + **Supabase** (Postgres + a private Storage bucket)
-+ **DeepSeek** (an OpenAI-compatible LLM API). Auth is **self-contained** — a `jose`-signed HS256
++ **Anthropic Claude** (Messages API — Sonnet 5 + Opus 4.8). Auth is **self-contained** — a `jose`-signed HS256
 session cookie over a `users` table with `scrypt` hashing (`lib/auth.ts`), **not** Supabase Auth —
 so Supabase is only a database and a file bucket (no RLS policies, no Auth providers). Every
 read/write is scoped in the app layer by `currentOwnerId()`, which fails closed. **No separate
@@ -35,7 +35,8 @@ Browser (LinkedIn)                          Next.js on Vercel
                                      ▼
        Supabase: Postgres (owner-scoped in app) + Storage bucket (jd-captures/, cv-output/)
                                      ▲
-                          DeepSeek API (extraction + scoring tiers, forced function-call JSON)
+                 Anthropic API (Sonnet 5 extraction tier + Opus 4.8 truthfulness-critical tier,
+                                forced tool-use JSON, 1h prompt caching)
 ```
 
 ## Repository structure
@@ -48,7 +49,7 @@ Browser (LinkedIn)                          Next.js on Vercel
   /api/ingest/route.ts        # bookmarklet endpoint (POST, CORS)
 /lib
   /pipeline                   # one module per step (screening.ts, tailoring.ts …)
-  /llm                        # LLM choke point (provider is DeepSeek)
+  /llm                        # LLM choke point (provider is Anthropic Claude)
     client.ts                 # runStructured(): model-per-step, forced tool-call, retries, token logging
     schemas.ts                # Zod/JSON schemas per step — the output contract
   /scoring                    # PURE deterministic functions: rollups, weighted averages, gates
@@ -60,21 +61,26 @@ Browser (LinkedIn)                          Next.js on Vercel
 /docs                         # this blueprint
 ```
 
-## How a pipeline step calls the LLM (DeepSeek)
+## How a pipeline step calls the LLM (Anthropic Claude)
 
-A single choke point, `lib/llm/client.ts → runStructured({step, model, …})` (provider is DeepSeek):
+A single choke point, `lib/llm/client.ts → runStructured({step, model, …})` (provider is Anthropic):
 
-1. **Selects the model tier** from a per-step map — an extraction tier for B1–B5 / C2–C5 and a
-   scoring tier for B6 / C7 (per the Master Instructions §7.1). Resolve model IDs from env
-   (`DEEPSEEK_MODEL` / `DEEPSEEK_MODEL_REASON`, both `deepseek-chat` today) rather than hardcoding.
+1. **Selects the model tier** from a per-step map — Sonnet 5 for extraction/mapping (B2–B5, A1,
+   O2, coach, story) and Opus 4.8 for the truthfulness-critical steps (B6, C2, C3, C5, C7, per the
+   Master Instructions §6.1). Resolve model IDs from env (`ANTHROPIC_MODEL_SONNET` /
+   `ANTHROPIC_MODEL_OPUS`) rather than hardcoding.
 2. **Builds the prompt**: the step's `Process/*.md` note as the system prompt + a shared
    non-negotiables preamble (truthfulness / ATS / anti-sycophancy from the Master Instructions §1).
+   The static part carries a 1h-TTL `cache_control` breakpoint (Claude prompt caching); the
+   growing CI-guidance suffix stays uncached. C2 additionally caches its owner-wide evidence-graph
+   block, which is identical across leads in a sitting.
 3. **Forces structured output via tool-use**: one tool per step (e.g. `emit_role_fit_scores`)
-   with a strict JSON Schema, `tool_choice` set to that tool. The model *must* call it; the tool
-   `input` is the result — far more reliable than "return JSON" in prose.
+   with a strict JSON Schema, `tool_choice: {type:'tool'}` set to that tool. The model *must* call
+   it; the tool `input` arrives already parsed — far more reliable than "return JSON" in prose.
 4. **Validates** the tool input with **Zod** server-side; on failure, one bounded retry with the
    validation error fed back.
-5. **Logs** `model`, token counts, `step`, `lead_id` to an `llm_calls` table (cost + audit trail).
+5. **Logs** `model`, token counts (including cache write/read tokens), `step`, `lead_id` to an
+   `llm_calls` table (cost + audit trail).
 
 ### Determinism rule (the important one)
 

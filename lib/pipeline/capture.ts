@@ -4,14 +4,13 @@
  * then one AI extraction pass (company/city/remote/formatSignals) immediately
  * after insert — extraction only, never the B/C-phase judgment steps. Section C
  * precedence: fields the caller already supplied (the AI-driven path reads the
- * JD itself) are used as-is and skip the DeepSeek call for whatever's missing;
+ * JD itself) are used as-is and skip the Claude call for whatever's missing;
  * a plain manual paste supplies none of remote/formatSignals, so it always falls
  * back to the model.
  */
 import { and, eq, ilike } from 'drizzle-orm';
 import { db } from '../db';
 import { companies, jobLeads } from '../db/schema';
-import { writeText } from '../storage';
 import { cleanJobPostLink, detectAtsSystem, mockCaptureExtraction, pickCandidateJobPostLink } from './capture-enrich';
 import { runStructured } from '../llm/client';
 import { A1, type A1Out } from '../llm/schemas';
@@ -22,7 +21,7 @@ export type CaptureInput = {
   title: string;
   company?: string | null;
   city?: string | null;
-  /** Section C · supplied directly by the AI-driven path, which already read the JD. Undefined (not just falsy) means "not supplied — ask DeepSeek". */
+  /** Section C · supplied directly by the AI-driven path, which already read the JD. Undefined (not just falsy) means "not supplied — ask the model". */
   remote?: 'on-site' | 'hybrid' | 'remote' | 'unspecified' | null;
   /** Section C · ditto. An explicit '' is a legitimate answer ("nothing explicit stated"), not "missing". */
   formatSignals?: string | null;
@@ -82,14 +81,11 @@ export async function createLead(input: CaptureInput, ownerId: string): Promise<
       hiringAgency,
       source: input.source?.trim() || null,
       status: 'captured',
+      jdText: input.markdown,
     })
     .returning({ id: jobLeads.id });
 
-  const rel = `jd-captures/${row.id}/raw.md`;
-  await writeText(rel, input.markdown);
-  await db.update(jobLeads).set({ rawJdPath: rel }).where(eq(jobLeads.id, row.id));
-
-  // Section C precedence: only call DeepSeek when something is still missing.
+  // Section C precedence: only call the LLM when something is still missing.
   // company/city already had a "non-empty wins" precedence (a manual paste never
   // sets remote/formatSignals at all, so those two alone are enough to force the
   // fallback for that path); remote/formatSignals use presence (!== undefined),
@@ -110,7 +106,7 @@ export async function createLead(input: CaptureInput, ownerId: string): Promise<
       const r = await runStructured({
         step: 'A1',
         model: 'sonnet',
-        system: `${NON_NEGOTIABLES}\n\n${A1_PROCEDURE}${guidance}`,
+        system: { cacheable: `${NON_NEGOTIABLES}\n\n${A1_PROCEDURE}`, dynamic: guidance },
         user: `TITLE: ${input.title}\nURL: ${input.sourceUrl ?? 'unknown'}\n\nJOB DESCRIPTION:\n${input.markdown}`,
         tool: A1.tool,
         zod: A1.zod,
@@ -138,7 +134,6 @@ export async function createLead(input: CaptureInput, ownerId: string): Promise<
       companyId,
       remote: resolvedRemote,
       formatSignals: resolvedFormatSignals,
-      jdText: input.markdown,
     })
     .where(eq(jobLeads.id, row.id));
 

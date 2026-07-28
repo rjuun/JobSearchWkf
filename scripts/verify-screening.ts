@@ -7,7 +7,7 @@ import { runScreening } from '../lib/pipeline/screening';
 import { overallFit } from '../lib/scoring';
 
 async function main() {
-  const [lead] = await db.select().from(jobLeads).where(isNotNull(jobLeads.rawJdPath)).limit(1);
+  const [lead] = await db.select().from(jobLeads).where(isNotNull(jobLeads.jdText)).limit(1);
   if (!lead) throw new Error('no lead with a captured JD found — run npm run seed');
   console.log(`Lead: ${lead.title} · ${lead.company ?? ''}  (${lead.id})\n`);
 

@@ -5,7 +5,6 @@ import { and, eq } from 'drizzle-orm';
 import { runScreening, type StepReport } from '@/lib/pipeline/screening';
 import { db } from '@/lib/db';
 import { jobLeads } from '@/lib/db/schema';
-import { readText } from '@/lib/storage';
 import { currentOwnerId } from '@/lib/auth';
 import { recordActivity } from '@/lib/activity';
 import { generatePrompts } from '@/lib/coaching-queue';
@@ -16,7 +15,7 @@ export async function runScreeningAction(leadId: string): Promise<StepReport[]> 
   const owner = await currentOwnerId();
   const [lead] = await db.select().from(jobLeads).where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, owner)));
   if (!lead) throw new Error('Lead not found.');
-  const jd = lead.rawJdPath ? await readText(lead.rawJdPath).catch(() => '') : '';
+  const jd = lead.jdText ?? '';
   if (jd.trim().length < 80) {
     throw new Error('No job description captured for this lead yet — paste or re-capture the posting before screening.');
   }

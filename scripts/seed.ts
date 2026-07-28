@@ -46,7 +46,6 @@ import { generateCv } from '../lib/pipeline/tailoring';
 import type { LeadStatus } from '../lib/db/types';
 
 const ROOT = process.cwd();
-const STORAGE = env.storageDir;
 const PROFILE_WB = path.join(ROOT, 'Profile', 'Profile_Reference_Workbook.xlsx');
 const LISTS_WB = path.join(ROOT, 'Job Hunting Lists.xlsx');
 
@@ -321,22 +320,22 @@ export async function buildDemoTenant(): Promise<void> {
     return city ? { city, preferenceRank: num(g(2)) } : null;
   }));
 
-  // Capture JD markdown into storage up front so leads link to it on insert
-  // (no per-lead UPDATE round-trips afterwards).
+  // Read JD markdown straight into jdText up front so leads link to it on
+  // insert (no per-lead UPDATE round-trips afterwards). Previously this copied
+  // each file into blob storage and only set raw_jd_path, leaving jd_text
+  // blank — jd_text is now the single source of truth for JD content, so we
+  // just read the file content directly.
   const jdDir = path.join(ROOT, 'Job Descriptions');
-  const jdPathBySeq = new Map<number, string>();
+  const jdTextBySeq = new Map<number, string>();
   if (fs.existsSync(jdDir)) {
     for (const file of fs.readdirSync(jdDir).filter((f) => f.endsWith('.md'))) {
       const m = file.match(/^(\d+)/);
       if (!m) continue;
       const seq = Number(m[1]);
-      const rel = path.join('jd-captures', String(seq), 'raw.md');
-      fs.mkdirSync(path.dirname(path.join(STORAGE, rel)), { recursive: true });
-      fs.copyFileSync(path.join(jdDir, file), path.join(STORAGE, rel));
-      jdPathBySeq.set(seq, rel);
+      jdTextBySeq.set(seq, fs.readFileSync(path.join(jdDir, file), 'utf8'));
     }
   }
-  console.log(`  ✓ jd captures stored: ${jdPathBySeq.size}`);
+  console.log(`  ✓ jd captures loaded: ${jdTextBySeq.size}`);
 
   // Job Leads — headers on row 3, data row 4+. Capture and keep seq → id map.
   const leadRows = rowsFrom(lws('Job Leads'), 3, (g) => {
@@ -369,7 +368,7 @@ export async function buildDemoTenant(): Promise<void> {
       applicantCount: num(g(33)),
       postedDays: num(g(34)),
       overallFitScore: overall,
-      rawJdPath: seq != null ? jdPathBySeq.get(seq) ?? null : null,
+      jdText: seq != null ? jdTextBySeq.get(seq) ?? null : null,
       status: mapStatus(txt(g(36)), overall !== null),
     };
   });

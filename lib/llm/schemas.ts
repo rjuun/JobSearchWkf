@@ -1,13 +1,20 @@
 /**
  * Per-step output contracts. Each step forces a single tool call whose `input`
- * is validated by the matching zod schema. JSON Schema drives the DeepSeek
- * (OpenAI-compatible) tool; zod drives runtime validation (+ one retry on mismatch).
+ * is validated by the matching zod schema. JSON Schema drives the Anthropic
+ * tool definition; zod drives runtime validation (+ one retry on mismatch).
  */
 import { z } from 'zod';
 
 export type ToolDef = {
   name: string;
   description: string;
+  /** Anthropic strict tool use: grammar-constrained sampling guarantees the
+   * tool_use input matches input_schema exactly (no wrong-shaped first attempts
+   * → no bounded retry burned). Requires `additionalProperties: false` on every
+   * object node; numeric minimum/maximum are unsupported in strict schemas, so
+   * ranges live in enums/descriptions here and zod enforces them at runtime.
+   * Typed as literal `true` so a def can't compile without it. */
+  strict: true;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   input_schema: Record<string, any>;
 };
@@ -25,10 +32,11 @@ export const A1 = {
   }),
   tool: {
     name: 'emit_capture_extraction',
+    strict: true,
     description:
       'Extract only what is explicitly present or unambiguously inferable from the job description: the hiring company, the primary work-location city, remote/hybrid/on-site status, and verbatim quotes of any explicit application-format instructions. Never guess — leave a field null/unspecified rather than invent a value. Extraction only, no judgment or scoring.',
     input_schema: {
-      type: 'object',
+      type: 'object', additionalProperties: false,
       properties: {
         company: str,
         city: str,
@@ -52,12 +60,13 @@ export const B2 = {
   }),
   tool: {
     name: 'emit_roadblocks',
+    strict: true,
     description: 'Hard ineligibility factors across language, technical, certification, geographic, industry. Empty if none.',
     input_schema: {
-      type: 'object',
+      type: 'object', additionalProperties: false,
       properties: {
         roadblocks: arr({
-          type: 'object',
+          type: 'object', additionalProperties: false,
           properties: {
             dimension: { type: 'string', enum: ['Language', 'Technical', 'Certification', 'Geographic', 'Industry'] },
             detail: str,
@@ -79,12 +88,13 @@ export const B3 = {
   }),
   tool: {
     name: 'emit_misalignments',
+    strict: true,
     description: 'Soft flags (not blockers) across values/culture, city, seniority. Empty if none.',
     input_schema: {
-      type: 'object',
+      type: 'object', additionalProperties: false,
       properties: {
         misalignments: arr({
-          type: 'object',
+          type: 'object', additionalProperties: false,
           properties: { dimension: str, detail: str, severity: str },
           required: ['dimension', 'detail'],
         }),
@@ -105,13 +115,14 @@ export const B4 = {
   }),
   tool: {
     name: 'emit_skill_mapping',
+    strict: true,
     description: 'Rate the role against the 17-dimension framework (1=core,2=important,3=supporting), assign JD groups, detect the ATS.',
     input_schema: {
-      type: 'object',
+      type: 'object', additionalProperties: false,
       properties: {
         skills: arr({
-          type: 'object',
-          properties: { dimension: str, rating: { type: 'integer', minimum: 1, maximum: 3 } },
+          type: 'object', additionalProperties: false,
+          properties: { dimension: str, rating: { type: 'integer', enum: [1, 2, 3] } },
           required: ['dimension', 'rating'],
         }),
         jdGroupPrimary: str,
@@ -141,12 +152,13 @@ export const B5 = {
   }),
   tool: {
     name: 'emit_requirements',
+    strict: true,
     description: 'Break the JD into ranked requirements (Core / Important / Nice-to-Have), in order.',
     input_schema: {
-      type: 'object',
+      type: 'object', additionalProperties: false,
       properties: {
         requirements: arr({
-          type: 'object',
+          type: 'object', additionalProperties: false,
           properties: {
             order: { type: 'integer' },
             requirement: str,
@@ -185,17 +197,18 @@ export const B6 = {
   }),
   tool: {
     name: 'emit_role_fit',
+    strict: true,
     description:
       'Emit 0–10 judgments for Relevance, Seniority, Impact, ATS, and a per-requirement match score. Do NOT compute the overall — the system does that.',
     input_schema: {
-      type: 'object',
+      type: 'object', additionalProperties: false,
       properties: {
         relevance: { type: 'number' },
         seniority: { type: 'number' },
         impact: { type: 'number' },
         ats: { type: 'number' },
         requirements: arr({
-          type: 'object',
+          type: 'object', additionalProperties: false,
           properties: {
             order: { type: 'integer', description: 'The requirement number from the list provided.' },
             requirement: str,
@@ -295,32 +308,39 @@ export const IMPORT = {
   }),
   tool: {
     name: 'emit_career_graph',
+    strict: true,
     description:
       'Extract a DRAFT career graph from raw CV / LinkedIn / pasted text. Capture only what the text supports — never invent a company, a metric, or a skill. Leave a result metric null unless a number is explicitly present in the text.',
+    // Strict mode caps optional parameters at 24 per tool (grammar compilation
+    // limit) — this schema had 32. Fields the model can always emit are required
+    // (arrays may be empty; confidence is always a judgment); truly
+    // sometimes-absent facts (metric, dates, proficiency…) stay optional, which
+    // preserves the anti-fabrication rule: omit rather than invent.
     input_schema: {
-      type: 'object',
+      type: 'object', additionalProperties: false,
       properties: {
-        profile: { type: 'object', properties: { name: str, headline: str, location: str } },
+        profile: { type: 'object', additionalProperties: false, properties: { name: str, headline: str, location: str } },
         positions: arr({
-          type: 'object',
+          type: 'object', additionalProperties: false,
           properties: { company: str, title: str, startDate: str, endDate: str, summary: str, confidence: { type: 'number' } },
+          required: ['confidence'],
         }),
         stories: arr({
-          type: 'object',
+          type: 'object', additionalProperties: false,
           properties: {
             title: str,
             summary: str,
             confidence: { type: 'number' },
-            actions: arr({ type: 'object', properties: { text: str, skills: arr(str), confidence: { type: 'number' } }, required: ['text'] }),
-            results: arr({ type: 'object', properties: { text: str, metric: str, confidence: { type: 'number' } }, required: ['text'] }),
+            actions: arr({ type: 'object', additionalProperties: false, properties: { text: str, skills: arr(str), confidence: { type: 'number' } }, required: ['text', 'skills', 'confidence'] }),
+            results: arr({ type: 'object', additionalProperties: false, properties: { text: str, metric: str, confidence: { type: 'number' } }, required: ['text', 'confidence'] }),
           },
-          required: ['title'],
+          required: ['title', 'confidence', 'actions', 'results'],
         }),
-        skills: arr({ type: 'object', properties: { skill: str, proficiency: str, atsKeywordVariants: arr(str), confidence: { type: 'number' } }, required: ['skill'] }),
-        education: arr({ type: 'object', properties: { institution: str, qualification: str, year: str, confidence: { type: 'number' } } }),
-        languages: arr({ type: 'object', properties: { language: str, cefrLevel: str, confidence: { type: 'number' } }, required: ['language'] }),
+        skills: arr({ type: 'object', additionalProperties: false, properties: { skill: str, proficiency: str, atsKeywordVariants: arr(str), confidence: { type: 'number' } }, required: ['skill', 'confidence'] }),
+        education: arr({ type: 'object', additionalProperties: false, properties: { institution: str, qualification: str, year: str, confidence: { type: 'number' } }, required: ['confidence'] }),
+        languages: arr({ type: 'object', additionalProperties: false, properties: { language: str, cefrLevel: str, confidence: { type: 'number' } }, required: ['language', 'confidence'] }),
       },
-      required: [],
+      required: ['positions', 'stories', 'skills', 'education', 'languages'],
     },
   } satisfies ToolDef,
 };
@@ -348,13 +368,14 @@ export const C2 = {
   }),
   tool: {
     name: 'emit_evidence_map',
+    strict: true,
     description:
       'For each requirement, pick the SINGLE strongest piece of evidence from the candidate list by its exact ref code, rate the match honestly, and note the connection. If no honest match exists, omit it from links and record it under gaps instead — never force a weak link or invent evidence.',
     input_schema: {
-      type: 'object',
+      type: 'object', additionalProperties: false,
       properties: {
         links: arr({
-          type: 'object',
+          type: 'object', additionalProperties: false,
           properties: {
             order: { type: 'integer', description: 'The requirement number from the list.' },
             evidenceRef: { type: 'string', description: 'Exact ref code of the chosen evidence (e.g. "5-3", "A-R3", "EDU-1").' },
@@ -365,7 +386,7 @@ export const C2 = {
           required: ['order', 'evidenceRef', 'matchStrength'],
         }),
         gaps: arr({
-          type: 'object',
+          type: 'object', additionalProperties: false,
           properties: { order: { type: 'integer' }, requirement: str, note: { type: 'string', description: 'Honest statement of what is missing.' } },
           required: ['note'],
         }),
@@ -384,13 +405,14 @@ export const C3 = {
   }),
   tool: {
     name: 'emit_cv_bullets',
+    strict: true,
     description:
       'Rewrite each Keep evidence item into ONE tight CV bullet: lead with a strong past-tense verb, keep every claim supportable by the original text, weave in JD keywords only where genuinely supported, and tag the Requirement Skills demonstrated — the Job-Lead-facing skill language this bullet proves (the bracketed tag), not the candidate\'s own vocabulary for the evidence. Never invent a metric or outcome not present in the original text.',
     input_schema: {
-      type: 'object',
+      type: 'object', additionalProperties: false,
       properties: {
         bullets: arr({
-          type: 'object',
+          type: 'object', additionalProperties: false,
           properties: {
             ref: { type: 'string', description: 'The evidence ref code this bullet rewrites.' },
             bullet: { type: 'string', description: 'The rewritten CV bullet (no leading dash).' },
@@ -412,10 +434,11 @@ export const C5 = {
   zod: z.object({ profile: z.string() }),
   tool: {
     name: 'emit_profile',
+    strict: true,
     description:
       'Write a tailored CV profile of 4–7 lines (70–110 words): lead with seniority and scope, mirror this role\'s core requirements, use senior leadership language, and stay fully supportable by the evidence. No first person, no fabrication.',
     input_schema: {
-      type: 'object',
+      type: 'object', additionalProperties: false,
       properties: { profile: { type: 'string' } },
       required: ['profile'],
     },
@@ -441,17 +464,18 @@ export const C7 = {
   }),
   tool: {
     name: 'emit_ats_rating',
+    strict: true,
     description:
       'Rate how well the tailored CV addresses the JD requirements through an ATS lens. Emit an overall 0–100, a per-requirement breakdown (score 0–100 + match strength + key strengths + gaps), and a short summary. Weight Core requirements highest. Be truthful — never inflate.',
     input_schema: {
-      type: 'object',
+      type: 'object', additionalProperties: false,
       properties: {
-        overall: { type: 'number', minimum: 0, maximum: 100 },
+        overall: { type: 'number', description: 'Overall ATS rating, 0–100.' },
         requirements: arr({
-          type: 'object',
+          type: 'object', additionalProperties: false,
           properties: {
             requirement: str,
-            score: { type: 'number', minimum: 0, maximum: 100 },
+            score: { type: 'number', description: '0–100.' },
             matchStrength: { type: 'string', enum: ['Excellent', 'Very Strong', 'Good', 'Moderate', 'Weak'] },
             keyStrengths: str,
             gaps: str,
@@ -478,16 +502,17 @@ export const COACH_DRAFT = {
   }),
   tool: {
     name: 'emit_evidence_draft',
+    strict: true,
     description:
       "Turn the user's rough answer into one clean evidence node: a structured action sentence and, if they described an outcome, a result. HARD RULE: emit `metric` ONLY if a number is explicitly present in the user's answer — otherwise set metric=null, and set needsMetric=true when a result was described but no number was given. Never invent or infer a number. Prefer the user's own words; never flatter or exaggerate.",
     input_schema: {
-      type: 'object',
+      type: 'object', additionalProperties: false,
       properties: {
         action: str,
         result: str,
         metric: str,
         needsMetric: { type: 'boolean' },
-        confidence: { type: 'number', minimum: 0, maximum: 1 },
+        confidence: { type: 'number', description: 'Confidence, 0–1.' },
       },
       required: ['action'],
     },
@@ -508,10 +533,11 @@ export const STORY = {
   }),
   tool: {
     name: 'emit_story',
+    strict: true,
     description:
       "Write the candidate's career through-line from their approved evidence — the thread that connects their roles into one coherent arc (what they repeatedly do well, the scope they operate at, where they're heading). Then emit two copy-out drafts: `coverLetter` (a 3–4 paragraph cover-letter body, no address block) and `linkedinAbout` (a first-person LinkedIn About, 90–160 words). HARD RULE: every claim must be supportable by the evidence provided — never invent a role, metric, employer, or skill. No flattery. Prefer their own scope and language.",
     input_schema: {
-      type: 'object',
+      type: 'object', additionalProperties: false,
       properties: {
         throughLine: { type: 'string' },
         coverLetter: { type: 'string' },

@@ -1,0 +1,1 @@
+ALTER TABLE "job_leads" DROP COLUMN "raw_jd_path";

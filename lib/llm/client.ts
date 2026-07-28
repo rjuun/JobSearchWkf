@@ -1,33 +1,45 @@
 /**
- * The single choke point for LLM calls. Forces a function (tool) call with a
- * strict JSON schema, validates with zod (+ one retry), logs tokens. `mock` mode
- * returns deterministic fixtures so the whole pipeline runs without an API key.
+ * The single choke point for LLM calls. Forces a tool call with a strict JSON
+ * schema, validates with zod (+ one retry), logs tokens. `mock` mode returns
+ * deterministic fixtures so the whole pipeline runs without an API key.
  *
- * Provider: DeepSeek (OpenAI-compatible). `deepseek-chat` supports function
- * calling, which our forced-tool contract relies on. We translate each ToolDef's
- * `input_schema` into an OpenAI `function.parameters` and force the call via
- * `tool_choice`. If the model answers in prose instead of a tool call (it
- * occasionally does), we fall back to extracting JSON from the message content.
+ * Provider: Anthropic Claude (Messages API). Each ToolDef maps directly onto an
+ * Anthropic tool ({name, description, input_schema}) and the call is forced via
+ * `tool_choice: {type:'tool'}`. Anthropic returns the tool input already parsed
+ * (a JSON object, not a string); if the model answers in prose instead of a
+ * tool call, we fall back to extracting JSON from the text content.
+ *
+ * Prompt caching: the static system prefix (and, for C2, the evidence-graph
+ * user block) carries a `cache_control` breakpoint with a 1h TTL, matched to
+ * Reggie's screening/tailoring cadence. Cache stats are logged per call.
  */
 import type { z } from 'zod';
 import { env, isLiveLlm } from '../env';
 import { db } from '../db';
 import { llmCalls } from '../db/schema';
+import type { SystemPrompt } from '../prompts';
 import type { ToolDef } from './schemas';
 
 export type StepModel = 'sonnet' | 'opus';
 
-// Map the methodology's model tiers onto DeepSeek models (resolved from env so
+// Map the methodology's model tiers onto Claude models (resolved from env so
 // they can be retuned without touching call sites).
 function modelId(tier: StepModel): string {
-  return tier === 'opus' ? env.deepseekModelReason : env.deepseekModelChat;
+  return tier === 'opus' ? env.anthropicModelOpus : env.anthropicModelSonnet;
 }
+
+/** A user-message content block; `cache_control` marks a caching breakpoint. */
+export type UserContentBlock = {
+  type: 'text';
+  text: string;
+  cache_control?: { type: 'ephemeral'; ttl: '1h' };
+};
 
 export type RunArgs<T> = {
   step: string;
   model: StepModel;
-  system: string;
-  user: string;
+  system: SystemPrompt;
+  user: string | UserContentBlock[];
   tool: ToolDef;
   // Input param widened so T infers as the (required) zod OUTPUT type even when
   // fields use .default() — otherwise defaulted fields infer as possibly-undefined.
@@ -54,35 +66,39 @@ export async function runStructured<T>(args: RunArgs<T>): Promise<RunResult<T>> 
 
   let inputTokens = 0;
   let outputTokens = 0;
+  let cacheCreationTokens = 0;
+  let cacheReadTokens = 0;
   let lastErr: unknown;
   // One bounded retry: on zod failure, feed the error back and ask again.
   for (let attempt = 0; attempt < 2; attempt++) {
     const user =
       attempt === 0
         ? args.user
-        : `${args.user}\n\nYour previous ${args.tool.name} call failed validation: ${String(lastErr)}. Re-emit a valid ${args.tool.name} call that satisfies the schema exactly.`;
+        : withSuffix(args.user, `\n\nYour previous ${args.tool.name} call failed validation: ${String(lastErr)}. Re-emit a valid ${args.tool.name} call that satisfies the schema exactly.`);
     if (attempt > 0) logLine({ step: args.step, model, mode: 'live', status: 'retry', ms: Date.now() - start, note: `attempt ${attempt + 1} — ${String(lastErr).slice(0, 160)}` });
 
     let raw: unknown;
     let usage: Usage;
     try {
-      ({ raw, usage } = await callDeepSeek(model, args.system, user, args.tool));
+      ({ raw, usage } = await callClaude(model, args.system, user, args.tool));
     } catch (err) {
-      // Transport/HTTP failure (e.g. DeepSeek 429/5xx). Record it, print it, re-throw.
+      // Transport/HTTP failure (e.g. Anthropic 429/529/5xx). Record it, print it, re-throw.
       const ms = Date.now() - start;
       const msg = String(err instanceof Error ? err.message : err).slice(0, 500);
       logLine({ step: args.step, model, mode: 'live', status: 'error', ms, note: msg });
-      await logCall({ step: args.step, model, mode: 'live', inputTokens, outputTokens, ms, status: 'error', error: msg, attempts: attempt + 1, leadId: args.leadId, ownerId: args.ownerId });
+      await logCall({ step: args.step, model, mode: 'live', inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, ms, status: 'error', error: msg, attempts: attempt + 1, leadId: args.leadId, ownerId: args.ownerId });
       throw err;
     }
-    inputTokens += usage.prompt_tokens ?? 0;
-    outputTokens += usage.completion_tokens ?? 0;
+    inputTokens += usage.input_tokens ?? 0;
+    outputTokens += usage.output_tokens ?? 0;
+    cacheCreationTokens += usage.cache_creation_input_tokens ?? 0;
+    cacheReadTokens += usage.cache_read_input_tokens ?? 0;
 
     const parsed = args.zod.safeParse(raw);
     if (parsed.success) {
       const ms = Date.now() - start;
-      logLine({ step: args.step, model, mode: 'live', status: 'ok', ms, inputTokens, outputTokens });
-      await logCall({ step: args.step, model, mode: 'live', inputTokens, outputTokens, ms, status: 'ok', attempts: attempt + 1, leadId: args.leadId, ownerId: args.ownerId });
+      logLine({ step: args.step, model, mode: 'live', status: 'ok', ms, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens });
+      await logCall({ step: args.step, model, mode: 'live', inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, ms, status: 'ok', attempts: attempt + 1, leadId: args.leadId, ownerId: args.ownerId });
       return { data: parsed.data, mode: 'live', model, tokens: inputTokens + outputTokens, ms };
     }
     lastErr = parsed.error.message;
@@ -92,59 +108,71 @@ export async function runStructured<T>(args: RunArgs<T>): Promise<RunResult<T>> 
   const ms = Date.now() - start;
   const msg = `tool output failed validation twice — ${String(lastErr).slice(0, 400)}`;
   logLine({ step: args.step, model, mode: 'live', status: 'error', ms, note: msg });
-  await logCall({ step: args.step, model, mode: 'live', inputTokens, outputTokens, ms, status: 'error', error: msg, attempts: 2, leadId: args.leadId, ownerId: args.ownerId });
+  await logCall({ step: args.step, model, mode: 'live', inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, ms, status: 'error', error: msg, attempts: 2, leadId: args.leadId, ownerId: args.ownerId });
   throw new Error(`${args.step}: ${msg}`);
 }
 
-type Usage = { prompt_tokens?: number; completion_tokens?: number };
+type Usage = {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+};
 
-/** One DeepSeek chat-completion forcing the given tool; returns parsed args + usage. */
-async function callDeepSeek(
+/** Append retry feedback after the user content — after any cache breakpoint,
+ *  so a retry still reads the same cached prefix. */
+function withSuffix(user: string | UserContentBlock[], suffix: string): string | UserContentBlock[] {
+  return typeof user === 'string' ? `${user}${suffix}` : [...user, { type: 'text', text: suffix }];
+}
+
+/** One Anthropic Messages call forcing the given tool; returns tool input + usage. */
+async function callClaude(
   model: string,
-  system: string,
-  user: string,
+  system: SystemPrompt,
+  user: string | UserContentBlock[],
   tool: ToolDef
 ): Promise<{ raw: unknown; usage: Usage }> {
-  const res = await fetch(`${env.deepseekBaseUrl}/chat/completions`, {
+  const res = await fetch(`${env.anthropicBaseUrl}/v1/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${env.deepseekApiKey}`,
+      'x-api-key': env.anthropicApiKey,
+      'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
       model,
       max_tokens: 8000,
-      temperature: 0,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
+      // The static prefix (guardrails + step note) is byte-identical across
+      // leads/runs → cache it for 1h. The CI guidance grows over time → never
+      // cached, so a new tip only invalidates itself, not the prefix.
+      system: [
+        { type: 'text', text: system.cacheable, cache_control: { type: 'ephemeral', ttl: '1h' } },
+        ...(system.dynamic ? [{ type: 'text', text: system.dynamic }] : []),
       ],
-      tools: [{ type: 'function', function: { name: tool.name, description: tool.description, parameters: tool.input_schema } }],
-      tool_choice: { type: 'function', function: { name: tool.name } },
+      messages: [{ role: 'user', content: user }],
+      // strict: grammar-constrained sampling — the tool input is guaranteed to
+      // match input_schema, so the zod retry only ever fires on semantic misses.
+      tools: [{ name: tool.name, description: tool.description, input_schema: tool.input_schema, strict: tool.strict }],
+      tool_choice: { type: 'tool', name: tool.name },
     }),
   });
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`DeepSeek ${res.status}: ${body.slice(0, 500)}`);
+    throw new Error(`Anthropic ${res.status}: ${body.slice(0, 500)}`);
   }
 
   const json = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string | null; tool_calls?: Array<{ function?: { arguments?: string } }> } }>;
+    content?: Array<{ type: string; text?: string; input?: unknown }>;
     usage?: Usage;
   };
-  const msg = json.choices?.[0]?.message;
-  const argStr = msg?.tool_calls?.[0]?.function?.arguments;
-  const raw = argStr !== undefined ? safeJson(argStr) : extractJson(msg?.content ?? '');
+  // Anthropic returns the tool input already parsed (an object, not a string).
+  const toolUse = json.content?.find((b) => b.type === 'tool_use');
+  const raw =
+    toolUse !== undefined
+      ? toolUse.input
+      : extractJson((json.content ?? []).filter((b) => b.type === 'text').map((b) => b.text ?? '').join('\n'));
   return { raw, usage: json.usage ?? {} };
-}
-
-function safeJson(s: string): unknown {
-  try {
-    return JSON.parse(s);
-  } catch {
-    return extractJson(s);
-  }
 }
 
 /** Best-effort JSON recovery when the model answers in prose / fenced code. */
@@ -174,6 +202,8 @@ type CallLog = {
   mode: 'mock' | 'live';
   inputTokens: number;
   outputTokens: number;
+  cacheCreationTokens?: number;
+  cacheReadTokens?: number;
   ms: number;
   status: 'ok' | 'error';
   error?: string;
@@ -193,6 +223,8 @@ async function logCall(c: CallLog): Promise<void> {
       mode: c.mode,
       inputTokens: c.inputTokens,
       outputTokens: c.outputTokens,
+      cacheCreationTokens: c.cacheCreationTokens ?? null,
+      cacheReadTokens: c.cacheReadTokens ?? null,
       latencyMs: c.ms,
       status: c.status,
       error: c.error ?? null,
@@ -217,6 +249,8 @@ function logLine(l: {
   ms: number;
   inputTokens?: number;
   outputTokens?: number;
+  cacheCreationTokens?: number;
+  cacheReadTokens?: number;
   note?: string;
 }): void {
   const tag = l.status === 'ok' ? 'ok   ' : l.status === 'error' ? 'ERROR' : 'retry';
@@ -225,8 +259,12 @@ function logLine(l: {
     l.inputTokens != null || l.outputTokens != null
       ? ` in=${l.inputTokens ?? 0} out=${l.outputTokens ?? 0} (${(l.inputTokens ?? 0) + (l.outputTokens ?? 0)} tok)`
       : '';
+  const cache =
+    (l.cacheCreationTokens ?? 0) > 0 || (l.cacheReadTokens ?? 0) > 0
+      ? ` cache[w=${l.cacheCreationTokens ?? 0} r=${l.cacheReadTokens ?? 0}]`
+      : '';
   const note = l.note ? ` — ${l.note}` : '';
-  const line = `[llm] ${tag} ${step} ${l.model}  ${l.mode}  ${l.ms}ms${tok}${note}`;
+  const line = `[llm] ${tag} ${step} ${l.model}  ${l.mode}  ${l.ms}ms${tok}${cache}${note}`;
   if (l.status === 'error') console.error(line);
   else console.log(line);
 }

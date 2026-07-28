@@ -1,7 +1,7 @@
 ---
 ci-title: Integration Claude.ai API and Power Automate
 ci-area:
-ci-status: 0 - Idea
+ci-status: 1 - Development
 ci-priority: medium
 ci-date: 2026-06-16
 ci-estimated-time:
@@ -13,6 +13,7 @@ pr-target:
 
 ---
 ```simple-time-tracker
+{"entries":[{"name":"Segment 1","startTime":"2026-07-24T13:26:36.969Z","endTime":"2026-07-24T14:00:42.752Z"},{"name":"Segment 2","startTime":"2026-07-24T14:00:52.511Z","endTime":null}]}
 ```
 
 ---
@@ -102,3 +103,12 @@ Power Automate ← the orchestrator for now
 Anthropic API
 └── Called by Power Automate with injected context
 
+
+
+
+---
+
+![[Pasted image 20260724160139.png]]
+
+
+![[Pasted image 20260724160155.png]]

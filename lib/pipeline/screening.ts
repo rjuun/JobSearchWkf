@@ -7,7 +7,6 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '../db';
 import { jobLeads, jobRequirements } from '../db/schema';
 import { recordRun, type StepReport } from './runs';
-import { readText } from '../storage';
 import { readValuesSummary } from '../profile-context';
 
 export type { StepReport } from './runs';
@@ -35,7 +34,7 @@ export async function runScreening(leadId: string, ownerId?: string | null): Pro
     .where(ownerId ? and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, ownerId)) : eq(jobLeads.id, leadId));
   if (!lead) throw new Error('Lead not found');
   const effectiveOwnerId = ownerId ?? lead.ownerId;
-  const jd = lead.rawJdPath ? await readText(lead.rawJdPath).catch(() => '') : '';
+  const jd = lead.jdText ?? '';
   const reports: StepReport[] = [];
 
   // ── B1 · Freshness & saturation (pure code) ──────────────────────────────

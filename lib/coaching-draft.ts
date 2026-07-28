@@ -24,7 +24,7 @@ export async function draftEvidenceFromAnswer(
   const { data } = await runStructured({
     step: 'COACH',
     model: 'sonnet', // extraction/mapping tier
-    system: SYSTEM,
+    system: { cacheable: SYSTEM, dynamic: '' },
     user: `QUESTION:\n${question}\n\nTHEIR ANSWER:\n${answer}`,
     tool: COACH_DRAFT.tool,
     zod: COACH_DRAFT.zod,

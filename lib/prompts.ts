@@ -44,8 +44,17 @@ export async function loadStepNote(step: string): Promise<string> {
   return content;
 }
 
-export async function systemPromptFor(step: string, ownerId?: string | null): Promise<string> {
+/**
+ * Split system prompt for Claude prompt caching. `cacheable` is byte-identical
+ * across every lead/run of a step (NON_NEGOTIABLES + the step's Process/*.md
+ * note — stable until the .md is edited) and is sent with a 1h cache_control
+ * breakpoint. `dynamic` is the CI guidance, which grows as Accuracy Improvement
+ * Tips accrue — it is never cached, so a new tip can't invalidate the prefix.
+ */
+export type SystemPrompt = { cacheable: string; dynamic: string };
+
+export async function systemPromptFor(step: string, ownerId?: string | null): Promise<SystemPrompt> {
   const [note, guidance] = await Promise.all([loadStepNote(step), ciGuidanceFor(step, ownerId)]);
-  const base = note ? `${NON_NEGOTIABLES}\n\n--- STEP PROCEDURE (${step}) ---\n${note}` : NON_NEGOTIABLES;
-  return `${base}${guidance}`;
+  const cacheable = note ? `${NON_NEGOTIABLES}\n\n--- STEP PROCEDURE (${step}) ---\n${note}` : NON_NEGOTIABLES;
+  return { cacheable, dynamic: guidance };
 }

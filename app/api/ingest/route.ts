@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const candidateLinks = Array.isArray(body.candidateLinks)
       ? body.candidateLinks.filter((l: unknown): l is string => typeof l === 'string').slice(0, 200)
       : null;
-    // Section C precedence: preserve "key absent" (→ undefined, ask DeepSeek) vs
+    // Section C precedence: preserve "key absent" (→ undefined, ask the LLM) vs
     // "key present" (→ string/null, an agent-supplied answer, even if empty) —
     // `?? null` would collapse both to the same value and defeat the precedence
     // check in createLead().

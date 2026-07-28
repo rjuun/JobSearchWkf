@@ -256,7 +256,7 @@ export const jobLeads = pgTable('job_leads', {
   // Deterministic (URL cleanup) and one-shot AI extraction, both run at capture —
   // never the B/C-phase judgment steps, which stay untouched.
   remote: text('remote'), // on-site | hybrid | remote | unspecified
-  jdText: text('jd_text'), // mirrors rawJdPath's Storage blob into Postgres so it's queryable
+  jdText: text('jd_text'), // single source of truth for JD content — nothing reads from Storage for this anymore
   formatSignals: text('format_signals'), // verbatim application-format quotes, raw material for C1
   sourceUrl: text('source_url'),
   jobPostLink: text('job_post_link'),
@@ -296,8 +296,6 @@ export const jobLeads = pgTable('job_leads', {
   overallFitScore: real('overall_fit_score'),
   recommendation: text('recommendation'),
   bulletBankVersion: text('bullet_bank_version'),
-  // capture
-  rawJdPath: text('raw_jd_path'),
   // Additive Plan · B4 — where this lead came from (alert name / recruiter / manual /
   // bookmarklet). Free text on purpose: the Sourcing Compass ranks whatever the user
   // actually types, so it learns their real channels rather than a fixed taxonomy.
@@ -391,6 +389,10 @@ export const llmCalls = pgTable('llm_calls', {
   mode: text('mode'),
   inputTokens: integer('input_tokens').default(0),
   outputTokens: integer('output_tokens').default(0),
+  // Anthropic prompt-cache stats (null for mock calls and pre-migration rows):
+  // real hit-rate data per step, instead of relying on modeled estimates.
+  cacheCreationTokens: integer('cache_creation_tokens'),
+  cacheReadTokens: integer('cache_read_tokens'),
   latencyMs: integer('latency_ms'),
   // Observability: 'ok' | 'error'. Failed HTTP calls and schema-validation
   // failures used to throw silently; they are now persisted with the reason so

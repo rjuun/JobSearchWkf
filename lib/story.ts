@@ -58,7 +58,7 @@ export async function generateStory(owner: string): Promise<StoryVersion> {
   const r = await runStructured({
     step: 'STORY',
     model: 'sonnet',
-    system: STORY_SYSTEM,
+    system: { cacheable: STORY_SYSTEM, dynamic: '' },
     user: `CANDIDATE HEADLINE: ${headline}\n\nAPPROVED EVIDENCE (the only material you may draw on):\n${text}\n\nWrite the through-line and the two copy-out drafts.`,
     tool: STORY.tool,
     zod: STORY.zod,

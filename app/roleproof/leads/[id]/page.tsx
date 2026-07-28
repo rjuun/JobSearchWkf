@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getLead, getPipelineRuns, getRequirements, getTailoring, tipsForLead } from '@/lib/queries';
-import { readText, exists } from '@/lib/storage';
+import { exists } from '@/lib/storage';
 import { journeyState } from '@/lib/journey';
 import { recommendationFor } from '@/lib/scoring';
 import { hasOpenScreeningGap } from '@/lib/coaching-queue';
@@ -31,7 +31,7 @@ export default async function RoleProofWorkspacePage({
   const owner = await currentOwnerId();
   const [requirements, jd, tailoring, cvReady, leadTips, runTrace, coachBridge] = await Promise.all([
     getRequirements(lead.id),
-    lead.rawJdPath ? readText(lead.rawJdPath).catch(() => null) : Promise.resolve(null),
+    Promise.resolve(lead.jdText ?? null),
     getTailoring(lead.id),
     exists(`cv-output/${lead.id}/tailored.docx`),
     tipsForLead(lead.id),

@@ -3,8 +3,8 @@
  * a Client Component (it reads process.env and is used by the Postgres/LLM
  * modules). Also imported by the tsx seed/migrate scripts, so it must stay free
  * of the `server-only` guard. Defaults keep local dev runnable out of the box
- * (local Postgres; LLM defaults to "live" but only actually goes live when a
- * DEEPSEEK_API_KEY is present — keyless checkouts still fall back to mock).
+ * (local Postgres; LLM defaults to "live" but only actually goes live when an
+ * ANTHROPIC_API_KEY is present — keyless checkouts still fall back to mock).
  */
 function str(key: string, fallback: string): string {
   const v = process.env[key];
@@ -26,14 +26,15 @@ export const env = {
   // no key, isLiveLlm below is still false so it safely falls back to mock.
   llmMode: str('LLM_MODE', 'live') as 'mock' | 'live',
 
-  // DeepSeek (OpenAI-compatible) is the active LLM provider. The single client
-  // wrapper in lib/llm/client.ts talks to this; mock mode needs no key.
-  deepseekApiKey: str('DEEPSEEK_API_KEY', ''),
-  deepseekBaseUrl: str('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
-  // deepseek-chat (V3) supports function calling, which our forced-tool contract
-  // relies on. Both step tiers map here unless overridden.
-  deepseekModelChat: str('DEEPSEEK_MODEL', 'deepseek-chat'),
-  deepseekModelReason: str('DEEPSEEK_MODEL_REASON', 'deepseek-chat'),
+  // Anthropic Claude is the single LLM provider. The one client wrapper in
+  // lib/llm/client.ts talks to this; mock mode needs no key.
+  anthropicApiKey: str('ANTHROPIC_API_KEY', ''),
+  anthropicBaseUrl: str('ANTHROPIC_BASE_URL', 'https://api.anthropic.com'),
+  // Per-step model tiers (Master Instructions §6.1): Sonnet for extraction /
+  // mapping steps, Opus for the truthfulness-critical scoring & CV-substance
+  // steps (B6, C2, C3, C5, C7).
+  anthropicModelSonnet: str('ANTHROPIC_MODEL_SONNET', 'claude-sonnet-5'),
+  anthropicModelOpus: str('ANTHROPIC_MODEL_OPUS', 'claude-opus-4-8'),
 
   storageDir: str('STORAGE_DIR', '.storage'),
 
@@ -72,4 +73,4 @@ export const env = {
   nextGraphAssembled: str('NEXT_GRAPH_ASSEMBLED', '1') !== '0', // R7 · matrix-first profile
 } as const;
 
-export const isLiveLlm = env.llmMode === 'live' && env.deepseekApiKey !== '';
+export const isLiveLlm = env.llmMode === 'live' && env.anthropicApiKey !== '';
