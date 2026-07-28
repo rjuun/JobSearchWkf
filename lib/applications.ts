@@ -100,3 +100,39 @@ export function emailArtifactLink(leadId: string, objectName: string): string {
 export function isSafeObjectName(name: string): boolean {
   return /^[A-Za-z0-9._-]+$/.test(name) && !name.startsWith('.') && !name.includes('..');
 }
+
+// ── The drop classifier (§2.2.C) ────────────────────────────────────────────
+//
+// Pure and DOM-free on purpose: what actually lands in a DataTransfer depends on
+// the mail client, so this three-way branch is the part most worth unit-testing
+// (§2.3 step 12), and it can't be if it needs a real browser DragEvent. The
+// React hook that calls it is components/roleproof/use-email-drop.ts.
+
+/** The parts of a DataTransfer this cares about. */
+export type DropSource = {
+  files?: ArrayLike<File> | null;
+  getData?: ((format: string) => string) | null;
+};
+
+export type EmailDrop =
+  | { kind: 'file'; file: File } //  Outlook Classic — the designed-for case
+  | { kind: 'link'; url: string } // OWA / New Outlook / a dragged hyperlink
+  | { kind: 'none' }; //            nothing usable — fall back to the manual form
+
+export function classifyEmailDrop(source: DropSource | null | undefined): EmailDrop {
+  if (!source) return { kind: 'none' };
+  const file = source.files && source.files.length > 0 ? source.files[0] : null;
+  // A zero-byte file isn't something worth archiving; try the text shapes before
+  // giving up, since some clients hand over both.
+  if (file && file.size > 0) return { kind: 'file', file };
+  const read = (format: string): string => {
+    try {
+      return source.getData?.(format) ?? '';
+    } catch {
+      return '';
+    }
+  };
+  const url = (read('text/uri-list') || read('text/plain')).trim();
+  if (url) return { kind: 'link', url };
+  return { kind: 'none' };
+}
