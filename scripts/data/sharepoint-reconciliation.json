@@ -131,13 +131,17 @@
   "city": "Zurich",
   "sourceUrl": "https://www.linkedin.com/jobs/view/4434014657/",
   "jobPostLink": "https://bbva.wd3.myworkdayjobs.com/BBVA/job/99000-EXTRANJERO-Zurich/Head-of-Financial-Planning--Advanced-Analytics---AI_JR00107366-1/",
-  "proposedStatus": null,
+  "proposedStatus": "applied",
   "currentStatus": "screened",
   "currentCompany": "BBVA",
   "currentCity": "Zurich",
   "currentSourceUrl": "https://www.linkedin.com/jobs/view/4434014657/",
   "currentJobPostLink": "https://bbva.wd3.myworkdayjobs.com/BBVA/job/99000-EXTRANJERO-Zurich/Head-of-Financial-Planning--Advanced-Analytics---AI_JR00107366-1/",
-  "application": null
+  "application": {
+   "appliedAt": "2026-07-21T00:00:00.000Z",
+   "status": "response_pending",
+   "outcomeNotes": "Backfilled from SharePoint reconciliation, round 2 (2026-07-29) \u2014 Process Status '3 - Application Response Pending'."
+  }
  },
  {
   "seq": 180,
@@ -301,13 +305,17 @@
   "city": "Copenhagen",
   "sourceUrl": "https://www.linkedin.com/jobs/view/4434975092/",
   "jobPostLink": "https://simcorp.wd3.myworkdayjobs.com/en-US/SimCorp_Jobs/job/Copenhagen/Senior-Director--Head-of-Strategy---Execution_R-212043",
-  "proposedStatus": null,
+  "proposedStatus": "applied",
   "currentStatus": "screened",
   "currentCompany": "SimCorp",
   "currentCity": "Copenhagen",
   "currentSourceUrl": "https://www.linkedin.com/jobs/view/4434975092/",
   "currentJobPostLink": "https://simcorp.wd3.myworkdayjobs.com/en-US/SimCorp_Jobs/job/Copenhagen/Senior-Director--Head-of-Strategy---Execution_R-212043",
-  "application": null
+  "application": {
+   "appliedAt": "2026-07-06T00:00:00.000Z",
+   "status": "response_pending",
+   "outcomeNotes": "Backfilled from SharePoint reconciliation, round 2 (2026-07-29) \u2014 Process Status '3 - Application Response Pending'."
+  }
  },
  {
   "seq": 168,
@@ -318,13 +326,17 @@
   "city": "London",
   "sourceUrl": "https://www.linkedin.com/jobs/view/4434139045/",
   "jobPostLink": "https://jobs.ashbyhq.com/bjakcareer/ae0247ca-000f-4c40-bfc6-7e957d3af455?locationId=851eef98-6ec7-4189-97ec-1d9ca5e56ab3",
-  "proposedStatus": null,
+  "proposedStatus": "applied",
   "currentStatus": "screened",
   "currentCompany": "BJAK",
   "currentCity": "London",
   "currentSourceUrl": "https://www.linkedin.com/jobs/view/4434139045/",
   "currentJobPostLink": "https://jobs.ashbyhq.com/bjakcareer/ae0247ca-000f-4c40-bfc6-7e957d3af455?locationId=851eef98-6ec7-4189-97ec-1d9ca5e56ab3",
-  "application": null
+  "application": {
+   "appliedAt": "2026-06-30T00:00:00.000Z",
+   "status": "response_pending",
+   "outcomeNotes": "Backfilled from SharePoint reconciliation, round 2 (2026-07-29) \u2014 Process Status '3 - Application Response Pending'."
+  }
  },
  {
   "seq": 167,
@@ -352,13 +364,17 @@
   "city": "Prague",
   "sourceUrl": "https://www.linkedin.com/jobs/view/4432813400/",
   "jobPostLink": "https://www.careers.jnj.com/en/jobs/r-083430/director-transform-office-intl-cont/",
-  "proposedStatus": null,
+  "proposedStatus": "applied",
   "currentStatus": "screened",
   "currentCompany": "Johnson & Johnson",
   "currentCity": "Prague",
   "currentSourceUrl": "https://www.linkedin.com/jobs/view/4432813400/",
   "currentJobPostLink": "https://www.careers.jnj.com/en/jobs/r-083430/director-transform-office-intl-cont/",
-  "application": null
+  "application": {
+   "appliedAt": "2026-06-30T00:00:00.000Z",
+   "status": "response_pending",
+   "outcomeNotes": "Backfilled from SharePoint reconciliation, round 2 (2026-07-29) \u2014 Process Status '3 - Application Response Pending'."
+  }
  },
  {
   "seq": 165,
@@ -522,13 +538,17 @@
   "city": "Vienna, Austria",
   "sourceUrl": "https://www.linkedin.com/jobs/view/4424550198/",
   "jobPostLink": "https://www.enpulsion.com/careers/position/2659371/",
-  "proposedStatus": null,
+  "proposedStatus": "applied",
   "currentStatus": "screened",
   "currentCompany": "ENPULSION",
   "currentCity": "Vienna, Austria",
   "currentSourceUrl": "https://www.linkedin.com/jobs/view/4424550198/",
   "currentJobPostLink": "https://www.enpulsion.com/careers/position/2659371/",
-  "application": null
+  "application": {
+   "appliedAt": "2026-06-23T00:00:00.000Z",
+   "status": "response_pending",
+   "outcomeNotes": "Backfilled from SharePoint reconciliation, round 2 (2026-07-29) \u2014 Process Status '3 - Application Response Pending'."
+  }
  },
  {
   "seq": 154,
