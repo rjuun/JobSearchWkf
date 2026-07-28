@@ -57,7 +57,7 @@ export default async function RoleProofBoard() {
   const spreadTotal = Math.max(proceed + borderline + hold, 1);
 
   // "Needs you" — the decisions waiting on the human, prioritised, capped at 4.
-  type Focus = { id: string; glyph: string; tone: 'proof' | 'caution' | 'drop'; title: string; sub: string; cta: string };
+  type Focus = { id: string; glyph: string; tone: 'proof' | 'caution' | 'drop'; title: string; sub: string; cta: string; href?: string };
   const focus: Focus[] = [];
   const seen = new Set<string>();
   const add = (f: Focus) => {
@@ -66,6 +66,32 @@ export default async function RoleProofBoard() {
       seen.add(f.id);
     }
   };
+
+  // The gate's two entries are aggregates, not per-lead: the Queue is a sitting
+  // where you work through several at once, and the count is only flagged
+  // leads — clean ones auto-advanced and never needed you.
+  const flagged = active.filter((l) => l.status === 'scoring_queue').length;
+  const queued = active.filter((l) => l.status === 'selected').length;
+  if (env.nextScoringQueue && flagged > 0)
+    add({
+      id: 'scoring-queue',
+      glyph: '!',
+      tone: 'caution',
+      title: `Decide · ${flagged} lead${flagged === 1 ? '' : 's'} flagged`,
+      sub: 'The initial checks raised a roadblock or a misalignment on these.',
+      cta: 'Open queue',
+      href: '/roleproof/scoring-queue',
+    });
+  if (env.nextScoringQueue && queued > 0)
+    add({
+      id: 'ready-to-score',
+      glyph: '▶',
+      tone: 'proof',
+      title: `Score · ${queued} lead${queued === 1 ? '' : 's'} ready`,
+      sub: 'Run them together — one batch keeps the scoring prompts cached.',
+      cta: 'Run batch',
+      href: '/roleproof/scoring-queue?tab=ready',
+    });
   for (const l of active)
     if (l.status === 'tailoring' || l.status === 'promoted')
       add({ id: l.id, glyph: '1', tone: 'proof', title: `Approve evidence · ${l.title}`, sub: 'Decide what genuinely belongs — only “Keep” reaches the CV.', cta: 'Resume triage' });
@@ -110,12 +136,27 @@ export default async function RoleProofBoard() {
               {ready === 0 ? 'no CVs' : `${ready} CV${ready === 1 ? '' : 's'}`} ready to send
             </p>
           </div>
-          <Link
-            href="/roleproof/capture"
-            className="rounded-[9px] bg-proof px-[18px] py-[11px] text-[13px] font-bold text-white shadow-[0_2px_10px_-3px_rgba(19,122,91,.5)] transition hover:bg-proof-deep"
-          >
-            + Capture a lead
-          </Link>
+          <div className="flex items-center gap-2.5">
+            {env.nextScoringQueue && (
+              <Link
+                href="/roleproof/scoring-queue"
+                className="rounded-[9px] border border-hairline px-[18px] py-[11px] text-[13px] font-bold text-ink-muted transition hover:border-proof-ring hover:text-ink"
+              >
+                Scoring queue
+                {flagged > 0 && (
+                  <span className="ml-2 rounded-full bg-caution-soft px-2 py-0.5 text-[11px] text-caution-deep">
+                    {flagged}
+                  </span>
+                )}
+              </Link>
+            )}
+            <Link
+              href="/roleproof/capture"
+              className="rounded-[9px] bg-proof px-[18px] py-[11px] text-[13px] font-bold text-white shadow-[0_2px_10px_-3px_rgba(19,122,91,.5)] transition hover:bg-proof-deep"
+            >
+              + Capture a lead
+            </Link>
+          </div>
         </div>
 
         {/* ── Momentum strip ── */}
@@ -156,7 +197,7 @@ export default async function RoleProofBoard() {
               {focus.map((f) => (
                 <Link
                   key={`${f.id}-${f.glyph}`}
-                  href={`/roleproof/leads/${f.id}`}
+                  href={f.href ?? `/roleproof/leads/${f.id}`}
                   className="flex items-center gap-4 rounded-card border border-hairline bg-surface px-[18px] py-4 shadow-card transition hover:border-proof-ring hover:shadow-[0_2px_12px_-4px_rgba(19,122,91,.25)]"
                 >
                   <span

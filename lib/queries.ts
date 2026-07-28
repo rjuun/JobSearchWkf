@@ -46,6 +46,40 @@ export async function listLeads() {
     .orderBy(sql`${jobLeads.overallFitScore} desc nulls last`, asc(jobLeads.title));
 }
 
+/**
+ * Everything the Scoring Queue route renders, in one owner-scoped read.
+ *
+ * - `queue`   · `scoring_queue` (B2/B3 flagged something) plus `hold` leads,
+ *               which are shown flagged-not-blocking — a held posting is a
+ *               judgement call about staleness, not a gate decision.
+ * - `ready`   · `selected`, the batch waiting for "Run scoring".
+ * - `running` · `screening`, in flight. Rows whose `updatedAt` has gone stale
+ *               are the stuck ones (see STUCK_AFTER_MS in ready-to-score.tsx);
+ *               that comparison is done client-side so it stays live as the
+ *               user watches, rather than freezing at render time.
+ * - `results` · what the batch produced, best fit first.
+ */
+export async function scoringQueueData() {
+  const owner = await currentOwnerId();
+  const rows = await db
+    .select()
+    .from(jobLeads)
+    .where(
+      and(
+        eq(jobLeads.ownerId, owner),
+        inArray(jobLeads.status, ['scoring_queue', 'hold', 'selected', 'screening', 'screened'])
+      )
+    )
+    .orderBy(sql`${jobLeads.overallFitScore} desc nulls last`, asc(jobLeads.title));
+
+  return {
+    queue: rows.filter((l) => l.status === 'scoring_queue' || l.status === 'hold'),
+    ready: rows.filter((l) => l.status === 'selected'),
+    running: rows.filter((l) => l.status === 'screening'),
+    results: rows.filter((l) => l.status === 'screened'),
+  };
+}
+
 /** A single lead — scoped to the owner so one user can't load another's lead by id. */
 export async function getLead(id: string) {
   const owner = await currentOwnerId();
