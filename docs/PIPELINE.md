@@ -36,7 +36,15 @@ flowchart TD
     end
 
     C7 --> DL["Download .docx / preview PDF"]
-    DL -.-> D["D · Monitor application (phase D)"]
+
+    subgraph D["D · Monitor (sub-states on applications.status)"]
+        DL --> SENT["Application sent<br/><i>drop the confirmation email</i>"]
+        SENT --> RP["response_pending"]
+        RP --> G3{"What came back?"}
+        G3 -- "invite dropped" --> IV["interview<br/>+ interviewAt typed by hand"]
+        G3 -- "decline dropped" --> SO["screened_out → Archive"]
+        IV -- "decline dropped" --> SO
+    end
 ```
 
 ## A — Acquire
@@ -103,12 +111,40 @@ Any session can raise an **Accuracy Improvement Tip** (Feedback Loop / Profile U
 Capture / Process Refinement). In the app these become `ci_initiatives` rows. The loop is what
 makes the system compound: a tip → a `Process/*.md` edit → new agent behavior, no code change.
 
-## D — Monitor (early / development)
+## D — Monitor
+
+Once a CV goes out, the lead sits at `job_leads.status = 'applied'` and **stays there for the whole
+D-phase**. What changes is `applications.status`, a sub-state on the one row per `(owner, lead)`.
+That split is deliberate: `job_leads.status` is the field every board consumer keys off, and these
+are moments inside "applied", not new lead-level stages.
+
+| `applications.status` | Set by | Surface |
+| --- | --- | --- |
+| `downloaded` | opening `/api/cv/[leadId]` | — (tracking only) |
+| `response_pending` | "Application sent" — a dropped confirmation email, or the no-email manual confirm | Applications |
+| `interview` | a dropped interview invite; `interviewAt` is then typed by hand | Applications |
+| `screened_out` | a dropped decline | Archive |
+
+```
+response_pending ──(invite)──▶ interview ──(decline)──▶ screened_out
+        └───────────────(decline)───────────────────────────▶
+```
+
+The three transitions are all drag-and-drop: the email is dragged out of Outlook onto the row,
+stored under `applications/{leadId}/`, and the link column gets an href to this app's own
+owner-scoped copy (`/api/applications/[leadId]/email/[file]`). Nothing is typed except the
+interview date, which is a future fact no email carries. A drop with no file or link in it opens a
+short manual form instead, pre-filled with today — the gesture works either way.
+
+`screened_out` rows leave the Applications list and appear in the Archive in the same move, with
+no confirmation step; the reply-assist pop-up that follows is only a reply assist, and dismissing
+it reverts nothing.
+
+Still on the drawing board:
 
 | Step | Note | State |
 | --- | --- | --- |
 | **A0** Monitor target companies | `Process/Development/A0. Monitoring Target Companies.md` | idea |
-| **D1** Monitor applications | `Process/Development/D1. Monitoring Applications.md` | idea |
 
 ---
 

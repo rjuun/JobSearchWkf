@@ -103,9 +103,12 @@ the same `bullet_bank_version` yields the same number (B6's spec mandates record
   there is no valid session. There are **no RLS policies** (Supabase Auth is not used). For the demo
   there is one user; going multi-user later means simply no longer seeding a fixed `owner_id`.
 - **Storage** — one private bucket (`jobsearch`) with path prefixes: `jd-captures/{leadId}/raw.md`
-  (bookmarklet output, the B-phase source) and `cv-output/{leadId}/{variant}.docx`. The adapter
-  (`lib/storage.ts`) uses Supabase Storage when configured, else the local filesystem. UI fetches
-  via short-lived signed URLs.
+  (bookmarklet output, the B-phase source), `cv-output/{leadId}/{variant}.docx`, and
+  `applications/{leadId}/{kind}-{timestamp}.msg` (D-phase — the emails dragged out of Outlook). The
+  adapter (`lib/storage.ts`) uses Supabase Storage when configured, else the local filesystem.
+  Archived emails are served by an owner-scoped route (`/api/applications/[leadId]/email/[file]`,
+  the same shape as `/api/cv/[leadId]`) rather than a signed URL — signed URLs expire, and don't
+  exist at all on the filesystem backend, so a link stored in a DB column has to be an app route.
 
 ## .docx generation {#docx}
 
@@ -164,7 +167,14 @@ Approach:
    C4 skills section (≤4 cats); C5 profile (≤5 lines)
    C6 docxtemplater fills CV_Template → cv-output/{lead}/{variant}.docx (+ PDF preview)
    C7 LLM (scoring tier) → ATS rating (0–100)
-7. DOWNLOAD preview PDF in-app, download .docx; (later) log an Application row.
+7. DOWNLOAD preview PDF in-app, download .docx.
+8. D-MONITOR  "Application sent" — drag the confirmation email out of Outlook onto the board row
+   (or the workspace's next-move panel); the file lands in applications/{leadId}/, the link column
+   gets an href to this app's copy, job_leads.status='applied' and applications.status='response_pending'.
+   Thereafter the lead sits at 'applied' for good and only applications.status moves:
+      drop an invite  → 'interview'    (+ interviewAt typed by hand — no email carries a future fact)
+      drop a decline  → 'screened_out' (leaves /roleproof/applications, appears in /roleproof/archive)
+   A drop carrying no file and no link opens a short manual form pre-filled with today instead.
 ```
 
 ## Key risks & decisions
@@ -176,6 +186,7 @@ Approach:
 | **Human-in-the-loop (C2)** | `approval_status` enum on `requirement_tailoring`; per-row review queue; only Keep flows to C3. Build this UI well — it's the demo centrepiece. |
 | **Prompt management** | `Process/*.md` notes *are* the prompt templates, loaded at runtime. Refining a step = editing markdown, no code change. Keeps the CI "Accuracy Improvement Tips" loop meaningful. |
 | **Vercel function duration on batch B6** | Per-lead chunking already mitigates. **Implemented** by the Scoring Queue split (below): B1–B3 run one lead at a time at capture; B4–B6 run as N separate per-lead server-action calls driven sequentially from the client, so no single invocation ever spans the batch. A hard kill therefore costs one lead, not the run. For a full historical re-score, still run a manual local script against prod rather than building worker infra. |
+| **Drag-and-drop has no library** | The D-phase capture targets (CI · Scoring Phase Redesign Part 2) are the **first and only** drag-and-drop surface in this app, and they are deliberately native HTML5 — `onDragOver` + `preventDefault`, `onDrop` reading `event.dataTransfer` — with **no `dnd-kit`, no `react-dnd`, no new dependency**. There is nothing here to make draggable: the drag *source* is Outlook, outside the browser entirely, so a drag-and-drop library would add a bundle and solve none of it. Before reaching for one, check whether the need is actually in-page reordering. The real risk was never the mechanic but what lands in `dataTransfer` — client-dependent — so `classifyEmailDrop` (`lib/applications.ts`) branches file / text-link / neither and is unit-tested on all three. |
 | **A lead stuck mid-scoring** | `runScoring` marks the lead `screening` before B4, so a hard kill leaves it there — invisible to both Ready-to-score and Results. Ready-to-score flags any `screening` row whose `updatedAt` is >2 min old with a retry action. Retrying is safe by construction: B4/B6 overwrite columns and B5 skips re-extraction when `job_requirements` rows exist. |
 
 ## Camunda-later migration path {#camunda-later}
