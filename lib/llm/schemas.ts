@@ -128,7 +128,11 @@ export const B4 = {
         jdGroupPrimary: str,
         jdGroupSecondary: str,
         atsSystem: str,
-        notes: str,
+        // "Key Patterns & CV Tailoring Notes" — the B4 process note already asks
+        // for this (§B step 3, format rule §D.1) and the whole note reaches the
+        // model as the cacheable system prompt, so this per-field description is
+        // belt-and-braces clarity, not a fix. Persisted to job_leads.key_patterns.
+        notes: { type: 'string', description: '2–4 sentences: lead with the dominant CV theme, then name 2–3 specific tailoring priorities.' },
       },
       required: ['skills'],
     },

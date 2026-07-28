@@ -2,6 +2,22 @@
  * B1–B6 screening orchestrator. B1 is pure code; B2–B6 emit LLM judgments via
  * runStructured (mock or live); lib/scoring does ALL arithmetic and gates.
  * Persists results to job_leads / job_requirements and records pipeline_runs.
+ *
+ * Split into two halves (Scoring Phase Redesign) because the workflow is batchy,
+ * not one-lead-at-a-time:
+ *
+ *   runInitialChecks  B1 → B2 → B3   fires automatically at capture; ends at a
+ *                                    gate — `selected` (clean) or `scoring_queue`
+ *                                    (flagged, waiting on a human).
+ *   runScoring        B4 → B5 → B6   fires from the Ready-to-score batch runner,
+ *                                    several leads seconds apart so B4–B6's
+ *                                    cached system prompts stay warm.
+ *   refreshFreshness  B1 only        re-checks the one input that can change
+ *                                    after capture (elapsed time).
+ *   runScreening      all six        back-compat wrapper for existing callers.
+ *
+ * The B1–B6 step bodies themselves are unchanged from the single-function
+ * version — this is a control-flow split, not a rewrite of step logic.
  */
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db';
@@ -27,17 +43,44 @@ import {
 
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
-export async function runScreening(leadId: string, ownerId?: string | null): Promise<StepReport[]> {
+/**
+ * The screening gate rule, as a pure function so it can be unit-tested without a
+ * DB (vitest here runs on plain node — no jsdom, no Postgres). `runInitialChecks`
+ * calls exactly this to decide where a lead lands after B2/B3.
+ */
+export function gateStatusFor(roadblockCount: number, misalignmentCount: number): 'selected' | 'scoring_queue' {
+  return roadblockCount === 0 && misalignmentCount === 0 ? 'selected' : 'scoring_queue';
+}
+
+/** Owner-scoped lead load shared by all four entry points below. */
+async function loadLead(leadId: string, ownerId?: string | null) {
   const [lead] = await db
     .select()
     .from(jobLeads)
     .where(ownerId ? and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, ownerId)) : eq(jobLeads.id, leadId));
   if (!lead) throw new Error('Lead not found');
-  const effectiveOwnerId = ownerId ?? lead.ownerId;
+  return { lead, effectiveOwnerId: ownerId ?? lead.ownerId };
+}
+
+/**
+ * B1 + B2 + B3 — the automatic half, fired at capture time.
+ *
+ * Ends at the screening gate: a lead with no roadblocks and no misalignments is
+ * auto-advanced to `selected` (nothing for a human to weigh — forcing a click
+ * there was manufacturing a decision), anything flagged parks at `scoring_queue`
+ * and waits. B1's hold gate is a real short-circuit here: B2/B3 no longer burn
+ * two LLM calls on a posting B1 already knows is stale. That's what
+ * docs/PIPELINE.md's own G1 diagram has always claimed the code did.
+ */
+export async function runInitialChecks(leadId: string, ownerId?: string | null): Promise<StepReport[]> {
+  const { lead, effectiveOwnerId } = await loadLead(leadId, ownerId);
   const jd = lead.jdText ?? '';
   const reports: StepReport[] = [];
 
   // ── B1 · Freshness & saturation (pure code) ──────────────────────────────
+  // shouldHold is computed once, here, and acted on immediately — the old
+  // single-function version computed it twice and only wrote the status in B6,
+  // which made the gate cosmetic.
   {
     const t = Date.now();
     const fresh = freshnessBand(lead.postedDays);
@@ -45,14 +88,16 @@ export async function runScreening(leadId: string, ownerId?: string | null): Pro
     const hold = shouldHold(lead.postedDays);
     await db
       .update(jobLeads)
-      .set({ freshnessBand: fresh, saturationBand: sat })
+      .set({ freshnessBand: fresh, saturationBand: sat, ...(hold ? { status: 'hold' as const } : {}), updatedAt: new Date() })
       .where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, effectiveOwnerId)));
     const ms = Date.now() - t;
     await recordRun(leadId, 'B1', 'code', { fresh, sat, hold }, ms, effectiveOwnerId);
     reports.push({ step: 'B1', label: 'Freshness & saturation', status: 'done', model: 'code', ms, summary: `${fresh} · ${sat}${hold ? ' · HOLD (≥60d)' : ''}` });
+    if (hold) return reports; // ← the gate. B2/B3 don't run; "Screen anyway" is the manual override.
   }
 
   // ── B2 · Roadblocks ──────────────────────────────────────────────────────
+  let roadblockCount = 0;
   {
     const r = await runStructured({
       step: 'B2',
@@ -70,6 +115,7 @@ export async function runScreening(leadId: string, ownerId?: string | null): Pro
       .set({ roadblocks: r.data.roadblocks })
       .where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, effectiveOwnerId)));
     await recordRun(leadId, 'B2', r.model, r.data, r.ms, effectiveOwnerId);
+    roadblockCount = r.data.roadblocks.length;
     reports.push({ step: 'B2', label: 'Roadblocks', status: 'done', model: r.model, ms: r.ms, summary: r.data.roadblocks.length ? `${r.data.roadblocks.length} flagged` : 'None' });
   }
 
@@ -97,7 +143,42 @@ export async function runScreening(leadId: string, ownerId?: string | null): Pro
       .where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, effectiveOwnerId)));
     await recordRun(leadId, 'B3', r.model, r.data, r.ms, effectiveOwnerId);
     reports.push({ step: 'B3', label: 'Misalignments', status: 'done', model: r.model, ms: r.ms, summary: r.data.misalignments.length ? `${r.data.misalignments.length} flagged` : 'None' });
+
+    // ── The screening gate ────────────────────────────────────────────────
+    // Clean (nothing flagged by either step) → straight to `selected`, no click.
+    // Flagged → `scoring_queue`, which is the only thing the Queue tab shows, so
+    // its count is a real "needs you" signal rather than "everything captured".
+    await db
+      .update(jobLeads)
+      .set({ status: gateStatusFor(roadblockCount, r.data.misalignments.length), updatedAt: new Date() })
+      .where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, effectiveOwnerId)));
   }
+
+  return reports;
+}
+
+/**
+ * B4 + B5 + B6 — the batch half, driven by the Ready-to-score runner.
+ *
+ * Marks the lead `screening` first: a transient, per-lead "in flight" marker the
+ * enum has carried since 0000 without anything ever setting it. It is also the
+ * stuck-lead signal — a hard Vercel kill mid-batch leaves the lead here, and the
+ * Ready-to-score tab flags `screening` rows whose `updatedAt` has gone stale.
+ * Retrying is safe by construction: B4/B6 overwrite columns and B5 skips
+ * re-extraction when job_requirements rows already exist.
+ */
+export async function runScoring(leadId: string, ownerId?: string | null): Promise<StepReport[]> {
+  const { lead, effectiveOwnerId } = await loadLead(leadId, ownerId);
+  const jd = lead.jdText ?? '';
+  const reports: StepReport[] = [];
+
+  // updatedAt is written explicitly — `base` has no $onUpdate, so without this
+  // the stuck-lead check below would compare against a timestamp from whenever
+  // the row last happened to be touched.
+  await db
+    .update(jobLeads)
+    .set({ status: 'screening', updatedAt: new Date() })
+    .where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, effectiveOwnerId)));
 
   // ── B4 · Skill mapping + JD group + ATS ──────────────────────────────────
   {
@@ -120,6 +201,12 @@ export async function runScreening(leadId: string, ownerId?: string | null): Pro
         jdGroupPrimary: r.data.jdGroupPrimary ?? lead.jdGroupPrimary,
         jdGroupSecondary: r.data.jdGroupSecondary ?? lead.jdGroupSecondary,
         atsSystem: r.data.atsSystem ?? lead.atsSystem,
+        // "Key Patterns & CV Tailoring Notes" — B4's process note has always
+        // asked the model for this (§B step 3) and the tool schema has always
+        // returned it, but the write path dropped it, so key_patterns stayed
+        // empty on every lead captured since launch. `?? lead.keyPatterns`
+        // preserves a legacy SharePoint-imported value if this call returns null.
+        keyPatterns: r.data.notes ?? lead.keyPatterns,
       })
       .where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, effectiveOwnerId)));
     await recordRun(leadId, 'B4', r.model, r.data, r.ms, effectiveOwnerId);
@@ -237,6 +324,63 @@ export async function runScreening(leadId: string, ownerId?: string | null): Pro
   }
 
   return reports;
+}
+
+/**
+ * B1-only refresh — deliberately NOT the same as re-running the whole screen.
+ * Only B1's inputs (elapsed time against the hold threshold) can meaningfully
+ * change after capture; B2–B6 are judgments over static JD text, so re-running
+ * them just re-spends LLM calls to get the same answer back.
+ *
+ * A status change is forced only while the lead is still pre-decision
+ * (`scoring_queue`, or `captured`/`hold` from an earlier pass). A lead already
+ * `selected`/`screening`/`screened` or further along keeps whatever decision was
+ * taken — refreshing updates the freshness badge, it never silently overturns a
+ * human call.
+ */
+export async function refreshFreshness(leadId: string, ownerId?: string | null): Promise<StepReport> {
+  const { lead, effectiveOwnerId } = await loadLead(leadId, ownerId);
+  const t = Date.now();
+  const fresh = freshnessBand(lead.postedDays);
+  const sat = saturationBand(lead.applicantCount);
+  const hold = shouldHold(lead.postedDays);
+
+  const preDecision = lead.status === 'scoring_queue' || lead.status === 'captured' || lead.status === 'hold';
+  const nextStatus = hold && preDecision && lead.status !== 'hold' ? ('hold' as const) : null;
+
+  await db
+    .update(jobLeads)
+    .set({ freshnessBand: fresh, saturationBand: sat, ...(nextStatus ? { status: nextStatus } : {}), updatedAt: new Date() })
+    .where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, effectiveOwnerId)));
+
+  const ms = Date.now() - t;
+  await recordRun(leadId, 'B1', 'code', { fresh, sat, hold, refreshed: true, statusChanged: nextStatus }, ms, effectiveOwnerId);
+  return {
+    step: 'B1',
+    label: 'Freshness & saturation',
+    status: 'done',
+    model: 'code',
+    ms,
+    summary: `${fresh} · ${sat}${hold ? ' · HOLD (≥60d)' : ''}${nextStatus ? ' · moved to hold' : ''}`,
+  };
+}
+
+/**
+ * Back-compat wrapper: unchanged call sites (scripts/batch-screen.ts,
+ * scripts/verify-screening.ts, the board's manual "Screen" action) keep working
+ * and still run B1→B6 in one go.
+ *
+ * Note the B1 gate now genuinely short-circuits, so a held lead returns one
+ * report instead of six — that's the intended behaviour change, matching
+ * docs/PIPELINE.md's G1 diagram.
+ */
+export async function runScreening(leadId: string, ownerId?: string | null): Promise<StepReport[]> {
+  const initial = await runInitialChecks(leadId, ownerId);
+  // B2 present ⇒ the B1 gate let it through. (Checking for B1 instead would
+  // always match — B1 runs on every path.)
+  if (!initial.some((r) => r.step === 'B2')) return initial;
+  const scoring = await runScoring(leadId, ownerId);
+  return [...initial, ...scoring];
 }
 
 // ── Mock heuristics (deterministic; grounded in the JD text + seeded data) ───
