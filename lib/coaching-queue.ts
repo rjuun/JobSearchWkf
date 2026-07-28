@@ -20,6 +20,7 @@ import { coachingAnswers, coachingPrompts, jobLeads, jobRequirements } from './d
 import { getCareerGraphFor } from './queries';
 import { enrichmentTargets, isBenignMisalignment } from './coaching';
 import { evidenceTokens, graphCoversRequirement, type CareerGraph } from './career-graph';
+import { isOutOfPlay } from './ui';
 import { env } from './env';
 
 export type Tier = 'basics' | 'position_deep' | 'relevancy';
@@ -684,7 +685,11 @@ async function misalignmentRows(owner: string): Promise<MisalignmentRow[]> {
     .where(
       and(
         eq(jobLeads.ownerId, owner),
-        notInArray(jobLeads.status, ['archived', 'applied']),
+        // A lead dropped at the screening gate is out of play like an archived
+        // one — it shouldn't keep generating coach prompts. Especially here:
+        // this engine reads B3 misalignments, which is exactly why a
+        // `misaligned` lead was dropped in the first place.
+        notInArray(jobLeads.status, ['archived', 'applied', 'roadblocked', 'misaligned']),
         sql`jsonb_array_length(coalesce(${jobLeads.misalignments}, '[]'::jsonb)) > 0`
       )
     );
@@ -723,7 +728,9 @@ async function targetReqRows(owner: string): Promise<TargetReqRow[]> {
     .innerJoin(jobLeads, eq(jobLeads.id, jobRequirements.jobLeadId))
     .where(and(eq(jobRequirements.ownerId, owner), inArray(jobRequirements.rank, ['Core', 'Important'])));
 
-  const inPlay = rows.filter((r) => r.status !== 'archived' && r.status !== 'applied' && !!r.requirement);
+  const inPlay = rows.filter(
+    (r) => !isOutOfPlay(r.status) && r.status !== 'applied' && !!r.requirement
+  );
   const hasTargets = inPlay.some((r) => r.isTarget);
   return inPlay
     .filter((r) => !hasTargets || r.isTarget)

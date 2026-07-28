@@ -169,6 +169,18 @@ function computeNext(
   if (status === 'archived') {
     return { title: 'Archived', detail: 'This lead is off the active board.', cta: 'none', tone: 'neutral', blocked: false };
   }
+  if (status === 'roadblocked' || status === 'misaligned') {
+    return {
+      title: status === 'roadblocked' ? 'Dropped — roadblocked' : 'Dropped — misaligned',
+      detail:
+        status === 'roadblocked'
+          ? 'Something in the posting hard-blocks you. Off the active board.'
+          : "The role pulls against your values or motives. Off the active board.",
+      cta: 'none',
+      tone: 'neutral',
+      blocked: false,
+    };
+  }
 
   // Tailor stage
   if (status === 'promoted' || status === 'tailoring' || status === 'ready') {

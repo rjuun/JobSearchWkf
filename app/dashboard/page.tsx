@@ -39,9 +39,14 @@ export default async function DashboardPage() {
   const byStatus = new Map<string, number>(statusRows.map((r) => [r.status as string, r.n]));
   const at = (k: string) => byStatus.get(k) ?? 0;
   const shipped = at('applied');
-  const inPlay = totalLeads - at('archived') - shipped;
+  // Leads dropped at the screening gate are out of play like archived ones.
+  const inPlay = totalLeads - at('archived') - at('roadblocked') - at('misaligned') - shipped;
   const FUNNEL = [
     { label: 'Captured', n: at('captured'), cls: 'bg-ink-subtle/45' },
+    // The gate's three live statuses sit between Captured and Screened: waiting
+    // on a decision, queued for the batch, and mid-batch. Without them a lead
+    // silently vanishes from the funnel for the whole time it's in the queue.
+    { label: 'In the queue', n: at('scoring_queue') + at('selected') + at('screening'), cls: 'bg-caution/45' },
     { label: 'Screened', n: at('screened') + at('hold'), cls: 'bg-proof/45' },
     { label: 'Tailoring', n: at('promoted') + at('tailoring'), cls: 'bg-proof/70' },
     { label: 'Ready', n: at('ready'), cls: 'bg-proof' },
@@ -50,6 +55,8 @@ export default async function DashboardPage() {
   const openTipsTop = tips.filter((t) => !t.resolved).slice(0, 2);
   const STAGE_ORDER: { key: string; label: string }[] = [
     { key: 'captured', label: 'Captured' },
+    { key: 'scoring_queue', label: 'Needs a call' },
+    { key: 'selected', label: 'Ready to score' },
     { key: 'screening', label: 'Screening' },
     { key: 'hold', label: 'Hold' },
     { key: 'screened', label: 'Screened' },

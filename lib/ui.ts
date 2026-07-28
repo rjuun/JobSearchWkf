@@ -33,6 +33,10 @@ export const TONE_DOT: Record<Tone, string> = {
 
 export type LeadStatus =
   | 'captured'
+  | 'scoring_queue'
+  | 'roadblocked'
+  | 'misaligned'
+  | 'selected'
   | 'screening'
   | 'hold'
   | 'screened'
@@ -45,6 +49,18 @@ export type LeadStatus =
 /** Which macro-stage of the A→B→C→D journey a status belongs to. */
 export type JourneyStage = 'capture' | 'screen' | 'tailor' | 'applied' | 'archived';
 
+/**
+ * Dropped at the screening gate. Grouped with `archived` everywhere a surface
+ * asks "is this lead still in play?" — the board's active filter, the dashboard
+ * funnel. Exported so those checks read from one list instead of each
+ * re-spelling the two status strings.
+ */
+export const GATE_DROPPED: LeadStatus[] = ['roadblocked', 'misaligned'];
+export const OUT_OF_PLAY: LeadStatus[] = ['archived', ...GATE_DROPPED];
+export function isOutOfPlay(status: string): boolean {
+  return (OUT_OF_PLAY as string[]).includes(status);
+}
+
 export const STATUS_META: Record<
   LeadStatus,
   { label: string; tone: Tone; bar: string; stage: JourneyStage }
@@ -52,6 +68,15 @@ export const STATUS_META: Record<
   // Hue carries only meaning, not journey position: neutral = in progress, amber = held,
   // green = a positive endpoint (CV ready / applied). Stage is shown by the rail + order.
   captured: { label: 'Captured', tone: 'neutral', bar: 'bg-slate-300', stage: 'capture' },
+  // The screening gate. `scoring_queue` is amber because it's the one status
+  // that genuinely waits on the human; `selected` is neutral-in-progress (it
+  // cleared the gate and is queued, nothing to decide). The two dropped
+  // outcomes read like `archived` — out of play, not a failure state to shout
+  // about — and are grouped with it in OUT_OF_PLAY above.
+  scoring_queue: { label: 'Needs a call', tone: 'amber', bar: 'bg-amber-300', stage: 'screen' },
+  selected: { label: 'Ready to score', tone: 'neutral', bar: 'bg-slate-400', stage: 'screen' },
+  roadblocked: { label: 'Roadblocked', tone: 'neutral', bar: 'bg-slate-200', stage: 'archived' },
+  misaligned: { label: 'Misaligned', tone: 'neutral', bar: 'bg-slate-200', stage: 'archived' },
   screening: { label: 'Screening', tone: 'neutral', bar: 'bg-slate-400', stage: 'screen' },
   hold: { label: 'On hold', tone: 'amber', bar: 'bg-amber-400', stage: 'screen' },
   screened: { label: 'Screened', tone: 'neutral', bar: 'bg-slate-400', stage: 'screen' },
@@ -65,6 +90,8 @@ export const STATUS_META: Record<
 /** Canonical display order for funnels / grouping. */
 export const STATUS_ORDER: LeadStatus[] = [
   'captured',
+  'scoring_queue',
+  'selected',
   'screening',
   'hold',
   'screened',
@@ -72,6 +99,8 @@ export const STATUS_ORDER: LeadStatus[] = [
   'tailoring',
   'ready',
   'applied',
+  'roadblocked',
+  'misaligned',
   'archived',
 ];
 

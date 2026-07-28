@@ -152,7 +152,8 @@ export async function getTargetCoverage(owner: string, tokens: Set<string>): Pro
         eq(jobLeads.isTarget, true),
         // Match the coach: a target you've archived or already applied to no longer
         // inflates the relevancy denominator / "still to prove" headroom.
-        notInArray(jobLeads.status, ['archived', 'applied']),
+        // …and neither does one dropped at the screening gate.
+        notInArray(jobLeads.status, ['archived', 'applied', 'roadblocked', 'misaligned']),
         inArray(jobRequirements.rank, ['Core', 'Important'])
       )
     );
@@ -420,7 +421,8 @@ export async function targetCoverageMatrix(): Promise<CoverageRow[]> {
       and(
         eq(jobLeads.ownerId, owner),
         eq(jobLeads.isTarget, true),
-        notInArray(jobLeads.status, ['archived', 'applied']),
+        // …and neither does one dropped at the screening gate.
+        notInArray(jobLeads.status, ['archived', 'applied', 'roadblocked', 'misaligned']),
         inArray(jobRequirements.rank, ['Core', 'Important'])
       )
     )

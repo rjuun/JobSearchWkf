@@ -97,6 +97,13 @@ export function RpVerdictPill({
 /** Stages completed before the current one, by lead status. Capture·Screen·Tailor·Apply. */
 const COMPLETED: Record<string, number> = {
   captured: 0,
+  // The gate sits inside Screen: B1-B3 are done (capture complete, stage 1),
+  // B4-B6 are not. The two dropped outcomes read as 0, like archived — the
+  // journey stopped rather than progressed.
+  scoring_queue: 1,
+  selected: 1,
+  roadblocked: 0,
+  misaligned: 0,
   screening: 1,
   hold: 1,
   screened: 2,
@@ -136,6 +143,10 @@ export function RpStagePips({ status, className }: { status: string; className?:
 
 const STAGE_PILL: Record<string, string> = {
   captured: 'bg-raised text-ink-muted',
+  scoring_queue: 'bg-caution-soft text-caution-deep',
+  selected: 'bg-raised text-ink-muted',
+  roadblocked: 'bg-raised text-ink-subtle',
+  misaligned: 'bg-raised text-ink-subtle',
   screening: 'bg-caution-soft text-caution-deep',
   hold: 'bg-drop-soft text-drop-deep',
   screened: 'bg-proof-soft text-proof-deep',
@@ -168,7 +179,16 @@ export function rpNextAction(
 ): { label: string; actionable: boolean } {
   switch (status) {
     case 'captured':
+      // Only reachable now when the capture-time runInitialChecks call failed;
+      // the manual re-run is the fallback.
       return { label: 'Screen', actionable: true };
+    case 'scoring_queue':
+      return { label: 'Decide', actionable: true };
+    case 'selected':
+      return { label: 'Score', actionable: true };
+    case 'roadblocked':
+    case 'misaligned':
+      return { label: 'Dropped', actionable: false };
     case 'screening':
       return { label: 'Running…', actionable: false };
     case 'hold':
@@ -176,10 +196,15 @@ export function rpNextAction(
     case 'screened':
       return { label: (score ?? 0) >= 5.5 ? 'Promote' : 'Review', actionable: true };
     case 'promoted':
-    case 'tailoring':
       return { label: 'Triage', actionable: true };
+    // §2.2.G · the Results row action names what's happening to the lead rather
+    // than the next mechanical step: work in progress while the CV is being
+    // tailored, then the send confirmation once it's ready. The drop-target
+    // mechanic behind "Application sent" is Part 2's scope, not this CI's.
+    case 'tailoring':
+      return { label: 'Tailoring CV', actionable: true };
     case 'ready':
-      return { label: 'Download', actionable: true };
+      return { label: 'Application sent', actionable: true };
     case 'applied':
       return { label: 'Applied', actionable: false };
     default:

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { listLeads, requirementCountsByLead, getProfile, thisWeekPicks, sourcingCompass, weeklyTriage } from '@/lib/queries';
 import { env } from '@/lib/env';
+import { isOutOfPlay } from '@/lib/ui';
 import { currentOwnerId } from '@/lib/auth';
 import { digestSince, getStatementSeenAt, digestHeadline, digestIsSubstantive } from '@/lib/activity';
 import { RpShell } from '@/components/roleproof/rp-shell';
@@ -43,7 +44,9 @@ export default async function RoleProofBoard() {
     returnDigest = await digestSince(owner, await getStatementSeenAt(owner));
   }
 
-  const active = leads.filter((l) => l.status !== 'archived');
+  // Leads dropped at the screening gate leave the board the same way archived
+  // ones do — see OUT_OF_PLAY in lib/ui.ts.
+  const active = leads.filter((l) => !isOutOfPlay(l.status));
   const scored = active.filter((l) => l.overallFitScore != null);
   const ready = active.filter((l) => l.status === 'ready').length;
   const proceed = scored.filter((l) => (l.overallFitScore ?? 0) >= 7).length;
