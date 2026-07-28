@@ -14,11 +14,7 @@
  * away from the message that's still sitting in Absagen.
  */
 import { useEffect, useRef, useState } from 'react';
-
-export function declineReplyText(company: string | null): string {
-  const who = company?.trim() || 'your organisation';
-  return `Thank you for letting me know, and for considering my profile. I remain very interested in ${who} and would welcome being considered for future roles that fit my background.`;
-}
+import { declineReplyText } from '@/lib/applications';
 
 export function DeclinePopup({
   company,

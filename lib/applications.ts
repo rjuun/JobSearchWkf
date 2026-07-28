@@ -136,3 +136,13 @@ export function classifyEmailDrop(source: DropSource | null | undefined): EmailD
   if (url) return { kind: 'link', url };
   return { kind: 'none' };
 }
+
+/**
+ * The decline reply-assist template (§2.2.E). Lives here rather than in the
+ * pop-up component so it can be unit-tested: vitest runs this repo's tsconfig,
+ * which leaves `jsx: preserve`, so a .tsx module can't be imported from a test.
+ */
+export function declineReplyText(company: string | null | undefined): string {
+  const who = company?.trim() || 'your organisation';
+  return `Thank you for letting me know, and for considering my profile. I remain very interested in ${who} and would welcome being considered for future roles that fit my background.`;
+}

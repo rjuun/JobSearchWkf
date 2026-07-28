@@ -18,17 +18,26 @@
 import './_force-mock';
 import './_env';
 import fs from 'node:fs/promises';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../lib/db';
 import { applications, jobLeads } from '../lib/db/schema';
 import { exists, localPath, readBuffer, writeBuffer } from '../lib/storage';
 import {
+  ARCHIVED_APPLICATION_STATUS,
+  OPEN_APPLICATION_STATUSES,
   applicationStatusLabel,
   emailArtifactLink,
   emailArtifactObjectName,
   emailArtifactPath,
   isStaleApplication,
 } from '../lib/applications';
+import {
+  applicationSent,
+  decline,
+  interviewScheduled,
+  setInterviewAt,
+  storeEmailArtifact,
+} from '../lib/monitoring';
 
 const OWNER = '00000000-0000-0000-0000-0000000ffff2'; // throwaway, not DEMO_OWNER_ID
 
@@ -109,11 +118,160 @@ async function checkLabelsAndStale(): Promise<void> {
   check('an interview row is never stale', !isStaleApplication({ status: 'interview', appliedAt: old, updatedAt: old }));
 }
 
+/** A stand-in for the browser's File — same two members storeEmailArtifact uses. */
+function droppedMsg(name: string) {
+  const bytes = Buffer.concat([Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]), Buffer.alloc(64, 3)]);
+  return {
+    name,
+    arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+  };
+}
+
+async function appRow(leadId: string) {
+  const [row] = await db
+    .select()
+    .from(applications)
+    .where(and(eq(applications.jobLeadId, leadId), eq(applications.ownerId, OWNER)));
+  return row;
+}
+
+/** §2.4 — the drop on the Results/board "Application sent" control. */
+async function checkApplicationSent(): Promise<void> {
+  console.log('\n§2.4 · dropping a confirmation email');
+  const leadId = await makeLead('Sent by drop');
+  const link = await storeEmailArtifact(OWNER, leadId, 'confirmation', droppedMsg('Bestätigung.msg'));
+  await applicationSent(OWNER, leadId, { confirmationEmailLink: link });
+
+  const row = await appRow(leadId);
+  check('status is response_pending', row?.status === 'response_pending', String(row?.status));
+  check('appliedAt was set with no manual entry', !!row?.appliedAt);
+  check('confirmationEmailLink resolves to the archived copy', row?.confirmationEmailLink === link, link);
+  const object = link.split('/').pop()!;
+  check('the archived copy is really in storage', await exists(emailArtifactPath(leadId, decodeURIComponent(object))));
+
+  const [lead] = await db.select().from(jobLeads).where(eq(jobLeads.id, leadId));
+  check('the lead itself moved to applied and stays there', lead.status === 'applied', lead.status);
+
+  // The no-email fallback, on a second lead.
+  const portalId = await makeLead('Portal application, no email');
+  await applicationSent(OWNER, portalId, {});
+  const portal = await appRow(portalId);
+  check('manual confirm reaches the same status', portal?.status === 'response_pending');
+  check('…with no link, rather than an empty string', portal?.confirmationEmailLink === null);
+
+  // A second drop must correct the row, not duplicate it (unique index + upsert).
+  const firstSentAt = row?.appliedAt?.getTime();
+  const link2 = await storeEmailArtifact(OWNER, leadId, 'confirmation', droppedMsg('Bestätigung-korrigiert.msg'));
+  await applicationSent(OWNER, leadId, { confirmationEmailLink: link2 });
+  const rows = await db
+    .select()
+    .from(applications)
+    .where(and(eq(applications.jobLeadId, leadId), eq(applications.ownerId, OWNER)));
+  check('re-dropping does not create a second row', rows.length === 1, `${rows.length} row(s)`);
+  check('re-dropping replaces the link', rows[0].confirmationEmailLink === link2);
+  check('re-dropping preserves the original send date', rows[0].appliedAt?.getTime() === firstSentAt);
+}
+
+/** §2.4 — decline drop: status, columns, and the move out of the list. */
+async function checkDecline(): Promise<void> {
+  console.log('\n§2.4 · dropping a decline');
+  const leadId = await makeLead('Declined');
+  await applicationSent(OWNER, leadId, {});
+  const link = await storeEmailArtifact(OWNER, leadId, 'decline', droppedMsg('Absage.msg'));
+  const at = new Date('2026-07-20T09:00:00Z');
+  await decline(OWNER, leadId, { outcomeEmailLink: link, outcomeAt: at });
+
+  const row = await appRow(leadId);
+  check('status is screened_out', row?.status === 'screened_out', String(row?.status));
+  check('outcomeEmailLink points at the archived decline', row?.outcomeEmailLink === link);
+  check('outcomeAt records the decline date', row?.outcomeAt?.toISOString() === at.toISOString());
+  check('the send date survives the decline', !!row?.appliedAt);
+
+  const open = await openRows();
+  const archived = await archivedRows();
+  check('it left the Applications list immediately', !open.some((r) => r.jobLeadId === leadId));
+  check('…and appears in the Archive', archived.some((r) => r.jobLeadId === leadId));
+}
+
+/** §2.4 — interview drop, then the manually typed interview date. */
+async function checkInterview(): Promise<void> {
+  console.log('\n§2.4 · dropping an interview invite');
+  const leadId = await makeLead('Interviewing');
+  await applicationSent(OWNER, leadId, {});
+  const link = await storeEmailArtifact(OWNER, leadId, 'interview', droppedMsg('Einladung.msg'));
+  const at = new Date('2026-07-24T11:30:00Z');
+  await interviewScheduled(OWNER, leadId, { outcomeEmailLink: link, outcomeAt: at });
+
+  let row = await appRow(leadId);
+  check('status is interview', row?.status === 'interview', String(row?.status));
+  check('outcomeEmailLink points at the archived invite', row?.outcomeEmailLink === link);
+  check('outcomeAt records the setup date', row?.outcomeAt?.toISOString() === at.toISOString());
+  check('interviewAt is still empty — no email carries a future fact', row?.interviewAt === null);
+
+  const when = new Date('2026-08-04T13:00:00Z');
+  await setInterviewAt(OWNER, leadId, when);
+  row = await appRow(leadId);
+  check('the picker persists a manually entered interview date', row?.interviewAt?.toISOString() === when.toISOString());
+
+  check('it stays in the Applications list', (await openRows()).some((r) => r.jobLeadId === leadId));
+  check('…and not in the Archive', !(await archivedRows()).some((r) => r.jobLeadId === leadId));
+
+  // A decline after an interview is still the terminal move.
+  await decline(OWNER, leadId, {});
+  check('a post-interview decline still lands in the Archive', (await archivedRows()).some((r) => r.jobLeadId === leadId));
+}
+
+/**
+ * §2.4 — the Archive holds stopped *applications*, not everything terminal.
+ * Part 1's triage drops never had an application, so they must not appear, and
+ * their data must be left completely alone for the future stats CI.
+ */
+async function checkArchiveScope(): Promise<void> {
+  console.log('\n§2.4 · what the Archive does and does not contain');
+  const roadblocked = await makeLead('Roadblocked lead');
+  const misaligned = await makeLead('Misaligned lead');
+  await db.update(jobLeads).set({ status: 'roadblocked' }).where(eq(jobLeads.id, roadblocked));
+  await db.update(jobLeads).set({ status: 'misaligned' }).where(eq(jobLeads.id, misaligned));
+
+  const archived = await archivedRows();
+  check('no roadblocked lead appears in the Archive', !archived.some((r) => r.jobLeadId === roadblocked));
+  check('no misaligned lead appears in the Archive', !archived.some((r) => r.jobLeadId === misaligned));
+  check(
+    'every Archive row is screened_out and nothing else',
+    archived.every((r) => r.status === ARCHIVED_APPLICATION_STATUS),
+    `${archived.length} row(s)`
+  );
+
+  const [{ n }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(jobLeads)
+    .where(and(eq(jobLeads.ownerId, OWNER), inArray(jobLeads.status, ['roadblocked', 'misaligned'])));
+  check('the throughput data the future stats CI needs is untouched', n === 2, `${n} lead(s) still on record`);
+}
+
+/** The predicates the two routes actually query with. */
+async function openRows() {
+  return db
+    .select()
+    .from(applications)
+    .where(and(eq(applications.ownerId, OWNER), inArray(applications.status, [...OPEN_APPLICATION_STATUSES])));
+}
+async function archivedRows() {
+  return db
+    .select()
+    .from(applications)
+    .where(and(eq(applications.ownerId, OWNER), eq(applications.status, ARCHIVED_APPLICATION_STATUS)));
+}
+
 async function main(): Promise<void> {
   console.log('Verifying CI · Scoring Phase Redesign — Part 2');
   try {
     await checkStoragePrefix();
     await checkLabelsAndStale();
+    await checkApplicationSent();
+    await checkDecline();
+    await checkInterview();
+    await checkArchiveScope();
   } finally {
     await cleanup();
   }
