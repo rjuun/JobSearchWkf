@@ -10,6 +10,7 @@ import { ThisWeekStrip } from '@/components/roleproof/this-week-strip';
 import { WeeklyTriage } from '@/components/roleproof/weekly-triage';
 import { TrackedTable } from '@/components/roleproof/tracked-table';
 import { SourcingCompass } from '@/components/roleproof/sourcing-compass';
+import { ApplicationSentControl } from '@/components/roleproof/application-sent-control';
 import { StatementReturnBanner } from '@/components/statement-return-banner';
 import { Frame } from '@/components/layout';
 import {
@@ -245,42 +246,54 @@ export default async function RoleProofBoard() {
               const next = rpNextAction(l.status, l.overallFitScore);
               const faded = l.overallFitScore != null && l.overallFitScore < 5.5;
               return (
-                <Link
+                // The row's action cell is a sibling of the Link, not inside it:
+                // for a `ready` lead it's a real drop target (§2.2.H), and an
+                // interactive control nested in an anchor is neither valid nor
+                // droppable.
+                <div
                   key={l.id}
-                  href={`/roleproof/leads/${l.id}`}
                   className={cn(
                     'flex items-center gap-4 border-b border-hairline/70 px-5 py-3.5 transition last:border-0 hover:bg-raised/60',
                     faded && 'opacity-70'
                   )}
                 >
-                  <RpScore score={l.overallFitScore} className="w-12 shrink-0 text-[30px]" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-ink">{l.title}</div>
-                    <div className="truncate text-xs text-ink-subtle">
-                      {[l.company && l.hiringAgency ? `${l.company} (via ${l.hiringAgency})` : l.company, l.city]
-                        .filter(Boolean)
-                        .join(' · ') || '—'}
-                      {reqCounts.get(l.id) ? ` · ${reqCounts.get(l.id)} must-haves` : ''}
-                    </div>
-                  </div>
-                  <div className="hidden sm:block">
-                    {l.overallFitScore != null ? (
-                      <RpVerdictPill score={l.overallFitScore} />
-                    ) : (
-                      <RpStagePill status={l.status} />
-                    )}
-                  </div>
-                  <RpStagePips status={l.status} className="hidden md:flex" />
-                  <span
-                    className={cn(
-                      'w-[84px] shrink-0 whitespace-nowrap text-right text-[12px] font-bold',
-                      next.actionable ? 'text-proof' : 'text-ink-subtle'
-                    )}
+                  <Link
+                    href={`/roleproof/leads/${l.id}`}
+                    className="flex min-w-0 flex-1 items-center gap-4"
                   >
-                    {next.label}
-                    {next.actionable ? ' →' : ''}
-                  </span>
-                </Link>
+                    <RpScore score={l.overallFitScore} className="w-12 shrink-0 text-[30px]" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold text-ink">{l.title}</div>
+                      <div className="truncate text-xs text-ink-subtle">
+                        {[l.company && l.hiringAgency ? `${l.company} (via ${l.hiringAgency})` : l.company, l.city]
+                          .filter(Boolean)
+                          .join(' · ') || '—'}
+                        {reqCounts.get(l.id) ? ` · ${reqCounts.get(l.id)} must-haves` : ''}
+                      </div>
+                    </div>
+                    <div className="hidden sm:block">
+                      {l.overallFitScore != null ? (
+                        <RpVerdictPill score={l.overallFitScore} />
+                      ) : (
+                        <RpStagePill status={l.status} />
+                      )}
+                    </div>
+                    <RpStagePips status={l.status} className="hidden md:flex" />
+                  </Link>
+                  {l.status === 'ready' ? (
+                    <ApplicationSentControl leadId={l.id} className="w-[84px] text-center" />
+                  ) : (
+                    <span
+                      className={cn(
+                        'w-[84px] shrink-0 whitespace-nowrap text-right text-[12px] font-bold',
+                        next.actionable ? 'text-proof' : 'text-ink-subtle'
+                      )}
+                    >
+                      {next.label}
+                      {next.actionable ? ' →' : ''}
+                    </span>
+                  )}
+                </div>
               );
             })
           )}

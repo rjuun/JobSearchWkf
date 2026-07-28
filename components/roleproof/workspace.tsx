@@ -18,7 +18,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { runScreeningAction, promoteLeadAction, toggleTargetAction } from '@/app/actions/pipeline';
 import { mapEvidenceAction, setApprovalAction, generateCvAction } from '@/app/actions/tailoring';
-import { markAppliedAction } from '@/app/actions/monitoring';
 import { addTipAction, resolveTipAction } from '@/app/actions/tips';
 import { trackUxAction } from '@/app/actions/ux';
 import type { JourneyResult } from '@/lib/journey';
@@ -26,6 +25,7 @@ import { provenanceCoverage } from '@/lib/provenance';
 import { Mach, CodeBadge } from '@/components/machinery';
 import { Frame } from '@/components/layout';
 import { cn, RpStagePill, rpVerdict, scoreTone, SCORE_TEXT } from './kit';
+import { ApplicationSentControl } from './application-sent-control';
 
 export type RpLead = {
   id: string;
@@ -167,7 +167,6 @@ type Ctx = {
   onVote: (status: 'green' | 'yellow' | 'red') => void;
   onUndo: () => void;
   onGenerate: () => void;
-  onApply: () => void;
 };
 
 export function RpWorkspace(props: Props) {
@@ -304,18 +303,6 @@ export function RpWorkspace(props: Props) {
       }
     });
   }
-  function onApply() {
-    startTransition(async () => {
-      try {
-        setError(null);
-        await markAppliedAction(lead.id);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        router.refresh();
-      }
-    });
-  }
 
   const enrichHref = `/profile?from=${encodeURIComponent(
     `/roleproof/leads/${lead.id}`
@@ -362,7 +349,6 @@ export function RpWorkspace(props: Props) {
     onVote,
     onUndo,
     onGenerate,
-    onApply,
   };
 
   return <TwoPane c={c} />;
@@ -1118,13 +1104,16 @@ function nextAction(c: Ctx) {
     return c.lead.status === 'applied' ? (
       <span className={cn(cls, 'cursor-default opacity-90')}>Applied ✓</span>
     ) : (
-      <span className="flex shrink-0 items-center gap-2">
+      <span className="flex shrink-0 items-start gap-2">
         <a href={`/api/cv/${c.lead.id}`} className={cls}>
           Download
         </a>
-        <button onClick={c.onApply} className={cn(cls, 'bg-white/15 text-white hover:bg-white/25')}>
-          Mark applied
-        </button>
+        {/* Was a plain "Mark applied" button calling markAppliedAction, which
+            wrote applications.status = 'applied' — a status the new Applications
+            list doesn't query, so a send confirmed here would never show up
+            there. It's now the same drop-or-confirm control the board uses, and
+            writes 'response_pending' (CI Part 2 §2.2.H). */}
+        <ApplicationSentControl leadId={c.lead.id} variant="panel" className="w-[220px]" />
       </span>
     );
   const map: Partial<Record<string, () => void>> = {

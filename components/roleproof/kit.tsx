@@ -197,12 +197,17 @@ export function rpNextAction(
       return { label: (score ?? 0) >= 5.5 ? 'Promote' : 'Review', actionable: true };
     case 'promoted':
       return { label: 'Triage', actionable: true };
-    // §2.2.G · the Results row action names what's happening to the lead rather
-    // than the next mechanical step: work in progress while the CV is being
-    // tailored, then the send confirmation once it's ready. The drop-target
-    // mechanic behind "Application sent" is Part 2's scope, not this CI's.
+    // §2.2.G · the row action names what's happening to the lead rather than the
+    // next mechanical step: work in progress while the CV is being tailored,
+    // then the send confirmation once it's ready.
     case 'tailoring':
       return { label: 'Tailoring CV', actionable: true };
+    // Part 2 §2.2.H closed the breadcrumb this case used to carry: "Application
+    // sent" is now a real drop target — components/roleproof/application-sent-
+    // control.tsx, rendered instead of this label wherever a `ready` lead has
+    // room for it (the board's All-leads row, the workspace's next-move panel).
+    // The label survives here for the read-only surfaces (This week, Weekly
+    // Triage) that link through rather than act in place.
     case 'ready':
       return { label: 'Application sent', actionable: true };
     case 'applied':
