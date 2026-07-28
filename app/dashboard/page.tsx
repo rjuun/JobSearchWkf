@@ -1,11 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getDashboardData, getProfile, getCareerGraph, listApplications } from '@/lib/queries';
+import { getDashboardData, getProfile, getCareerGraph } from '@/lib/queries';
 import { formatDuration } from '@/lib/activation';
 import { strengthOf } from '@/lib/career-graph';
-import { env } from '@/lib/env';
 import { RpShell } from '@/components/roleproof/rp-shell';
-import { ReturnsPanel } from '@/components/roleproof/returns-panel';
 import { Frame } from '@/components/layout';
 import { cn } from '@/components/roleproof/kit';
 
@@ -16,20 +14,11 @@ export const metadata: Metadata = { title: 'RoleProof — dashboard' };
 // shows — the KPIs, the funnel, and the improvement loop — then keeps the full CI
 // telemetry (throughput, initiatives, accuracy flags, LLM cost) under the hood below.
 export default async function DashboardPage() {
-  const [{ statusRows, totalLeads, avgFit, buckets, ci, tips, usage, activation }, profile, graph, applications] = await Promise.all([
+  const [{ statusRows, totalLeads, avgFit, buckets, ci, tips, usage, activation }, profile, graph] = await Promise.all([
     getDashboardData(),
     getProfile(),
     getCareerGraph(),
-    env.nextReturns ? listApplications() : Promise.resolve([]),
   ]);
-  const returnItems = applications.map((a) => ({
-    id: a.id,
-    leadId: a.leadId,
-    title: a.title,
-    company: a.company,
-    status: a.status,
-    appliedAt: a.appliedAt ? a.appliedAt.toISOString() : null,
-  }));
 
   const firstName = (profile?.name ?? 'there').split(' ')[0];
   const hour = new Date().getHours();
@@ -112,8 +101,11 @@ export default async function DashboardPage() {
           <Stat value={strength} label="Graph strength" tone="proof" border />
         </div>
 
-        {/* ── Returns (B2) — applications sent + outcomes logged ── */}
-        <ReturnsPanel items={returnItems} />
+        {/* The B2 Returns panel used to sit here. Retired by CI · Scoring Phase
+            Redesign Part 2 §2.2.G — its owner didn't recognise it, and what it
+            was actually for now has a surface of its own at
+            /roleproof/applications. Its one good idea, the "no word in 7+ days"
+            nudge, moved there as the row-level stale badge. */}
 
         <div className="mt-6 grid gap-5 lg:grid-cols-[1.1fr_1fr]">
           {/* ── The funnel ── */}
