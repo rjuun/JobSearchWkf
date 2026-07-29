@@ -1,7 +1,7 @@
 ---
 ci-area: Screening / B-Phase
 ci-title: Scoring Phase Redesign
-ci-status: 2 - Testing
+ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-07-28
 ci-estimated-time: 4
@@ -12,7 +12,7 @@ pr-target:
 
 ---
 ```simple-time-tracker
-{"entries":[{"name":"Development","startTime":"2026-07-28T17:48:38.000Z","endTime":"2026-07-28T18:40:00.000Z"}]}
+{"entries":[{"name":"Draft","startTime":"2026-07-28T17:48:38.000Z","endTime":"2026-07-28T18:40:00.000Z"},{"name":"Draft","startTime":"2026-07-28T09:45:06.000Z","endTime":"2026-07-28T11:13:07.000Z"},{"name":"Development","startTime":"2026-07-28T16:02:07.000Z","endTime":"2026-07-28T19:02:08.000Z"}]}
 ```
 ---
 

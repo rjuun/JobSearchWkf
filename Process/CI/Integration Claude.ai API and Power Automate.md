@@ -1,7 +1,7 @@
 ---
 ci-title: Integration Claude.ai API and Power Automate
 ci-area:
-ci-status: 1 - Development
+ci-status: 5 - Abandoned
 ci-priority: medium
 ci-date: 2026-06-16
 ci-estimated-time:
@@ -9,11 +9,13 @@ ci-time-spent:
 pr-source:
 pr-target:
 ---
-
+---
+This CI was abandoned once the APP was developed.
+Claude API is now operational, but not integrated to Power Automate, but rather directly with the APP. Refer to [[Migrate LLM Provider - DeepSeek to Claude (Sonnet 5 + Opus 4.8, Single Provider)]]
 
 ---
 ```simple-time-tracker
-{"entries":[{"name":"Segment 1","startTime":"2026-07-24T13:26:36.969Z","endTime":"2026-07-24T14:00:42.752Z"},{"name":"Segment 2","startTime":"2026-07-24T14:00:52.511Z","endTime":null}]}
+{"entries":[{"name":"Draft","startTime":"2026-07-24T13:26:36.000Z","endTime":"2026-07-24T14:00:42.000Z"}]}
 ```
 
 ---

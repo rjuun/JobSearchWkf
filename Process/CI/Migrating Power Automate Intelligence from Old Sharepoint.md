@@ -9,6 +9,12 @@ ci-time-spent: 2.5
 pr-source: "[[D1. Monitoring Applications]]"
 pr-target:
 ---
+
+---
+>Abandoned
+Once 
+
+
 ---
 ```simple-time-tracker
 {"entries":[{"name":"Draft","startTime":"2026-06-24T08:03:55.000Z","endTime":"2026-06-24T08:17:50.972Z"},{"name":"Development","startTime":"2026-06-24T08:17:59.335Z","endTime":"2026-06-24T10:32:29.635Z"}]}

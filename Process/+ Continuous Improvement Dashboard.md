@@ -2,9 +2,19 @@
 
 
 ```dataviewjs
+// Fixed order, not incidental — groupBy on date-sorted pages previously put
+// sections wherever the first page of that status happened to fall, so a
+// group could drift depending on what else was in the folder. Canonical
+// values are documented in "++ Continuous Improvement Procedure.md".
+const STATUS_ORDER = ["0 - Idea", "1 - Development", "2 - Testing", "3 - Delivered"];
 const pages = dv.pages('"Process/CI"')
     .sort(p => p["ci-date"], 'desc');
-const groups = pages.groupBy(p => p["ci-status"] || "No Status");
+const groups = pages.groupBy(p => p["ci-status"] || "No Status").array();
+groups.sort((a, b) => {
+    const ai = STATUS_ORDER.indexOf(a.key);
+    const bi = STATUS_ORDER.indexOf(b.key);
+    return (ai === -1 ? STATUS_ORDER.length : ai) - (bi === -1 ? STATUS_ORDER.length : bi);
+});
 let grandEst = 0;
 let grandSpent = 0;
 let html = `
