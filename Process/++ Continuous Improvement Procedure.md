@@ -13,6 +13,15 @@ This procedure the structured mechanism for capturing, storing, and revisiting p
 
 **CI Properties** Structured fields attached to CI Items (e.g., _Status_, _Impact_, _Effort_, _Owner_, _CreatedOn_). Enables automated visualization, sorting, and prioritization.
 
+**`ci-status` values** (formalized 2026-07-29, after two independent implementation passes — Scoring Phase Redesign Parts 1 and 2 — both landed on the same fourth value on their own):
+
+| Value | Meaning |
+| --- | --- |
+| `0 - Idea` | Captured, not yet spec'd or started |
+| `1 - Development` | Being implemented |
+| `2 - Testing` | Code landed and machine-verified (tests/build/harness); live/manual verification still pending |
+| `3 - Delivered` | Live-verified and closed |
+
 **CI Table View** A dynamically generated table that displays CI Items using Tags and Properties. Used for quick scanning, triage, and planning.
 
 

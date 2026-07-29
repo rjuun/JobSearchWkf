@@ -51,9 +51,22 @@ export function ArchiveList({ rows }: { rows: MonitoredApplication[] }) {
               {[row.company, row.city].filter(Boolean).join(' · ') || '—'}
             </div>
           </div>
-          <div className="hidden shrink-0 text-right text-[12px] text-ink-muted sm:block">
-            <div>Stopped {fmtDate(row.outcomeAt)}</div>
-            <div className="text-ink-subtle">Sent {fmtDate(row.appliedAt)}</div>
+          {/* Reggie's note (2026-07-29): keep Status / Application Date / Process
+              Close Date as three distinct, labeled pieces rather than folding
+              the status word into the date line — easier to scan across rows. */}
+          <div className="hidden shrink-0 grid-cols-3 gap-x-5 text-right text-[12px] sm:grid">
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-ink-subtle">Status</div>
+              <div className="text-ink-muted">Stopped</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-ink-subtle">Applied</div>
+              <div className="text-ink-muted">{fmtDate(row.appliedAt)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-ink-subtle">Process closed</div>
+              <div className="text-ink-muted">{fmtDate(row.outcomeAt)}</div>
+            </div>
           </div>
           {row.outcomeEmailLink ? (
             <span className="hidden shrink-0 text-[12px] font-semibold text-ink-subtle md:block">
