@@ -526,6 +526,7 @@ export type MonitoredApplication = {
   outcomeAt: Date | null;
   interviewAt: Date | null;
   overallFitScore: number | null;
+  contactEmail: string | null;
 };
 
 const MONITORED_COLUMNS = {
@@ -542,6 +543,7 @@ const MONITORED_COLUMNS = {
   outcomeAt: applications.outcomeAt,
   interviewAt: applications.interviewAt,
   overallFitScore: jobLeads.overallFitScore,
+  contactEmail: applications.contactEmail,
 };
 
 /**

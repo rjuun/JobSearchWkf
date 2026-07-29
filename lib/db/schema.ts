@@ -383,6 +383,10 @@ export const applications = pgTable(
     // The one future fact — typed by hand, never present in a dropped email.
     interviewAt: timestamp('interview_at', { withTimezone: true }),
     thanksRepliedAt: timestamp('thanks_replied_at', { withTimezone: true }),
+    // SharePoint reconciliation, round 3 (2026-07-29) — the employer/HR contact
+    // address for this application. Archive-only for now (28/91 archived rows
+    // have one); nothing in the live drag-and-drop capture flow writes it yet.
+    contactEmail: text('contact_email'),
   },
   (t) => ({
     // One application per (owner, lead) — makes the CV-download open and

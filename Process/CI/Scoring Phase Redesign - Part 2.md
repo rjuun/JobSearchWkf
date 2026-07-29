@@ -534,6 +534,65 @@ in case a future feature is tempted to reach for `dnd-kit` without checking this
   since 2026-06-24 — flagged in-file as **not** a prompt template, since unlike the B/C notes nothing
   loads it at runtime (`lib/prompts.ts`'s `STEP_NOTE` covers B/C/O2 only).
 
+### Reconciliation & backfill (post-implementation, 2026-07-29 — not part of §2.3's checklist)
+
+Once Part 2 shipped, Reggie began reconciling his real SharePoint history into it — this is genuinely
+different work from the checklist above (data correction, not new capability), but it changed the schema,
+the query layer, and the Archive UI enough to belong in this log rather than be lost in chat.
+
+- **Round 1 (pre-existing).** `scripts/reconcile-sharepoint.ts` + `scripts/data/sharepoint-reconciliation.json`
+  (157 rows) already existed from an earlier session but had never been `--apply`'d.
+- **Round 2.** 5 leads Reggie personally verified (dates, current status) moved into Applications as
+  `response_pending`. Running `--apply` also fired round 1's *entire* backlog at once — worth recording
+  as a real lesson: **a script that processes a whole data file doesn't stay scoped just because you only
+  edited a few rows of it.** That surfaced two real data problems, both fixed:
+  1. `applications.status` had literal SharePoint label text ("9 - Stopped", "3 - Waiting Application
+     Reply", "2 - Send Application") instead of the app's vocabulary, because `reconcile-sharepoint.ts`
+     writes via Drizzle directly and bypasses the `ALLOWED_OUTCOMES` guard. Fixed via
+     `scripts/fix-reconciliation-status-labels.ts` (91 rows → `screened_out`, 17 → `response_pending`).
+  2. The 17 relabeled `response_pending` rows turned out to be unverified and stale — all had been sitting
+     at `job_leads.status = 'captured'` (never screened) with applied dates up to 9 months old. Reverted
+     via `scripts/revert-unverified-applications.ts` back to `captured`, applications row deleted. Same
+     treatment for 2 rows whose SharePoint status ("2 - Send Application") turned out to mean "never
+     actually sent" — confirmed with Reggie, not guessed.
+- **Archive dates were blank.** The 91 reconciled Archive rows showed "Stopped —" with no date:
+  `outcome_at` was never populated by round 1, only buried as text inside `outcome_notes`. Fixed via
+  `scripts/backfill-archive-outcome-dates.ts` (regex-parses "Process Closed: …", 91/91 parseable).
+- **Full audit against the source of truth.** Reggie's own `Reconciliation Files/Final Reconciliation
+  Review.xlsx` (`Sharepoint - Job Leads Table` tab) encodes exactly which of the 3 source tables
+  (App - Job Leads / Sharepoint - Job Leads / Sharepoint - Applications) each lead's data should come
+  from, via its own `Comment`/`Action` columns. Cross-checked all 91 Archive rows' `appliedAt` and
+  `outcomeAt` against that rule. 90/91 matched. One didn't: seq 184 (Chief of Staff / Erste Digital) — round
+  1 had linked it to Applications-table Folder ID 438, which actually belongs to an unrelated posting
+  ("Chief of Staff - Avilon"), borrowing that row's dates instead of this lead's own. Fixed via
+  `scripts/fix-erste-digital-dates.ts`.
+- **Round 3 — Email address / Email response.** Reggie asked for two more Archive columns. `Email
+  response` in the source is a SharePoint hyperlink column whose *displayed* text is almost always the
+  unhelpful literal "Open Email" — the real value is the link target (an Outlook web deep-link, or
+  occasionally an ATS dashboard URL), only extractable via `openpyxl`'s `hyperlink.target`, not the cell's
+  display value. Reused the existing `outcome_email_link` column for it (semantically the same thing
+  §2.2.C already means) rather than adding a new one. `Email address` is genuinely new — new nullable
+  `applications.contact_email` column. Sourced with the same Comment/Action priority as the date audit;
+  30 of 91 archived leads have at least one of the two fields, the rest never had it recorded in
+  SharePoint at all.
+- **Archive UI redesign (not in §2.2.F's original spec).** Reggie asked for column headers fixed once at
+  the top instead of repeating per row, plus the two new columns. `components/roleproof/archive-list.tsx`
+  now renders a shared CSS grid template for both a sticky header and every row, and "Email response"
+  needed to become a real, independently-clickable link rather than inert text (the original design's own
+  reasoning for inert text — "the whole row is already a Link, nested anchors don't work" — still holds,
+  so the fix is a stretched-card layering: the row's own navigation is an absolutely-positioned layer
+  *behind* everything (`z-0`), and "On file" is a normal `<a>` painted on top (`z-10`/`relative`). Clicks
+  on the link open the email; clicks anywhere else on the row still navigate to the lead. No JS needed,
+  still a server component.
+- **Gap closed same day: on-demand Reply in the Archive.** The decline reply-assist pop-up (§2.2.E) only
+  ever fired at the moment a decline email was *dropped*, live — none of these backfilled historical rows
+  passed through that drop, so none of them got the reply-assist. Added `archive-reply-button.tsx` — a
+  small client island inside the otherwise server-rendered `ArchiveList`, reusing `DeclinePopup` unchanged,
+  opened by a click instead of a drop. Sits next to "On file" using the same stretched-card stacking
+  (`archive-list.tsx`'s own layering comment). Available on every Archive row regardless of whether an
+  email link was captured — the template only needs the company name, and "worth a short reply" doesn't
+  stop being true just because the record came from reconciliation instead of a live drop.
+
 ### Open for Reggie
 
 1. **Step 13, the live drag-and-drop test — the one genuinely open item.** Drag a real `.msg` out of
@@ -554,6 +613,8 @@ in case a future feature is tempted to reach for `dnd-kit` without checking this
 2. **Part 1's Queue / Ready-to-score surfaces still haven't been browser-tested** — its own §4 left this
    open, and the same login constraint applied here, so it's still open. Both CIs' UI now wants one
    click-through pass together, which was the stated reason for building both before testing either.
-3. **Nothing was backfilled.** Applications sent before this ships have `applications.status = 'applied'`
-   (or `downloaded`) and so appear in neither the Applications list nor the Archive. Forward-only by
-   design; moving them would mean guessing which are still live.
+3. ~~Nothing was backfilled.~~ **Superseded** — see "Reconciliation & backfill" above. 5 leads landed in
+   Applications, 91 in Archive, verified against the SharePoint source of truth. Applications sent before
+   this shipped that Reggie hasn't yet brought over still sit at `applications.status = 'applied'` (or
+   `downloaded`) and won't appear in either list until a future round does the same verified reconciliation
+   — by design, not an oversight.
