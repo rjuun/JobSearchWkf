@@ -97,8 +97,8 @@ export function RpVerdictPill({
 /** Stages completed before the current one, by lead status. Capture·Screen·Tailor·Apply. */
 const COMPLETED: Record<string, number> = {
   captured: 0,
-  // The gate sits inside Screen: B1-B3 are done (capture complete, stage 1),
-  // B4-B6 are not. The two dropped outcomes read as 0, like archived — the
+  // The gate sits inside Screen: B1-B4 are done (capture complete, stage 1),
+  // B5/B6 are not. The two dropped outcomes read as 0, like archived — the
   // journey stopped rather than progressed.
   scoring_queue: 1,
   selected: 1,

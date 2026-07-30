@@ -48,6 +48,11 @@ export function cleanJobPostLink(sourceUrl?: string | null): string | null {
 
 // Section B.2 — ATS domain table. Extendable in place: add a row rather than
 // opening a CI item every time a new ATS domain shows up.
+//
+// This is now the SINGLE canonical ATS list (CI · Lead Page as Pipeline Canvas
+// §2.2a). B4's note carried a second, divergent one — Jobvite / UKG Pro /
+// Umantis, absent here — and which list applied depended on which step happened
+// to run. Those three are folded in below; B4 §C is gone.
 const ATS_DOMAIN_TABLE: Array<{ patterns: string[]; name: string }> = [
   { patterns: ['myworkdayjobs.com', 'myworkday.com'], name: 'Workday' },
   { patterns: ['greenhouse.io', 'boards.greenhouse.io'], name: 'Greenhouse' },
@@ -62,9 +67,17 @@ const ATS_DOMAIN_TABLE: Array<{ patterns: string[]; name: string }> = [
   { patterns: ['cornerstoneondemand.com', 'csod.com'], name: 'Cornerstone' },
   { patterns: ['oraclecloud.com'], name: 'Oracle Fusion/Cloud HCM' },
   { patterns: ['onlyfy.jobs'], name: 'Onlyfy (formerly softgarden)' },
+  { patterns: ['jobvite.com', 'hire.jobvite.com'], name: 'Jobvite – Employ Inc' },
+  { patterns: ['ultipro.com', 'ukg.net', 'recruiting.ukg.com'], name: 'UKG Pro Recruiting (UltiPro)' },
+  { patterns: ['umantis.com', 'abacuscity.ch'], name: 'Umantis' },
 ];
 
-/** Match `jobPostLink`'s hostname against known ATS domains. Null = no hit (B4 still runs its own fallback). */
+/**
+ * Match `jobPostLink`'s hostname against known ATS domains. Null = no hit, which
+ * A1 §C's page-evidenced extraction may then fill. Nothing downstream of capture
+ * ever overwrites a hit here — B4's prose-based guess used to, and that was the
+ * bug §2.2a removed.
+ */
 export function detectAtsSystem(jobPostLink?: string | null): string | null {
   if (!jobPostLink) return null;
   let hostname: string;
@@ -150,6 +163,13 @@ export type CaptureExtraction = {
   city: string | null;
   remote: 'on-site' | 'hybrid' | 'remote' | 'unspecified';
   formatSignals: string | null;
+  /**
+   * A1 §C · only ever set from what the capturing agent saw of the RENDERED page
+   * (form host, apply iframe, footer branding). The mock below always returns
+   * null: it has markdown and nothing else, and guessing an ATS from prose is
+   * precisely the inference §2.2a deleted from B4.
+   */
+  atsSystem: string | null;
 };
 
 // Mock fixture for the A1 runStructured call (Section C). Real JD text is too
@@ -192,5 +212,5 @@ export function mockCaptureExtraction(markdown: string): CaptureExtraction {
     if (m) signals.push(m[0].trim());
   }
 
-  return { company: null, city, remote, formatSignals: signals.length ? signals.join(' | ') : null };
+  return { company: null, city, remote, formatSignals: signals.length ? signals.join(' | ') : null, atsSystem: null };
 }

@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RoleProof &mdash; Job Lead page, final design for validation</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; background: #efeee9; color: #1a1a18; margin: 0; padding: 22px 28px 70px; }
+  .page { max-width: 1500px; margin: 0 auto; }
+  h1 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+  .lede { font-size: 12px; color: #6b6b66; margin: 0 0 14px; line-height: 1.5; max-width: 1100px; }
+  code { background: #e2e0d8; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+
+  .phasebar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+  .pbtn { font-size: 11.5px; padding: 6px 12px; border-radius: 999px; border: 1px solid #dcd9cf; background: #fff; color: #4a4a46; cursor: pointer; }
+  .pbtn.active { background: #1a1a18; color: #fff; border-color: #1a1a18; }
+  .phasenote { font-size: 11.5px; color: #6b6b66; margin: 0 0 14px; min-height: 15px; }
+
+  .app { background: #f6f5f1; border: 1px solid #dcd9cf; border-radius: 12px; overflow: hidden; }
+  .topbar { display: flex; align-items: center; gap: 14px; background: #fff; border-bottom: 1px solid #e6e3d9; padding: 9px 16px; font-size: 11.5px; color: #6b6b66; }
+  .brand { display: flex; align-items: center; gap: 6px; font-weight: 600; color: #1a1a18; font-size: 12.5px; }
+  .brandmark { width: 17px; height: 17px; border-radius: 4px; background: #137a5b; color: #fff; display: grid; place-items: center; font-size: 10px; font-weight: 700; }
+  .navitem { padding: 3px 8px; border-radius: 6px; }
+  .navitem.on { background: #efeee9; color: #1a1a18; font-weight: 600; }
+
+  .leadhead { padding: 18px 22px 0; }
+  .eyebrow { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #8a887e; font-weight: 600; }
+  .leadtitle { font-family: Georgia, serif; font-size: 27px; margin: 4px 0 9px; }
+  .chiprow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chip-s { font-size: 10.5px; padding: 3px 9px; border-radius: 999px; border: 1px solid #dcd9cf; background: #fff; color: #6b6b66; }
+
+  .grid { display: grid; grid-template-columns: 1.32fr 1fr; gap: 16px; padding: 16px 22px 20px; align-items: start; }
+
+  .card { background: #fff; border: 1px solid #e2e0d8; border-radius: 11px; }
+  .cardpad { padding: 14px 16px; }
+
+  /* left: JD panel with capped height */
+  .jdpanel { display: flex; flex-direction: column; height: 560px; }
+  .jdbar { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #e6e3d9; padding: 8px 14px; }
+  .jdtab { font-size: 12px; font-weight: 600; color: #1a1a18; border-bottom: 2px solid #137a5b; padding: 5px 2px; }
+  .metrics { margin-left: auto; display: flex; gap: 7px; }
+  .metric { display: flex; align-items: center; gap: 5px; font-size: 10.5px; padding: 3px 9px; border-radius: 999px; border: 1px solid #dcd9cf; background: #fff; color: #8a887e; }
+  .metric b { font-weight: 600; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: #cfccbf; }
+  .d-green { background: #2ecc71; } .d-yellow { background: #f0d000; } .d-orange { background: #f5a623; } .d-red { background: #ff1a1a; }
+  .m-green { border-color: #a8dcc0; background: #eef9f3; color: #0f6e56; }
+  .m-yellow { border-color: #ecd98a; background: #fdf8e6; color: #7a5c08; }
+  .m-red { border-color: #f0b4b4; background: #fdeeee; color: #a32d2d; }
+  .jdbody { flex: 1; overflow-y: auto; padding: 15px 18px; font-size: 12.5px; line-height: 1.72; color: #55554f; }
+  .jdbody p { margin: 0 0 11px; }
+  .jdfoot { border-top: 1px solid #e6e3d9; padding: 6px 14px; font-size: 10.5px; color: #a6a49a; }
+
+  /* right column */
+  .scorecard { background: #17170f; color: #f4f2ea; border-radius: 11px; padding: 16px 18px; }
+  .scoretop { display: flex; align-items: center; gap: 16px; }
+  .bignum { font-family: Georgia, serif; font-size: 44px; line-height: .85; color: #7fd8b4; }
+  .bignum.dim { color: #55554f; }
+  .fitlbl { font-size: 9.5px; color: rgba(244,242,234,.5); margin-top: 3px; }
+  .verdict { font-size: 10.5px; font-weight: 700; padding: 4px 11px; border-radius: 999px; background: #1d7a58; }
+  .verdict.wait { background: #3a3a30; color: #b8b6aa; }
+  .scoreline { font-family: Georgia, serif; font-size: 17px; margin: 13px 0 11px; }
+  .dimrow { display: grid; grid-template-columns: 82px 1fr 26px; gap: 9px; align-items: center; font-size: 10.5px; color: rgba(244,242,234,.62); margin-bottom: 6px; }
+  .bar { height: 4px; border-radius: 2px; background: rgba(244,242,234,.13); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: #7fd8b4; }
+  .dimval { text-align: right; color: rgba(244,242,234,.8); }
+  .scorefoot { font-size: 9.5px; color: rgba(244,242,234,.4); border-top: 1px solid rgba(244,242,234,.1); padding-top: 9px; margin-top: 4px; }
+
+  .pipe { display: flex; align-items: flex-start; justify-content: space-between; padding: 13px 16px; position: relative; }
+  .pstep { display: flex; flex-direction: column; align-items: center; gap: 5px; flex: 1; position: relative; z-index: 1; }
+  .pnode { width: 21px; height: 21px; border-radius: 50%; display: grid; place-items: center; font-size: 9.5px; font-weight: 700; background: #efeee9; color: #a6a49a; border: 1px solid #dcd9cf; }
+  .pnode.done { background: #137a5b; color: #fff; border-color: #137a5b; }
+  .pnode.now { background: #fff; color: #137a5b; border: 2px solid #137a5b; }
+  .plabel { font-size: 9.5px; color: #8a887e; text-align: center; line-height: 1.25; }
+  .pstep.on .plabel { color: #1a1a18; font-weight: 600; }
+  .pcode { font-size: 8.5px; color: #b0aea3; font-family: ui-monospace, monospace; }
+  .prail { position: absolute; left: 44px; right: 44px; top: 24px; height: 1px; background: #e2e0d8; }
+
+  .promote { display: flex; align-items: center; gap: 12px; background: #137a5b; color: #fff; border-radius: 11px; padding: 13px 16px; }
+  .promote .lbl { font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em; opacity: .75; }
+  .promote .hd { font-family: Georgia, serif; font-size: 16px; margin-top: 2px; }
+  .pbtn2 { margin-left: auto; background: #fff; color: #0f6e56; border: none; border-radius: 8px; padding: 8px 15px; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .promote.locked { background: #e8e6de; color: #8a887e; }
+  .promote.locked .pbtn2 { background: #d8d6cd; color: #8a887e; }
+
+  .kp { }
+  .kphead { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #e6e3d9; padding: 9px 14px; }
+  .kphead .t { font-size: 12px; font-weight: 600; }
+  .kphead .n { margin-left: auto; font-size: 10.5px; color: #8a887e; }
+  .kpbody { padding: 12px 15px; font-size: 12px; line-height: 1.6; color: #55554f; }
+  .kpempty { color: #b0aea3; font-style: italic; font-size: 11.5px; }
+  .flagsec { border-top: 1px dashed #e6e3d9; margin-top: 11px; padding-top: 10px; }
+  .flagsec .h { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  .h-mis { color: #a32d2d; } .h-road { color: #7a1f1f; }
+  .flag { display: flex; gap: 7px; font-size: 11.5px; line-height: 1.45; margin-bottom: 4px; }
+  .flag .bul { margin-top: 6px; width: 5px; height: 5px; border-radius: 50%; flex: none; }
+  .flag.mis { color: #a32d2d; } .flag.mis .bul { background: #e24b4a; }
+  .flag.road { color: #7a1f1f; font-weight: 500; } .flag.road .bul { background: #7a1f1f; }
+
+  /* MAP */
+  .map { margin: 0 22px 22px; background: #fff; border: 1px solid #e2e0d8; border-radius: 11px; overflow: hidden; }
+  .maphead { background: #efeee9; border-bottom: 1px solid #e2e0d8; padding: 9px 15px; display: flex; align-items: baseline; gap: 10px; }
+  .maphead .t { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #55554f; }
+  .maphead .s { font-size: 10.5px; color: #8a887e; }
+  .mapboard { position: relative; display: grid; grid-template-columns: 1.5fr 1fr; }
+  #lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 2; }
+  .cvcol { border-right: 1px solid #e2e0d8; position: relative; z-index: 1; }
+  .reqcol { position: relative; z-index: 1; }
+  .colhead { background: #f6f5f1; border-bottom: 1px solid #e2e0d8; padding: 7px 13px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #8a887e; }
+  .colhead .sub { display: block; font-weight: 400; text-transform: none; letter-spacing: 0; color: #a6a49a; margin-top: 2px; font-size: 9.5px; }
+
+  .posgrp { border-top: 1px solid #f0eee6; }
+  .posgrp:first-of-type { border-top: none; }
+  .postitle { padding: 8px 13px 3px; font-size: 12px; font-weight: 600; }
+  .postitle .loc { font-weight: 400; color: #a6a49a; }
+  .lane { display: flex; border-top: 1px dashed #f4f2ea; }
+  .posgrp > .lane:first-of-type { border-top: none; }
+  .lanelbl { width: 118px; flex: none; font-size: 10px; line-height: 1.3; color: #6b6b66; padding: 7px 6px 7px 13px; border-right: 1px dashed #f0eee6; display: flex; align-items: center; }
+  .lanedrop { flex: 1; padding: 5px 9px; display: flex; flex-direction: column; gap: 5px; min-height: 34px; }
+  .lanedrop:empty::before { content: "drop evidence here"; font-size: 9.5px; color: #d4d1c6; align-self: flex-start; padding-top: 5px; }
+  .ev { width: 100%; padding: 6px 9px; font-size: 10.5px; line-height: 1.4; border-radius: 4px; border: 1px solid #b4e0cd; background: #f0f9f5; color: #0f6e56; cursor: pointer; }
+  .ev.hot { box-shadow: 0 0 0 1.5px #185fa5 inset; }
+
+  .reqsub { display: grid; grid-template-columns: 84px 1fr 128px 20px 16px; gap: 9px; background: #f9f8f4; border-bottom: 1px solid #e2e0d8; }
+  .reqsub > div { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #a6a49a; padding: 5px 0 5px 13px; }
+  .reqsub .a { border-right: 1.5px solid #ddd9cd; }
+  .reqsub .b { grid-column: 2/6; padding-left: 0; padding-right: 9px; display: flex; align-items: center; }
+  .reqrow { display: grid; grid-template-columns: 84px 1fr 128px 20px 16px; gap: 9px; border-top: 1px solid #f0eee6; cursor: pointer; }
+  .reqrow:first-of-type { border-top: none; }
+  .reqrow.hot { background: #eef5fb; }
+  .acell { border-right: 1.5px solid #ddd9cd; background: #fbfaf7; padding: 9px 0 9px 13px; }
+  .reqrow.hot .acell { background: #e4eef8; }
+  .ful { display: flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700; }
+  .ful .d { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .f-vs { color: #0f6e56; } .f-vs .d { background: #1d9e75; }
+  .f-s  { color: #0f6e56; } .f-s .d  { background: #5dcaa5; }
+  .f-p  { color: #854f0b; } .f-p .d  { background: #ef9f27; }
+  .f-g  { color: #a32d2d; } .f-g .d  { background: #e24b4a; }
+  .f-b  { color: #fff; background: #7a1f1f; padding: 2px 7px; border-radius: 4px; }
+  .f-b .d { background: #ffb3b3; }
+  .f-pend { color: #b0aea3; font-weight: 400; font-style: italic; }
+  .rdesc { font-size: 11px; line-height: 1.45; padding: 9px 0; }
+  .jq { margin-top: 4px; font-size: 10px; font-style: italic; color: #a6a49a; border-left: 2px solid #e6e3d9; padding-left: 7px; line-height: 1.4; }
+  .rname { font-size: 11px; font-weight: 500; text-align: right; line-height: 1.3; padding: 9px 0; }
+  .rord { font-size: 10px; color: #a6a49a; text-align: right; padding: 9px 0; }
+  .rtierw { display: flex; align-items: stretch; padding: 4px 9px 4px 0; }
+  .rtier { width: 7px; border-radius: 4px; flex: none; }
+  .t-core { background: #0c447c; } .t-imp { background: #85b7eb; } .t-nice { background: #dfeaf6; border: 1px solid #b5d4f4; }
+  .tierlegend { display: flex; align-items: center; gap: 11px; margin-left: auto; }
+  .tl { display: flex; align-items: center; gap: 5px; font-size: 9.5px; font-weight: 600; text-transform: none; letter-spacing: 0; color: #6b6b66; }
+  .tl i { width: 7px; height: 12px; border-radius: 3px; display: block; }
+  .mapempty { padding: 26px 15px; text-align: center; font-size: 11.5px; color: #b0aea3; font-style: italic; }
+
+  .picker { border-top: 1px solid #e2e0d8; background: #faf9f6; padding: 9px 15px 12px; }
+  .picker .h { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #8a887e; margin-bottom: 7px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 9px; }
+  .tb { font-size: 10px; padding: 4px 9px; border-radius: 999px; border: 1px solid #dcd9cf; background: #fff; color: #6b6b66; }
+  .tb.on { background: #1a1a18; color: #fff; border-color: #1a1a18; }
+  .pchips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pc { max-width: 250px; padding: 5px 8px; font-size: 10px; line-height: 1.35; border-radius: 4px; border: 1px solid #dcd9cf; background: #fff; color: #6b6b66; }
+  .pc.y { border-color: #ef9f27; background: #fef6e9; color: #5c3d09; }
+  .dimmed { opacity: .4; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>RoleProof &mdash; Job Lead page, final design for validation</h1>
+  <p class="lede">One page, five states. Click a phase to see what the page looks like at that moment. The frame never moves: the JD panel's height is pinned to the right column (score + pipeline + promote), so the Map always starts at the same Y. <code>Must-haves</code> and <code>Skills</code> tabs are gone; freshness and saturation take that space. <code>How RoleProof checked</code> is gone; Key Patterns + flags take its place.</p>
+
+  <div class="phasebar">
+    <button class="pbtn active" data-p="0">A1 &middot; Captured &rarr; queue</button>
+    <button class="pbtn" data-p="1">B1 &middot; Freshness &amp; saturation</button>
+    <button class="pbtn" data-p="2">B2 &middot; Extract requirements</button>
+    <button class="pbtn" data-p="3">B3&ndash;B4 &middot; Roadblocks &amp; misalignments</button>
+    <button class="pbtn" data-p="4">B5 &middot; Areas of expertise</button>
+    <button class="pbtn" data-p="5">B6 &middot; Role fit score</button>
+  </div>
+  <p class="phasenote" id="pnote"></p>
+
+  <div class="app">
+    <div class="topbar">
+      <span class="brand"><span class="brandmark">R</span>RoleProof</span>
+      <span>&larr; All leads</span><span class="navitem">Career Graph</span><span class="navitem on">Leads</span>
+      <span class="navitem">Dashboard</span><span class="navitem">Pipeline</span><span class="navitem">Discover</span>
+      <span style="margin-left:auto">Reginaldo (Reggie) Silva Junior</span>
+    </div>
+
+    <div class="leadhead">
+      <div class="eyebrow">Erste Digital &middot; Vienna</div>
+      <div class="leadtitle">Chief of Staff</div>
+      <div class="chiprow">
+        <span class="chip-s" id="statuschip">Captured</span>
+        <span class="chip-s" id="groupchip">JD group &mdash; pending</span>
+        <span class="chip-s">ATS &middot; Unknown</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card jdpanel">
+        <div class="jdbar">
+          <span class="jdtab">The role</span>
+          <span class="metrics" id="metrics"></span>
+        </div>
+        <div class="jdbody">
+          <p><b>Chief of Staff to the Managing Director</b><br>HR | Holding &amp; IT-Recruiting | Erste Group</p>
+          <p>Erste Digital is the technology engine of Erste Group &ndash; one of the leading banking groups in Central and Eastern Europe, serving more than 16 million customers. More than 1,800 experts at our locations in Vienna, Bratislava and Prague develop innovative digital products, platforms and infrastructures that shape the banking of tomorrow.</p>
+          <p>As Chief of Staff, you are the Managing Director's closest professional sparring partner and take on a strategic-operational key function with direct influence on central decisions and priorities of the company. You act across departments, resolve operational bottlenecks, drive strategic projects forward and prepare critical decisions at C-level.</p>
+          <p><b>DEINE AUFGABEN</b></p>
+          <p>&bull; Gemeinsam mit unserem CEO arbeitest du an der Entwicklung und Umsetzung strategischer Initiativen<br>&bull; Du analysierst Markt- und Gesch&auml;ftstrends, um neue Chancen f&uuml;r Wachstum und Effizienz zu identifizieren<br>&bull; Du analysierst und erhebst Informationen &uuml;ber unsere Konkurrenz und bereitest diese f&uuml;r Entscheidungsgrundlagen auf<br>&bull; Du unterst&uuml;tzt den CEO bei der Skalierung des Unternehmens durch systematische Entwicklung neuer Strukturen und Gesch&auml;ftsprozesse<br>&bull; In deiner Rolle sorgst du f&uuml;r einen effektiven Informationsfluss zwischen den einzelnen C Level Managern<br>&bull; Du unterst&uuml;tzt den CEO bei Board-Meetings und erstellt die entsprechenden Board Unterlagen</p>
+          <p><b>DEIN PROFIL</b></p>
+          <p>&bull; Du verf&uuml;gst &uuml;ber ein abgeschlossenes Universit&auml;tsstudium (bevorzugt Master)<br>&bull; Du kannst mind. 3 Jahre Berufserfahrung in einer relevanten Rolle (Chief of Staff, Finance, Consulting, etc.) idealerweise in einem Tech-Umfeld vorweisen<br>&bull; Du verf&uuml;gst &uuml;ber hervorragende analytische F&auml;higkeiten, eine Affinit&auml;t zu Zahlen und bist versiert in der Erstellung von (ad hoc-)Berichten<br>&bull; Deine Deutsch- und Englischkenntnisse in Wort und Schrift sind ausgezeichnet<br>&bull; Selbstst&auml;ndige, pr&auml;zise und pragmatische Arbeitsweise<br>&bull; Den Wunsch mit Kollegen in einem B&uuml;ro zu arbeiten &mdash; statt alleine zu Hause</p>
+        </div>
+        <div class="jdfoot">Full posting &middot; scroll for the rest &middot; height pinned to the right column</div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div class="scorecard" id="scorecard"></div>
+        <div class="card"><div class="pipe" id="pipe"></div></div>
+        <div id="promotewrap"></div>
+        <div class="card kp">
+          <div class="kphead"><span class="t">Key patterns</span><span class="n" id="kpn"></span></div>
+          <div class="kpbody" id="kpbody"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="map">
+      <div class="maphead"><span class="t">Requirement &rarr; evidence map</span><span class="s" id="mapsub"></span></div>
+      <div class="mapboard" id="mapboard">
+        <svg id="lines"></svg>
+        <div class="cvcol" id="cvcol"></div>
+        <div class="reqcol" id="reqcol"></div>
+      </div>
+      <div class="picker" id="picker"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var POSITIONS = [
+    { t:'Head of Governance &amp; Strategy', loc:'', lanes:[
+      {h:'Role Overview', ev:[
+        {r:1, x:'Owned end-to-end governance for Management Board, Supervisory Board and General Assembly cycles including agendas, decision packs and meeting logistics.'},
+        {r:1, x:'Captured, formalised and maintained board and shareholder resolutions ensuring accurate documentation, traceability and audit-ready records.'},
+        {r:3, x:'Represented the shareholder at General Assembly meetings for six years, communicating confidently at board level.'},
+        {r:2, x:'Served as strategic sparring partner to the Management Board on governance and strategy discussions.'},
+        {r:4, x:'Digitalised board decision-making by automating approvals in SharePoint and introducing e-signatures.'},
+        {r:4, x:'Developed a regulatory-compliant Procurement and Outsourcing Framework and implemented iValua.'}
+      ]},
+      {h:'Outsourcing Framework Development and Rollout', ev:[
+        {r:4, x:'Designed and rolled out an enterprise-wide Outsourcing Framework across six European countries, eliminating regional process variants.'}
+      ]},
+      {h:'Transforming Governance Process', ev:[
+        {r:3, x:'Led a collaborative review of the Levels of Authority with Heads of Department and the Management Board, clarifying decision rights.'}
+      ]},
+      {h:'Wind Down of BBAG', ev:[
+        {r:1, x:'Prepared and presented formal resolutions to the Supervisory Board for approval of the Wind Down Plan and Budget.'},
+        {r:3, x:'Acted as a trusted mediator during escalated conflicts between the Management Board and department heads.'}
+      ]}
+    ]},
+    { t:'Deputy Head of Controlling &amp; IT', loc:'', lanes:[
+      {h:'Role Overview', ev:[
+        {r:6, x:'Owned budgeting, forecasting and monthly performance reporting for the Management Board, translating drivers into decision-ready insights.'},
+        {r:6, x:'Built commercial performance versus projection dashboards in Spotfire to enable data-driven steering.'}
+      ]},
+      {h:'Accounting Correction Layer &amp; Dashboards', ev:[
+        {r:6, x:'Built automated Spotfire dashboards on clean data from the Accounting Correction Layer, enabling dynamic performance analytics.'}
+      ]},
+      {h:'Transfer Pricing &mdash; Master File', ev:[] }
+    ]},
+    { t:'Senior Analyst to the Board', loc:'', lanes:[
+      {h:'Role Overview', ev:[]},
+      {h:'Merger of BBSA Branches (BBAG)', ev:[
+        {r:2, x:'Acted as strategic sparring partner to the Management Board, developing financial models and scenarios for cross-border restructuring.'}
+      ]}
+    ]},
+    { t:'Project Manager', loc:'', lanes:[ {h:'Role Overview', ev:[]}, {h:'Servicing Center in Portugal', ev:[]} ]},
+    { t:'Project Analyst', loc:' &middot; Tokyo', lanes:[ {h:'Role Overview', ev:[]} ]},
+    { t:'Trade Marketing Coordinator', loc:' &middot; Unilever', lanes:[ {h:'Role Overview', ev:[]} ]},
+    { t:'Profile-wide', loc:'', lanes:[ {h:'Languages', ev:[ {r:8, x:'English &mdash; C1 Fluent. German &mdash; C1 Fluent / Business.'} ]} ]}
+  ];
+
+  var REQS = [
+    {o:1, tier:'core', name:'Board &amp; governance support', f:'vs', ft:'Very strong',
+     d:'Owning end-to-end governance cycles for the Management Board, Supervisory Board and General Assembly &mdash; agendas, decision packs, audit-ready resolutions &mdash; is a direct match.',
+     q:'Du unterst&uuml;tzt den CEO bei Board-Meetings und erstellst die entsprechenden Board Unterlagen gemeinsam mit den C Level Managern.'},
+    {o:2, tier:'core', name:'Strategic partnership with the CEO', f:'s', ft:'Strong',
+     d:'Serving as strategic sparring partner and trusted communication bridge to the Management Board demonstrates senior strategic partnering, though not with a CEO directly.',
+     q:'Gemeinsam mit unserem CEO arbeitest du an der Entwicklung und Umsetzung strategischer Initiativen.'},
+    {o:3, tier:'core', name:'Cross-C-level communication flow', f:'s', ft:'Strong',
+     d:'The same board-liaison experience, plus mediating between the Management Board and Department Heads, evidences effective cross-executive information flow.',
+     q:'In deiner Rolle sorgst du f&uuml;r einen effektiven Informationsfluss zwischen den einzelnen C Level Managern.'},
+    {o:4, tier:'core', name:'Process &amp; structure scaling', f:'s', ft:'Strong',
+     d:'Drafting the Outsourcing Policy and building the in-house SharePoint/Power Automate governance solution shows systematic development of new structures and processes.',
+     q:'Du unterst&uuml;tzt den CEO bei der Skalierung des Unternehmens durch systematische Entwicklung neuer Strukturen und Gesch&auml;ftsprozesse.'},
+    {o:5, tier:'core', name:'Market &amp; competitor analysis', f:'g', ft:'Gap',
+     d:'Nothing in the profile evidences market or competitor trend analysis, even though this is one of the posting&rsquo;s own core tasks.',
+     q:'Du analysierst Markt- und Gesch&auml;ftstrends... und erhebst Informationen &uuml;ber unsere Konkurrenz.'},
+    {o:6, tier:'imp', name:'Analytical &amp; ad hoc reporting', f:'p', ft:'Partial',
+     d:'Budgeting, forecasting and Spotfire dashboards show strong analytical rigor, but no evidence speaks to ad hoc / on-demand reporting specifically.',
+     q:'Du verf&uuml;gst &uuml;ber hervorragende analytische F&auml;higkeiten... versiert in der Erstellung von (ad hoc-)Berichten.'},
+    {o:7, tier:'imp', name:'Relevant tenure incl. tech environment', f:'g', ft:'Gap',
+     d:'15+ years is well above the 3-year minimum, but all of it is banking, not the tech environment the posting prefers.',
+     q:'Mind. 3 Jahre Berufserfahrung in einer relevanten Rolle... idealerweise in einem Tech-Umfeld.'},
+    {o:8, tier:'imp', name:'Bilingual communication (DE/EN)', f:'b', ft:'Block',
+     d:'Profile holds German C1 on paper, but B3 records practical level as business-conversational. The posting asks for excellent written and spoken German in a role built on C-level communication &mdash; recorded as a language roadblock, not a soft gap.',
+     q:'Deine Deutsch- und Englischkenntnisse in Wort und Schrift sind ausgezeichnet.'},
+    {o:9, tier:'nice', name:'Working style &amp; office preference fit', f:'g', ft:'Gap',
+     d:'A soft cultural-fit criterion (pragmatic, team-first, office-based) with no CV evidence to check it against.',
+     q:'Selbstst&auml;ndige, pr&auml;zise und pragmatische Arbeitsweise... den Wunsch mit Kollegen in einem B&uuml;ro zu arbeiten.'}
+  ];
+
+  var STEPS = [
+    {c:'B1', l:'Freshness'}, {c:'B2', l:'Requirements'}, {c:'B3', l:'Roadblocks'},
+    {c:'B4', l:'Misalignments'}, {c:'B5', l:'Areas of expertise'}, {c:'B6', l:'Role fit'}
+  ];
+
+  var NOTES = [
+    'Lead sits in the queue. Nothing has run: no LLM call has been spent yet. The Map shows the CV skeleton on the left so the frame is already the final one — right side and evidence lanes are empty.',
+    'B1 is code-only, no model call. Freshness and saturation land as colour-coded chips in the space the Must-haves / Skills tabs used to occupy.',
+    'B2 (was B5) runs first now — extraction before everything that reasons about requirements. The right side of the Map fills: order, tier, requirement, and the original JD line each was drawn from. Assessment column stays empty; nothing has judged fit yet.',
+    'B3 (was B2) writes roadblocks straight onto the requirement they block — requirement 8 flips to Block. B4 (was B3) writes misalignments into Key Patterns in red. Roadblocks gate the lead; misalignments do not — see the note below the mockup.',
+    'B5 (was B4) only assigns JD groups and the 17 area ratings. Nothing visible changes on the Map — the JD group chip in the header fills in.',
+    'B6 fills the evidence lanes from the Master Bullet Bank, which is what makes per-requirement scoring possible; those scores then roll up into the five dimensions and the overall fit. Click any requirement or evidence chip to trace the link.'
+  ];
+
+  var phase = 0;
+  var board = document.getElementById('mapboard');
+  var svg = document.getElementById('lines');
+  var active = null;
+
+  function metrics(){
+    if(phase < 1) return '<span class="metric"><span class="dot"></span>freshness &mdash; pending</span><span class="metric"><span class="dot"></span>applicants &mdash; pending</span>';
+    return '<span class="metric m-green"><span class="dot d-green"></span>0 days &middot; <b>very fresh</b></span>' +
+           '<span class="metric m-yellow"><span class="dot d-yellow"></span>62 applicants &middot; <b>moderate</b></span>';
+  }
+
+  function scorecard(){
+    var dims = [['Relevance',35],['Seniority',28],['Impact',28],['Req. align',15],['ATS',18]];
+    if(phase < 5){
+      return '<div class="scoretop"><div><div class="bignum dim">&mdash;</div><div class="fitlbl">fit /10</div></div>' +
+        '<span class="verdict wait">' + (phase === 0 ? 'Not screened' : 'Screening') + '</span></div>' +
+        '<div class="scoreline">' + (phase === 0 ? 'Waiting in the queue.' : 'Working through the B steps.') + '</div>' +
+        dims.map(function(d){ return '<div class="dimrow"><span>'+d[0]+'</span><div class="bar"></div><span class="dimval">&mdash;</span></div>'; }).join('') +
+        '<div class="scorefoot">Every dimension stays blank until B6 &mdash; no partial score is shown, because a partial score reads as a real one.</div>';
+    }
+    return '<div class="scoretop"><div><div class="bignum">6.4</div><div class="fitlbl">fit /10</div></div>' +
+      '<span class="verdict" style="background:#7a1f1f">Blocked &middot; roadblock</span></div>' +
+      '<div class="scoreline">Scored &mdash; but gated.</div>' +
+      dims.map(function(d){ return '<div class="dimrow"><span>'+d[0]+'</span><div class="bar"><i style="width:'+d[1]*2+'%"></i></div><span class="dimval">'+(d[1]/10*1.8).toFixed(1)+'</span></div>'; }).join('') +
+      '<div class="scorefoot">Requirement alignment is dragged down by one Core gap (5) and the German roadblock (8). Weighted the same way every time.</div>';
+  }
+
+  function pipe(){
+    var h = '<div class="prail"></div>';
+    STEPS.forEach(function(s, i){
+      var done = i < phase, now = i === phase - 0 && phase > 0 && i === phase - 1;
+      var isNow = (i === phase - 1);
+      var cls = i < phase - 1 ? 'done' : (isNow ? 'now' : '');
+      h += '<div class="pstep '+(isNow?'on':'')+'"><span class="pnode '+cls+'">'+(i < phase - 1 ? '✓' : i+1)+'</span>' +
+           '<span class="plabel">'+s.l+'</span><span class="pcode">'+s.c+'</span></div>';
+    });
+    return h;
+  }
+
+  function promote(){
+    if(phase < 5) return '<div class="promote locked"><div><div class="lbl">Your next move</div><div class="hd">'+(phase===0?'Screen this role':'Keep screening')+'</div></div><button class="pbtn2">'+(phase===0?'Screen':'Running…')+'</button></div>';
+    return '<div class="promote" style="background:#7a1f1f"><div><div class="lbl">Your next move</div><div class="hd">Roadblock &mdash; decide before tailoring</div></div><button class="pbtn2" style="color:#7a1f1f">Review</button></div>';
+  }
+
+  function keypatterns(){
+    if(phase < 3) return {n:'', b:'<div class="kpempty">Nothing recorded yet &mdash; key patterns are written at B5, flags at B3&ndash;B4.</div>'};
+    var road = '<div class="flagsec"><div class="h h-road">Roadblocks &mdash; these gate the lead</div>' +
+      '<div class="flag road"><span class="bul"></span><span>Language: German (excellent written/spoken required; practical level is business-conversational) &rarr; requirement 8</span></div></div>';
+    var mis = '<div class="flagsec"><div class="h h-mis">Misalignments &mdash; awareness only, not a gate</div>' +
+      '<div class="flag mis"><span class="bul"></span><span>Culture: on-site only &mdash; posting explicitly prefers office over working from home</span></div>' +
+      '<div class="flag mis"><span class="bul"></span><span>Seniority: overqualified (role targets 3+ years; profile is 15+)</span></div></div>';
+    var pat = phase >= 4
+      ? 'Executive-office role with a governance spine: board preparation, C-level information flow and process scaling all map onto the Head of Governance &amp; Strategy years. Lead with board cycle ownership and the SharePoint governance build; the analytical ask is real but secondary.'
+      : '<span class="kpempty">Written at B5.</span>';
+    return {n: phase >= 4 ? 'CSEO &middot; TPM' : '', b: pat + road + mis};
+  }
+
+  function cvcol(){
+    var h = '<div class="colhead">From positions<span class="sub">cv_position &rarr; cv_heading</span></div>';
+    POSITIONS.forEach(function(p, pi){
+      h += '<div class="posgrp"><div class="postitle">'+p.t+'<span class="loc">'+p.loc+'</span></div>';
+      p.lanes.forEach(function(l, li){
+        h += '<div class="lane"><div class="lanelbl">'+l.h+'</div><div class="lanedrop">';
+        if(phase >= 5){
+          l.ev.forEach(function(e, ei){
+            h += '<div class="ev" data-req="'+e.r+'">'+e.x+'</div>';
+          });
+        }
+        h += '</div></div>';
+      });
+      h += '</div>';
+    });
+    return h;
+  }
+
+  function reqcol(){
+    if(phase < 2){
+      return '<div class="colhead">Job requirements<span class="sub">populated at B2</span></div>' +
+             '<div class="mapempty">No requirements extracted yet.<br>They arrive when B2 runs.</div>';
+    }
+    var h = '<div class="colhead">Chief of Staff &middot; Erste Digital<span class="sub">assessment &middot; requirement &amp; original JD text &middot; order &middot; tier</span></div>';
+    h += '<div class="reqsub"><div class="a">Assessment</div><div class="b">Job requirement &amp; original JD text' +
+         '<span class="tierlegend">' +
+           '<span class="tl"><i class="t-core"></i>Core</span>' +
+           '<span class="tl"><i class="t-imp"></i>Important</span>' +
+           '<span class="tl"><i class="t-nice"></i>Nice-to-have</span>' +
+         '</span></div></div>';
+    REQS.forEach(function(r){
+      var showF = (r.f === 'b') ? (phase >= 3) : (phase >= 5);
+      var fh = showF
+        ? '<div class="ful f-'+r.f+'"><span class="d"></span>'+r.ft+'</div>'
+        : '<div class="ful f-pend">pending</div>';
+      var desc = showF ? r.d : '<span style="color:#a6a49a">Assessment runs at ' + (r.f==='b' ? 'B3' : 'B6') + '.</span>';
+      h += '<div class="reqrow" data-order="'+r.o+'">' +
+        '<div class="acell">'+fh+'</div>' +
+        '<div class="rdesc">'+desc+'<div class="jq">&bdquo;'+r.q+'&ldquo;</div></div>' +
+        '<div class="rname">'+r.name+'</div>' +
+        '<div class="rord">'+r.o+'</div>' +
+        '<div class="rtierw"><div class="rtier t-'+r.tier+'"></div></div>' +
+      '</div>';
+    });
+    return h;
+  }
+
+  function picker(){
+    var dim = phase < 5 ? ' dimmed' : '';
+    return '<div class="h">Evidence picker' + (phase < 5 ? ' &mdash; unlocked at B6' : '') + '</div>' +
+      '<div class="tabs'+dim+'"><span class="tb on">Bullet bank</span><span class="tb">Responsibilities</span><span class="tb">STARs &rarr; Actions</span>' +
+      '<span class="tb">Results</span><span class="tb">Competences</span><span class="tb">Attributes</span><span class="tb">Skills</span></div>' +
+      '<div class="pchips'+dim+'">' +
+      '<span class="pc y">Facilitated cross-country co-development workshops uniting four Administrative Departments.</span>' +
+      '<span class="pc y">Took full ownership of an in-house Governance System on SharePoint and Power Automate.</span>' +
+      '<span class="pc">Master File passed audit inspections in four jurisdictions with zero findings.</span>' +
+      '<span class="pc">Led the consolidation of European back-office operations into a 40-member Shared Services Centre.</span>' +
+      '</div>';
+  }
+
+  function drawLine(a, b){
+    var br = board.getBoundingClientRect();
+    var e = a.getBoundingClientRect(), r = b.getBoundingClientRect();
+    var x1 = e.right - br.left, y1 = e.top + e.height/2 - br.top;
+    var x2 = r.left - br.left, y2 = r.top + r.height/2 - br.top;
+    var mx = (x1+x2)/2;
+    var p = document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d','M '+x1+' '+y1+' C '+mx+' '+y1+', '+mx+' '+y2+', '+x2+' '+y2);
+    p.setAttribute('fill','none'); p.setAttribute('stroke','#185FA5');
+    p.setAttribute('stroke-width','1.5'); p.setAttribute('opacity','.5');
+    svg.appendChild(p);
+  }
+  function clearTrace(){
+    svg.innerHTML='';
+    document.querySelectorAll('.ev.hot').forEach(function(x){x.classList.remove('hot');});
+    document.querySelectorAll('.reqrow.hot').forEach(function(x){x.classList.remove('hot');});
+    active=null;
+  }
+  function traceReq(row){
+    clearTrace(); row.classList.add('hot'); active={m:'r',el:row,list:[]};
+    document.querySelectorAll('.ev').forEach(function(ev){
+      if(ev.getAttribute('data-req') === row.getAttribute('data-order')){
+        ev.classList.add('hot'); active.list.push(ev); drawLine(ev, row);
+      }
+    });
+  }
+  function traceEv(ev){
+    clearTrace(); ev.classList.add('hot'); active={m:'e',el:ev,list:[]};
+    document.querySelectorAll('.reqrow').forEach(function(row){
+      if(row.getAttribute('data-order') === ev.getAttribute('data-req')){
+        row.classList.add('hot'); active.list.push(row); drawLine(ev, row);
+      }
+    });
+  }
+
+  function render(){
+    document.getElementById('metrics').innerHTML = metrics();
+    document.getElementById('scorecard').innerHTML = scorecard();
+    document.getElementById('pipe').innerHTML = pipe();
+    document.getElementById('promotewrap').innerHTML = promote();
+    var kp = keypatterns();
+    document.getElementById('kpn').innerHTML = kp.n;
+    document.getElementById('kpbody').innerHTML = kp.b;
+    document.getElementById('cvcol').innerHTML = cvcol();
+    document.getElementById('reqcol').innerHTML = reqcol();
+    document.getElementById('picker').innerHTML = picker();
+    document.getElementById('pnote').innerHTML = NOTES[phase];
+    document.getElementById('mapsub').innerHTML = phase < 2 ? 'CV structure only &mdash; requirements arrive at B2'
+      : (phase < 5 ? 'requirements in place &mdash; evidence arrives at B6' : 'click a requirement or an evidence chip to trace');
+    document.getElementById('statuschip').innerHTML = ['Captured','Screening','Screening','Screening','Screening','Screened &middot; blocked'][phase];
+    document.getElementById('groupchip').innerHTML = phase >= 4 ? 'Chief of Staff &amp; Executive Office' : 'JD group &mdash; pending';
+    clearTrace();
+  }
+
+  document.querySelectorAll('.pbtn').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('.pbtn').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active'); phase = +b.getAttribute('data-p'); render();
+    });
+  });
+  document.addEventListener('click', function(e){
+    var row = e.target.closest('.reqrow');
+    if(row){ if(active && active.m==='r' && active.el===row) clearTrace(); else traceReq(row); return; }
+    var ev = e.target.closest('.ev');
+    if(ev){ if(active && active.m==='e' && active.el===ev) clearTrace(); else traceEv(ev); }
+  });
+  window.addEventListener('resize', function(){
+    if(!active) return; svg.innerHTML='';
+    if(active.m==='r') active.list.forEach(function(x){ drawLine(x, active.el); });
+    else active.list.forEach(function(x){ drawLine(active.el, x); });
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

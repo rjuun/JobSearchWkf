@@ -5,7 +5,7 @@ ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-07-28
 ci-estimated-time: 4
-ci-time-spent: 1
+ci-time-spent: 5.5
 pr-source: "[[B1. Capture Posting Freshness and Market Saturation]], [[B2. Identify Roadblocks]], [[B3. Identify Misalignments]], [[B4. Translate Requirements to Areas of Expertise and Define JD Groups]]"
 pr-target:
 ---

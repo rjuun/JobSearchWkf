@@ -92,7 +92,17 @@ describe('detectAtsSystem', () => {
     expect(detectAtsSystem('https://career.sap.com/job/Vienna/Finance-Manager_123')).toBe('SAP SuccessFactors');
   });
 
-  it('returns null for an unrecognized domain, leaving B4 to fall back', () => {
+  // Folded in from the deleted B4 §C list (CI · Lead Page as Pipeline Canvas
+  // §2.2a). These three were the divergence: B4's note named them, this table
+  // didn't, so which list applied depended on which step happened to run.
+  it('detects the three vendors absorbed from B4 §C', () => {
+    expect(detectAtsSystem('https://jobs.jobvite.com/acme/job/oABC123')).toBe('Jobvite – Employ Inc');
+    expect(detectAtsSystem('https://recruiting.ukg.com/careers/JobDetail/123')).toBe('UKG Pro Recruiting (UltiPro)');
+    expect(detectAtsSystem('https://acme.recruitment.ultipro.com/ACM1234/JobBoard')).toBe('UKG Pro Recruiting (UltiPro)');
+    expect(detectAtsSystem('https://acme.umantis.com/Vacancies/123/Description/1')).toBe('Umantis');
+  });
+
+  it('returns null for an unrecognized domain, leaving A1 §C page extraction to fill it', () => {
     expect(detectAtsSystem('https://www.linkedin.com/jobs/view/1234567')).toBeNull();
   });
 

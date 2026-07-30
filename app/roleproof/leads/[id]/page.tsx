@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { getLead, getPipelineRuns, getRequirements, getTailoring, tipsForLead } from '@/lib/queries';
+import { getCvSkeleton, getLead, getPipelineRuns, getRequirements, getTailoring, tipsForLead } from '@/lib/queries';
 import { exists } from '@/lib/storage';
 import { journeyState } from '@/lib/journey';
 import { recommendationFor } from '@/lib/scoring';
@@ -29,7 +29,7 @@ export default async function RoleProofWorkspacePage({
   if (!lead) notFound();
 
   const owner = await currentOwnerId();
-  const [requirements, jd, tailoring, cvReady, leadTips, runTrace, coachBridge] = await Promise.all([
+  const [requirements, jd, tailoring, cvReady, leadTips, runTrace, coachBridge, cvSkeleton] = await Promise.all([
     getRequirements(lead.id),
     Promise.resolve(lead.jdText ?? null),
     getTailoring(lead.id),
@@ -37,6 +37,9 @@ export default async function RoleProofWorkspacePage({
     tipsForLead(lead.id),
     getPipelineRuns(lead.id),
     hasOpenScreeningGap(owner, lead.id),
+    // The Map's left column. Loaded unconditionally, including for a lead nothing
+    // has run on yet — the skeleton is what makes the frame final at capture (§2.4).
+    getCvSkeleton(owner),
   ]);
 
   const cleanedJd = cleanJd(jd);
@@ -75,9 +78,10 @@ export default async function RoleProofWorkspacePage({
     postedDays: lead.postedDays,
     freshnessBand: lead.freshnessBand,
     saturationBand: lead.saturationBand,
-    roadblocks: (lead.roadblocks ?? []) as { dimension: string; detail: string }[],
+    roadblocks: (lead.roadblocks ?? []) as { dimension: string; detail: string; requirementId?: string }[],
     misalignments: (lead.misalignments ?? []) as { dimension: string; detail: string }[],
     skillRatings: (lead.skillRatings ?? {}) as Record<string, number>,
+    keyPatterns: lead.keyPatterns,
   };
 
   const requirementsRp: RpReq[] = requirements.map((r) => ({
@@ -88,11 +92,13 @@ export default async function RoleProofWorkspacePage({
     description: r.description,
     initialScore: r.initialScore,
     initialMatchStrength: r.initialMatchStrength,
+    sourceText: r.sourceText,
     skills: r.skills ?? [],
   }));
 
   const tailoringRp: RpRow[] = tailoring.map((t) => ({
     id: t.id,
+    requirementId: t.requirementId,
     requirementLine: t.requirementLine,
     evidenceRef: t.evidenceRef,
     originalText: t.originalText,
@@ -129,6 +135,7 @@ export default async function RoleProofWorkspacePage({
         lead={rpLead}
         requirements={requirementsRp}
         tailoring={tailoringRp}
+        cvSkeleton={cvSkeleton}
         jd={cleanedJd}
         journey={journey}
         recommendation={recommendation}

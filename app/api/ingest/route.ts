@@ -5,11 +5,11 @@ import { verifyCaptureToken } from '@/lib/auth';
 
 const ALLOWED_REMOTE = new Set(['on-site', 'hybrid', 'remote', 'unspecified']);
 
-// createLead() now runs A1 extraction *and* B1–B3 inline (Scoring Phase
+// createLead() now runs A1 extraction *and* B1–B4 inline (Scoring Phase
 // Redesign), so capture went from one Sonnet call to three. 60s matches the
 // three existing page-level maxDuration exports in this repo and sits inside
 // the ceiling on every Vercel plan the CI names (Hobby allows 1–60s; Pro and
-// Fluid Compute allow more). Cheap insurance against a 504 losing the B1–B3
+// Fluid Compute allow more). Cheap insurance against a 504 losing the B1–B4
 // half of a capture — the lead itself is already committed by then.
 export const maxDuration = 60;
 
@@ -41,6 +41,11 @@ export async function POST(req: NextRequest) {
     const remote =
       'remote' in body ? (typeof body.remote === 'string' && ALLOWED_REMOTE.has(body.remote) ? body.remote : null) : undefined;
     const formatSignals = 'formatSignals' in body ? (typeof body.formatSignals === 'string' ? body.formatSignals : null) : undefined;
+    // A1 §C · the ATS the capturing agent could see on the rendered page. Plain
+    // `?? null` is fine here (unlike the fields above): ATS has no
+    // "absent vs. explicitly empty" distinction to preserve — §B.2's hostname
+    // match wins either way, and this only ever fills a null.
+    const atsSystem = typeof body.atsSystem === 'string' ? body.atsSystem : null;
     const id = await createLead(
       {
         title: typeof body.title === 'string' ? body.title.slice(0, 200) : 'Captured lead',
@@ -48,6 +53,7 @@ export async function POST(req: NextRequest) {
         city,
         remote: remote as 'on-site' | 'hybrid' | 'remote' | 'unspecified' | null | undefined,
         formatSignals,
+        atsSystem,
         sourceUrl: body.url ?? null,
         source: typeof body.source === 'string' && body.source.trim() ? body.source : 'AI-driven capture',
         candidateLinks,

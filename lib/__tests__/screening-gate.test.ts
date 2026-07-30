@@ -2,20 +2,20 @@
  * The two branches the Scoring Phase Redesign introduced into `runInitialChecks`
  * (CI §2.3 step 11). Both are new decision logic, so both get locked down here.
  *
- *  1. The auto-select rule — a lead with nothing flagged by B2/B3 must reach
+ *  1. The auto-select rule — a lead with nothing flagged by B3/B4 must reach
  *     `selected` on its own, and anything flagged must park at `scoring_queue`
  *     where it waits for a human. Getting this backwards would either bury clean
  *     leads behind a click that has nothing to decide, or silently score leads
  *     that a roadblock should have stopped.
  *  2. The B1 hold gate as a real short-circuit — `shouldHold` decides whether
- *     B2/B3 run at all. It used to be computed twice and acted on only at B6,
+ *     B2–B4 run at all. It used to be computed twice and acted on only at B6,
  *     which meant two LLM calls were spent on postings B1 already knew were
  *     stale.
  *
  * Both are pure functions on purpose (vitest here is plain node — no DB, no
  * network, no LLM), which is why `gateStatusFor` was extracted from the DB write
  * rather than left inline. The control flow that consumes them is verified
- * separately against `pipeline_runs` — a unit test can't prove B2/B3 didn't run.
+ * separately against `pipeline_runs` — a unit test can't prove B2–B4 didn't run.
  */
 import { describe, it, expect } from 'vitest';
 import { gateStatusFor } from '../pipeline/screening';
@@ -49,7 +49,7 @@ describe('the screening gate: clean leads select themselves', () => {
   });
 });
 
-describe('the B1 hold gate decides whether B2/B3 run at all', () => {
+describe('the B1 hold gate decides whether B2-B4 run at all', () => {
   it('holds at exactly the 60-day threshold, not a day earlier', () => {
     expect(shouldHold(59)).toBe(false);
     expect(shouldHold(60)).toBe(true);
@@ -66,7 +66,7 @@ describe('the B1 hold gate decides whether B2/B3 run at all', () => {
   });
 
   it('a held lead is never also gated: the two decisions are mutually exclusive', () => {
-    // runInitialChecks returns before B2/B3 when shouldHold is true, so
+    // runInitialChecks returns before B2-B4 when shouldHold is true, so
     // gateStatusFor is only ever reached for a lead that passed B1. This
     // encodes that ordering: a stale posting must not end up `selected` just
     // because it happens to have no flags recorded yet.

@@ -3,7 +3,7 @@
 /**
  * The screening gate's human decisions (Scoring Phase Redesign §2.2.E).
  *
- * Only leads B2/B3 actually flagged reach the Queue tab — clean leads were
+ * Only leads B3/B4 actually flagged reach the Queue tab — clean leads were
  * auto-advanced to `selected` by runInitialChecks and never appear here. So
  * every row in the Queue is a genuine decision, and this action records it.
  *

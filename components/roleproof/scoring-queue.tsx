@@ -76,7 +76,7 @@ function QueueRow({ lead }: { lead: QueueLead }) {
     });
   }
 
-  // A held lead's B2/B3 never ran (B1 short-circuits), so there's nothing to
+  // A held lead's B2-B4 never ran (B1 short-circuits), so there's nothing to
   // triage yet — "Screen anyway" is the override that runs them.
   function screenAnyway() {
     setError(null);

@@ -24,11 +24,11 @@ export type JdGroupCode = 'SCD' | 'CSEO' | 'OSS' | 'CFPA' | 'TPM' | 'POESG';
 export type LeadStatus =
   | 'captured'
   // ── The B-phase screening gate (Scoring Phase Redesign) ──
-  | 'scoring_queue' // B2/B3 flagged something — waiting on a human decision
+  | 'scoring_queue' // B3/B4 flagged something — waiting on a human decision
   | 'roadblocked' //   dropped at the gate: a hard blocker
   | 'misaligned' //    dropped at the gate: a values/culture mismatch
   | 'selected' //      cleared the gate (auto when clean) — queued for batch scoring
-  | 'screening' //     transient: B4-B6 in flight
+  | 'screening' //     transient: B5/B6 in flight
   | 'hold'
   | 'screened'
   | 'promoted'

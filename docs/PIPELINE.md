@@ -14,10 +14,14 @@ flowchart TD
     subgraph B["B · Screening (gate before tailoring)"]
         B1["B1 · Freshness & saturation<br/><i>code parse</i>"] --> G1{"≥ 60 days<br/>old?"}
         G1 -- yes --> HOLD["status: hold<br/>(verify still active)"]
-        G1 -- no --> B2["B2 · Roadblocks<br/><i>Sonnet 5</i>"]
-        B2 --> B3["B3 · Misalignments<br/><i>Sonnet 5</i>"]
-        B3 --> B4["B4 · Skills (A–Q) + JD Group + ATS<br/><i>Sonnet 5</i>"]
-        B4 --> B5["B5 · Extract & rank requirements<br/><i>Sonnet 5</i>"]
+        G1 -- no --> B2["B2 · Extract & rank requirements<br/><i>Sonnet 5</i>"]
+        B2 --> B3["B3 · Roadblocks<br/><i>Sonnet 5</i>"]
+        B3 --> B4["B4 · Misalignments<br/><i>Sonnet 5</i>"]
+        B4 --> G1b{"Anything<br/>flagged?"}
+        G1b -- yes --> SQ["status: scoring_queue<br/>(needs your call — never auto-abandoned)"]
+        G1b -- no --> SEL["status: selected"]
+        SQ -.->|"batch decision"| B5
+        SEL --> B5["B5 · Areas of Expertise + JD Group<br/><i>Sonnet 5</i>"]
         B5 --> B6["B6 · Role Fit Score<br/><i>Opus 4.8 + code rollup</i>"]
     end
 
@@ -57,22 +61,61 @@ flowchart TD
 
 All B steps read the captured JD; outputs land on `job_leads` / `job_requirements`.
 
-**B runs in two halves, not one pass** (`lib/pipeline/screening.ts`). `runInitialChecks` (B1→B2→B3)
-fires automatically from `createLead()` at capture; the G1 gate above is a real short-circuit, so a
-posting ≥60 days old reaches `hold` with **no B2/B3 rows in `pipeline_runs` at all**. A lead nothing
-flagged auto-advances to `selected`; anything flagged parks at `scoring_queue` for a human decision.
-`runScoring` (B4→B5→B6) then runs later, once, over the whole `selected` pile from the Ready-to-score
-batch runner — deliberately sequential, so the calls land seconds apart and hit the warm 1h prompt
-cache. `runScreening` remains as a back-compat wrapper that chains both halves.
+**B runs in two halves, not one pass** (`lib/pipeline/screening.ts`). `runInitialChecks`
+(B1→B2→B3→B4) fires automatically from `createLead()` at capture; the G1 gate above is a real
+short-circuit, so a posting ≥60 days old reaches `hold` with **no B2–B4 rows in `pipeline_runs` at
+all**. A lead nothing flagged auto-advances to `selected`; anything flagged parks at `scoring_queue`
+for a human decision — never auto-abandoned. `runScoring` (B5→B6) then runs later, once, over the
+whole `selected` pile from the Ready-to-score batch runner — deliberately sequential, so the calls
+land seconds apart and hit the warm 1h prompt cache. `runScreening` remains as a back-compat wrapper
+that chains both halves.
+
+### The B-phase reorder (CI · *Lead Page as Pipeline Canvas* §2.1)
+
+**Step codes moved; step bodies did not.** Extraction is now **B2** and runs first:
+
+| Was | Now | Step |
+| --- | --- | --- |
+| B5 | **B2** | Extract Requirements from Job Description |
+| B2 | **B3** | Identify Roadblocks |
+| B3 | **B4** | Identify Misalignments |
+| B4 | **B5** | Translate Requirements to Areas of Expertise and Define JD Groups |
+
+The reason is in the titles, not in the UI: **B5 is called _Translate Requirements to Areas of
+Expertise_ and used to run before any requirements existed**, so it necessarily translated raw JD
+text — its name and its position had contradicted each other since the note was written. Second, a
+hard dependency: B3 can now attach a roadblock to the specific requirement row it blocks (§2.5),
+which is impossible if the rows don't exist yet.
+
+Extraction also moved from the batch half into the automatic-at-capture half. Two of these three
+calls already ran on every capture in production; the third costs roughly **+$2/month** at 160
+captures, and it buys a Map whose requirement side is populated with no manual trigger. Only B5 and
+B6 — Areas of Expertise and the Opus scoring pass — remain a batch spend decision.
+
+**`pipeline_runs` history was migrated in lockstep** (`drizzle/0028_reorder_b_phase_steps.sql`).
+Without it a lead screened before this change would show a `B2` trace meaning "roadblocks" beside a
+`B2` trace meaning "requirements" — the same code silently naming two different steps.
 
 | Step | Note | Model | Output (tool schema) |
 | --- | --- | --- | --- |
 | **B1** Freshness & saturation | `B1. Capture Posting Freshness and Market Saturation.md` | **code** | days_since_publication, applicant_count, freshness/saturation bands. **Gate:** ≥60 days → `hold`. |
-| **B2** Roadblocks | `B2. Identify Roadblocks.md` | Sonnet 5 | hard ineligibility across {language, technical, certification, geographic, industry} or `None` |
-| **B3** Misalignments | `B3. Identify Misalignments.md` | Sonnet 5 | flags (not blockers) across {values/culture, city, seniority}. Context: `Values & Motives Summary.md` |
-| **B4** Skills + JD Group + ATS | `B4. Translate Requirements to Areas of Expertise and Define JD Groups.md` | Sonnet 5 | 17 ratings (A–Q, 1/2/3), `jd_group_primary/secondary`, detected `ats_system`, and the "Key Patterns & CV Tailoring Notes" text (§B step 3 of the note) → `job_leads.key_patterns` |
-| **B5** Extract requirements | `B5. Extract Requirements from Job Description.md` | Sonnet 5 | `job_requirements[]`: order, rank (Core/Important/Nice), requirement, description, skills |
+| **B2** Extract requirements | `B2. Extract Requirements from Job Description.md` | Sonnet 5 | `job_requirements[]`: order, rank (Core/Important/Nice), requirement, description, **`source_text`** (the verbatim JD sentence — not the paraphrase in `description`), skills |
+| **B3** Roadblocks | `B3. Identify Roadblocks.md` | Sonnet 5 | hard ineligibility across {language, technical, certification, geographic, industry} or `None`, each optionally naming the `requirement_id` it blocks (§2.5) |
+| **B4** Misalignments | `B4. Identify Misalignments.md` | Sonnet 5 | flags (**not blockers**) across {values/culture, city, seniority}. Context: `Values & Motives Summary.md` |
+| **B5** Areas of Expertise + JD Group | `B5. Translate Requirements to Areas of Expertise and Define JD Groups.md` | Sonnet 5 | 17 ratings (A–Q, **1=Central / 2=Contributing / 3=Peripheral**), `jd_group_primary/secondary`, and the "Key Patterns & CV Tailoring Notes" text (§B step 3 of the note) → `job_leads.key_patterns`. **No ATS** — see below. Now receives B2's requirements, which is what its title always claimed it translated. |
 | **B6** Role Fit & Investment Worthiness Score | `B6. Role Fit & Investment Worthiness Score.md` | **Opus 4.8 + code** | per-dimension scores + per-requirement match/score → **code computes overall + tier** |
+
+### ATS is A1's, and no B step's
+
+`ats_system` is set once, at capture, and no B step writes it (CI · *Lead Page as Pipeline Canvas* §2.2a).
+The Areas-of-Expertise step (**B5** now, B4 before the reorder) used to detect it, and its value
+overwrote A1's whenever non-null — but that step is passed
+`JOB DESCRIPTION:\n{jd}` and nothing else, so its answer was always inferred from prose, and ATS
+identity isn't in prose; it's in the page chrome. A verified hostname match was being replaced by an
+unverifiable guess. Its §C was deleted from the note outright rather than made conditional. A1 owns it end to end: `detectAtsSystem()` on the `jobPostLink` hostname
+(`lib/pipeline/capture-enrich.ts`, unit-tested, and the single canonical ATS-name list), then the
+capturing agent's inline page extraction filling nulls only at zero marginal cost. A re-check rides
+on A1's refresh-without-re-screening hook — the only mechanism that re-reads the page.
 
 ### B6 scoring (computed in `lib/scoring`, not by the LLM)
 
@@ -80,6 +123,11 @@ cache. `runScreening` remains as a back-compat wrapper that chains both halves.
 overall = 0.35·relevance + 0.20·seniority + 0.20·impact + 0.15·reqAlign + 0.10·ats
 reqAlign = Σ(reqScore · weight) / Σ(weight),  weight = {Core:3, Important:2, Nice:1}
 ```
+
+**Misalignments never gate.** B4's output is awareness, not a blocker: `gateStatusFor` parks a
+flagged lead at `scoring_queue` for a human call and nothing is ever auto-abandoned. `B4. Identify
+Misalignments` says so twice in bold. Implementing a hard misalignment gate would be a regression
+that silently kills viable leads — recorded here so a future pass doesn't "fix" it into one.
 
 Match strength must stay consistent with the score band (Excellent 9–10 … No Match 0–1). Record
 the `bullet_bank_version` used. Recommendation tier (Proceed / Caution / Low / Not recommended)

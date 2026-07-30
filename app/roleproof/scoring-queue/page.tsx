@@ -11,7 +11,7 @@ import { Frame } from '@/components/layout';
 import { RpScore, RpVerdictPill, rpNextAction, cn } from '@/components/roleproof/kit';
 
 export const dynamic = 'force-dynamic';
-// B4-B6 for a whole batch runs through a Server Action on this segment.
+// B5/B6 for a whole batch runs through a Server Action on this segment.
 export const maxDuration = 60;
 export const metadata: Metadata = { title: 'RoleProof — scoring queue' };
 
@@ -87,7 +87,7 @@ export default async function ScoringQueuePage({
 }
 
 /** `autoSelected` is inferred, not stored: a lead with nothing flagged reached
- *  `selected` without anyone clicking, since that's the only way B2/B3 clean
+ *  `selected` without anyone clicking, since that's the only way B3/B4 clean
  *  leads get there. Anything with a flag was a human override. */
 function toScorable(l: {
   id: string;
