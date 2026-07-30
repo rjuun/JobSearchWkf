@@ -201,7 +201,16 @@ export const education = pgTable('education', {
   institution: text('institution'),
   qualification: text('qualification'),
   type: text('type'),
+  // `year` is the display field shown on generated CVs (lib/pipeline/tailoring.ts) — kept for
+  // backward compatibility, now correctly sourced from Date_Completed (was silently reading
+  // Date_Begin, see scripts/seed.ts). `dateBegin`/`dateCompleted` carry full fidelity from the
+  // workbook for anything that needs the actual dates rather than the display string.
   year: text('year'),
+  cityCountry: text('city_country'),
+  dateBegin: text('date_begin'),
+  dateCompleted: text('date_completed'),
+  notes: text('notes'),
+  jdGroupRelevance: jsonb('jd_group_relevance').$type<string[]>().default([]),
 });
 
 export const languages = pgTable('languages', {
