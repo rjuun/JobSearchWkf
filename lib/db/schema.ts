@@ -456,6 +456,12 @@ export const llmCalls = pgTable('llm_calls', {
   status: text('status').default('ok'),
   error: text('error'),
   attempts: integer('attempts').default(1),
+  // Anthropic's `stop_reason` verbatim ('end_turn' | 'max_tokens' | 'tool_use' | ...).
+  // Null for mock calls and pre-migration rows. Recorded because a call that stops on
+  // `max_tokens` returns a TRUNCATED tool input, which a schema with .default([]) then
+  // parses as a clean empty result — status='ok', attempts=1, zero rows written. Without
+  // this column the only trace of that is output_tokens sitting exactly on the ceiling.
+  stopReason: text('stop_reason'),
 });
 
 export const ciInitiatives = pgTable('ci_initiatives', {
