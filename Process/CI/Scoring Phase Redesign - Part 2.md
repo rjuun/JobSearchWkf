@@ -1,7 +1,7 @@
 ---
 ci-area: Monitoring / D-Phase
 ci-title: Scoring Phase Redesign — Part 2 (Monitoring / Applications / Archive)
-ci-status: 2 - Testing
+ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-07-28
 ci-estimated-time: 5

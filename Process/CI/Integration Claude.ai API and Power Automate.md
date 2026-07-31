@@ -21,15 +21,6 @@ Claude API is now operational, but not integrated to Power Automate, but rather 
 ---
 ## 1. What is the problem or opportunity?
  
-
-## 2. What would the improvement look like?
-
-
-## 3. Resources or references
-
-
-## 4. Notes / Progress log
-
 Relevant to fully automate the system without my supervision / work for getting the results from Claude and feeding my Sharepoint Tables
 
 ### The One Thing You Need That You Don't Have Yet
@@ -38,6 +29,8 @@ Relevant to fully automate the system without my supervision / work for getting 
 
 The automation backbone runs on the Anthropic API directly, not on your claude.ai subscription. You'll need to create an account at console.anthropic.com, generate an API key, and store it as a secure variable in Power Automate. The cost is usage-based (per token) rather than subscription — for this workflow volume it will be very low.
 
+
+## 2. What would the improvement look like?
 
 TRIGGER
 Candidate saves JD PDF to "Job Lead" SharePoint Library
@@ -106,11 +99,20 @@ Anthropic API
 └── Called by Power Automate with injected context
 
 
+## 3. Resources or references
 
-
----
 
 ![[Pasted image 20260724160139.png]]
 
 
 ![[Pasted image 20260724160155.png]]
+
+## 4. Notes / Progress log
+
+
+
+
+
+
+
+---
