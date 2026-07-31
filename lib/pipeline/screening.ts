@@ -141,9 +141,34 @@ export async function runInitialChecks(leadId: string, ownerId?: string | null):
     const t = Date.now();
     let summary: string;
     let model = 'sonnet (reused)';
-    // Rows already present ⇒ seeded (SharePoint import) or a retry. Skipping
-    // re-extraction is what makes this half idempotent, which matters more now
-    // that it fires on every capture.
+
+    // 2026-07-31 — B2's zod schema has no floor (`requirements: z.array(...).default([])`),
+    // so ANY non-negative count is schema-valid: runStructured logs "ok", its retry never
+    // fires, and B3–B6 all happily proceed against whatever landed (B5/B6 both degrade to
+    // rating the raw JD when reqList is thin). Discovered the hard way on two real leads —
+    // one came back with 0 requirements, the next with exactly 1 from a multi-paragraph
+    // Vestas posting — and in both cases the trace panel showed all six steps LIVE with no
+    // error, while the Map quietly stayed empty or near-empty.
+    //
+    // A one-line vacancy blurb can genuinely have only one real demand, so the floor only
+    // engages once there's enough JD prose that under-reading it is implausible — a fixed
+    // "must be non-zero" wasn't enough (see the Vestas case), so past 600 characters this
+    // requires a handful, not just one.
+    const substantial = jd.trim().length > 200;
+    const minExpected = jd.trim().length > 600 ? 4 : 1;
+    const tooThin = (n: number) => substantial && n < minExpected;
+
+    // Rows already present ⇒ seeded (SharePoint import) or a prior run. Skipping
+    // re-extraction is what makes this half idempotent — unless what's seeded is itself
+    // a thin, pre-guard extraction; reusing that forever would just perpetuate the bug
+    // this guard exists to catch. Clear it and fall through to a fresh attempt instead.
+    if (requirements.length > 0 && tooThin(requirements.length)) {
+      await db
+        .delete(jobRequirements)
+        .where(and(eq(jobRequirements.jobLeadId, leadId), eq(jobRequirements.ownerId, effectiveOwnerId)));
+      requirements = [];
+    }
+
     if (requirements.length > 0) {
       summary = `${requirements.length} requirements (kept)`;
     } else {
@@ -159,6 +184,15 @@ export async function runInitialChecks(leadId: string, ownerId?: string | null):
         ownerId: effectiveOwnerId,
       });
       model = r.model;
+      if (tooThin(r.data.requirements.length)) {
+        throw new Error(
+          `B2 extracted only ${r.data.requirements.length} requirement(s) from a ${jd.trim().length}-character JD — ` +
+            (r.data.requirements.length === 0
+              ? 'the model call misfired rather than the JD genuinely being empty.'
+              : 'too few for a posting this long to be a genuine full reading.') +
+            ' Nothing was written; re-run screening to retry.'
+        );
+      }
       if (r.data.requirements.length > 0) {
         requirements = await db
           .insert(jobRequirements)
