@@ -22,19 +22,24 @@ export type ToolDef = {
 const arr = (items: Record<string, unknown>) => ({ type: 'array', items });
 const str = { type: 'string' };
 
-// ── A1 · Capture-time extraction (company/city/remote/format signals) ───────
+// ── A1 · Capture-time extraction (company/city/remote/format signals/ATS) ───
+// `atsSystem` lives here and nowhere else (CI · Lead Page as Pipeline Canvas
+// §2.2a). It used to also be a B4 output, but B4 only ever receives JD prose and
+// ATS identity isn't in prose — it's in the page chrome. A1 is the only step that
+// holds the rendered page, so it's the only step that can honestly answer this.
 export const A1 = {
   zod: z.object({
     company: z.string().nullable().optional(),
     city: z.string().nullable().optional(),
     remote: z.enum(['on-site', 'hybrid', 'remote', 'unspecified']).default('unspecified'),
     formatSignals: z.string().nullable().optional(),
+    atsSystem: z.string().nullable().optional(),
   }),
   tool: {
     name: 'emit_capture_extraction',
     strict: true,
     description:
-      'Extract only what is explicitly present or unambiguously inferable from the job description: the hiring company, the primary work-location city, remote/hybrid/on-site status, and verbatim quotes of any explicit application-format instructions. Never guess — leave a field null/unspecified rather than invent a value. Extraction only, no judgment or scoring.',
+      'Extract only what is explicitly present or unambiguously inferable from the job description: the hiring company, the primary work-location city, remote/hybrid/on-site status, verbatim quotes of any explicit application-format instructions, and the ATS if it is visibly evidenced on the page. Never guess — leave a field null/unspecified rather than invent a value. Extraction only, no judgment or scoring.',
     input_schema: {
       type: 'object', additionalProperties: false,
       properties: {
@@ -46,6 +51,11 @@ export const A1 = {
           description:
             'Verbatim (not paraphrased) quotes of explicit application-format instructions: CV length/page limits, required file type, file naming convention, cover-letter requirement, photo/headshot mention, language of application, HR/Talent Acquisition contact name. Concatenate as short quoted fragments; leave empty if nothing explicit is stated.',
         },
+        atsSystem: {
+          type: 'string',
+          description:
+            'The Applicant Tracking System this application actually runs through — ONLY if visibly evidenced on the page: the apply form host domain, an embedded apply iframe src, vendor branding in the form or footer ("Powered by Greenhouse"), or the apply button destination. NEVER infer it from job-description prose: a JD requiring SAP skills is not a SuccessFactors posting. Leave empty if nothing on the page evidences it.',
+        },
       },
       required: ['remote'],
     },
@@ -53,10 +63,67 @@ export const A1 = {
 };
 export type A1Out = z.infer<typeof A1.zod>;
 
-// ── B2 · Roadblocks ─────────────────────────────────────────────────────────
+// ── B2 · Requirements (runs FIRST in the B phase — see prompts.ts STEP_NOTE) ─
 export const B2 = {
   zod: z.object({
-    roadblocks: z.array(z.object({ dimension: z.string(), detail: z.string() })).default([]),
+    requirements: z
+      .array(
+        z.object({
+          order: z.number().int(),
+          requirement: z.string(),
+          description: z.string().nullable().optional(),
+          sourceText: z.string().nullable().optional(),
+          rank: z.string(),
+          skills: z.array(z.string()).default([]),
+        })
+      )
+      .default([]),
+  }),
+  tool: {
+    name: 'emit_requirements',
+    strict: true,
+    description: 'Break the JD into ranked requirements (Core / Important / Nice-to-Have), in order.',
+    input_schema: {
+      type: 'object', additionalProperties: false,
+      properties: {
+        requirements: arr({
+          type: 'object', additionalProperties: false,
+          properties: {
+            order: { type: 'integer' },
+            requirement: str,
+            description: str,
+            // Distinct from `description` on purpose: §C.4 of the note lets that
+            // be a "faithful close paraphrase", which is the step's reading of the
+            // source rather than the source. The Map quotes this back to the user.
+            sourceText: {
+              type: 'string',
+              description:
+                'The VERBATIM sentence from the job description this requirement was drawn from — character for character, no tidying, no trimming, no translation, and never stitched together from separated lines. If the requirement synthesises several lines, quote the single most load-bearing one. Leave empty only if the requirement is implied by the posting\'s structure rather than stated in any sentence.',
+            },
+            rank: { type: 'string', enum: ['Core', 'Important', 'Nice-to-Have'] },
+            skills: arr(str),
+          },
+          required: ['order', 'requirement', 'rank'],
+        }),
+      },
+      required: ['requirements'],
+    },
+  } satisfies ToolDef,
+};
+
+// ── B3 · Roadblocks ────────────────────────────────────────────────────────
+// `requirementOrder` (CI · Lead Page as Pipeline Canvas §2.5) is why this step
+// had to move after extraction: a roadblock can now name the requirement row it
+// blocks, and it can only do that if the rows already exist. Optional by design —
+// the five categories are judged against the JD as a whole, so a language demand
+// often lands on one requirement while an industry roadblock lands on none.
+// Keyed on `order` (not the row UUID) for the same reason B6 is: the model is
+// given a numbered list and never sees an id.
+export const B3 = {
+  zod: z.object({
+    roadblocks: z
+      .array(z.object({ dimension: z.string(), detail: z.string(), requirementOrder: z.number().int().nullable().optional() }))
+      .default([]),
   }),
   tool: {
     name: 'emit_roadblocks',
@@ -70,6 +137,11 @@ export const B2 = {
           properties: {
             dimension: { type: 'string', enum: ['Language', 'Technical', 'Certification', 'Geographic', 'Industry'] },
             detail: str,
+            requirementOrder: {
+              type: 'integer',
+              description:
+                'The number of the requirement from the REQUIREMENTS list that this roadblock blocks, if it maps cleanly onto exactly one of them (e.g. a native-German demand maps onto a German-language requirement). Omit it when the roadblock is implied across the posting as a whole rather than stated as one requirement — do not force a mapping.',
+            },
           },
           required: ['dimension', 'detail'],
         }),
@@ -79,8 +151,8 @@ export const B2 = {
   } satisfies ToolDef,
 };
 
-// ── B3 · Misalignments ──────────────────────────────────────────────────────
-export const B3 = {
+// ── B4 · Misalignments ─────────────────────────────────────────────────────
+export const B4 = {
   zod: z.object({
     misalignments: z
       .array(z.object({ dimension: z.string(), detail: z.string(), severity: z.string().optional() }))
@@ -104,19 +176,22 @@ export const B3 = {
   } satisfies ToolDef,
 };
 
-// ── B4 · Skills (A–Q) + JD group + ATS ──────────────────────────────────────
-export const B4 = {
+// ── B5 · Skills (A–Q) + JD group ────────────────────────────────────────────
+// No `atsSystem` here on purpose — see A1 above. This step is passed JD text and
+// nothing else, so any ATS value it produced was prose inference, and the write
+// path let it overwrite A1's verified hostname match. Do not add it back.
+// (This step was B4 before the reorder; its note is now Process/B5.)
+export const B5 = {
   zod: z.object({
     skills: z.array(z.object({ dimension: z.string(), rating: z.number().int().min(1).max(3) })).default([]),
     jdGroupPrimary: z.string().nullable().optional(),
     jdGroupSecondary: z.string().nullable().optional(),
-    atsSystem: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
   }),
   tool: {
     name: 'emit_skill_mapping',
     strict: true,
-    description: 'Rate the role against the 17-dimension framework (1=core,2=important,3=supporting), assign JD groups, detect the ATS.',
+    description: 'Rate the role against the 17-dimension framework (1=Central, 2=Contributing, 3=Peripheral) and assign JD groups.',
     input_schema: {
       type: 'object', additionalProperties: false,
       properties: {
@@ -127,53 +202,13 @@ export const B4 = {
         }),
         jdGroupPrimary: str,
         jdGroupSecondary: str,
-        atsSystem: str,
-        // "Key Patterns & CV Tailoring Notes" — the B4 process note already asks
+        // "Key Patterns & CV Tailoring Notes" — the B5 process note already asks
         // for this (§B step 3, format rule §D.1) and the whole note reaches the
         // model as the cacheable system prompt, so this per-field description is
         // belt-and-braces clarity, not a fix. Persisted to job_leads.key_patterns.
         notes: { type: 'string', description: '2–4 sentences: lead with the dominant CV theme, then name 2–3 specific tailoring priorities.' },
       },
       required: ['skills'],
-    },
-  } satisfies ToolDef,
-};
-
-// ── B5 · Requirements ───────────────────────────────────────────────────────
-export const B5 = {
-  zod: z.object({
-    requirements: z
-      .array(
-        z.object({
-          order: z.number().int(),
-          requirement: z.string(),
-          description: z.string().nullable().optional(),
-          rank: z.string(),
-          skills: z.array(z.string()).default([]),
-        })
-      )
-      .default([]),
-  }),
-  tool: {
-    name: 'emit_requirements',
-    strict: true,
-    description: 'Break the JD into ranked requirements (Core / Important / Nice-to-Have), in order.',
-    input_schema: {
-      type: 'object', additionalProperties: false,
-      properties: {
-        requirements: arr({
-          type: 'object', additionalProperties: false,
-          properties: {
-            order: { type: 'integer' },
-            requirement: str,
-            description: str,
-            rank: { type: 'string', enum: ['Core', 'Important', 'Nice-to-Have'] },
-            skills: arr(str),
-          },
-          required: ['order', 'requirement', 'rank'],
-        }),
-      },
-      required: ['requirements'],
     },
   } satisfies ToolDef,
 };

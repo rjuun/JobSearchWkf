@@ -42,7 +42,7 @@ export const leadStatusEnum = pgEnum('lead_status', [
   'ready',
   'applied',
   'archived',
-  // Scoring Phase Redesign · the B-phase gate. `scoring_queue` = B2/B3 flagged
+  // Scoring Phase Redesign · the B-phase gate. `scoring_queue` = B3/B4 flagged
   // something and a human decision is pending; `selected` = cleared the gate
   // (auto when both came back empty) and is waiting for a batch scoring run;
   // `roadblocked`/`misaligned` = dropped at the gate, excluded from the board
@@ -51,6 +51,17 @@ export const leadStatusEnum = pgEnum('lead_status', [
   'roadblocked',
   'misaligned',
   'selected',
+  // 2026-07-30 — a lead the gate drops (roadblocked/misaligned) or that the
+  // SharePoint reconciliation marked "Not Proceeding" (never applied, no
+  // shortcoming — just went stale or the role closed) all land here. One
+  // terminal status, not three: the *why* already lives on the row as
+  // `roadblocks`/`misalignments` (both empty means "not proceeding," no
+  // structured reason). Mirrors the Salesforce pattern of one closed status
+  // plus a reason, rather than a status per reason. Surfaced in its own "Not
+  // Pursued" tab (lib/queries.ts listNotPursuedLeads, components/roleproof/
+  // not-pursued-list.tsx) — a sibling of Archive, not folded into it, because
+  // these leads never had an application to stop.
+  'not_pursued',
 ]);
 // NOTE: the human gate is labelled Keep/Maybe/Drop in the UI; the DB enum stays
 // green/yellow/red for now (single source of truth for the labels:
@@ -201,7 +212,16 @@ export const education = pgTable('education', {
   institution: text('institution'),
   qualification: text('qualification'),
   type: text('type'),
+  // `year` is the display field shown on generated CVs (lib/pipeline/tailoring.ts) — kept for
+  // backward compatibility, now correctly sourced from Date_Completed (was silently reading
+  // Date_Begin, see scripts/seed.ts). `dateBegin`/`dateCompleted` carry full fidelity from the
+  // workbook for anything that needs the actual dates rather than the display string.
   year: text('year'),
+  cityCountry: text('city_country'),
+  dateBegin: text('date_begin'),
+  dateCompleted: text('date_completed'),
+  notes: text('notes'),
+  jdGroupRelevance: jsonb('jd_group_relevance').$type<string[]>().default([]),
 });
 
 export const languages = pgTable('languages', {
@@ -284,7 +304,7 @@ export const jobLeads = pgTable('job_leads', {
   freshnessBand: text('freshness_band'),
   saturationBand: text('saturation_band'),
   analysisDate: text('analysis_date'),
-  // B2/B3
+  // B3 (roadblocks) / B4 (misalignments)
   roadblocks: jsonb('roadblocks').$type<Roadblock[]>().default([]),
   misalignments: jsonb('misalignments').$type<Misalignment[]>().default([]),
   // B4
@@ -324,6 +344,14 @@ export const jobRequirements = pgTable('job_requirements', {
   requirementGroup: text('requirement_group'),
   requirement: text('requirement').notNull(),
   description: text('description'),
+  // CI · Lead Page as Pipeline Canvas §3 — the verbatim JD sentence this
+  // requirement was drawn from, so the Map can quote the posting rather than
+  // paraphrase it. NOT the same field as `description`, which B2's note defines
+  // as a "faithful close paraphrase" — a paraphrase is the step's reading of the
+  // source, not the source. Nullable and left null for leads screened before this
+  // shipped (decision §4.3: no re-run across the back catalogue), which the Map
+  // renders as "no quote captured" rather than an empty box.
+  sourceText: text('source_text'),
   skills: jsonb('skills').$type<string[]>().default([]),
   initialMatchStrength: text('initial_match_strength'),
   initialKeyStrengths: text('initial_key_strengths'),
@@ -569,5 +597,16 @@ export const activityEvents = pgTable('activity_events', {
 });
 
 // ── Embedded JSON shapes ────────────────────────────────────────────────────
-export type Roadblock = { dimension: string; detail: string };
+/**
+ * `requirementId` (CI · Lead Page as Pipeline Canvas §2.5) — optional on purpose.
+ * The roadblock categories (language / technical / certification / geographic /
+ * industry) are judged against the JD as a whole, not derived from extracted
+ * requirement rows, so only some of them land on a single row: a German-language
+ * demand maps onto the bilingual-communication requirement, an industry roadblock
+ * is usually implied across a whole posting and maps onto nothing. Set ⇒ the
+ * Map renders a `Block` chip in that requirement's Assessment cell; unset ⇒ it
+ * shows only in Key Patterns. Either way it ALWAYS shows in Key Patterns, so no
+ * roadblock is visible in one place only.
+ */
+export type Roadblock = { dimension: string; detail: string; requirementId?: string };
 export type Misalignment = { dimension: string; detail: string; severity?: string };

@@ -72,7 +72,7 @@ export const env = {
   // view stays one click away at /profile?view=meter. Retireable with NEXT_GRAPH_ASSEMBLED=0.
   nextGraphAssembled: str('NEXT_GRAPH_ASSEMBLED', '1') !== '0', // R7 · matrix-first profile
   // Scoring Phase Redesign · the Queue / Ready-to-score surface. Gates the route
-  // and its board entries only — the pipeline split and the capture-time B1–B3
+  // and its board entries only — the pipeline split and the capture-time B1–B4
   // call are unconditional, since they change how leads are *stored*, and
   // flipping this off must not strand leads at a status no surface can reach.
   nextScoringQueue: str('NEXT_SCORING_QUEUE', '1') !== '0', //   B-phase Scoring Queue

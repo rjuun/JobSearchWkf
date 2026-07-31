@@ -47,7 +47,7 @@ export async function runScreeningAction(leadId: string): Promise<StepReport[]> 
 }
 
 /**
- * B1–B3 on demand. Normally fired automatically by createLead(); this is the
+ * B1–B4 on demand. Normally fired automatically by createLead(); this is the
  * manual path for a lead that landed at `captured` because the capture-time call
  * failed, and the "Screen anyway" override for a lead the B1 gate held.
  */
@@ -62,9 +62,9 @@ export async function runInitialChecksAction(leadId: string): Promise<StepReport
 }
 
 /**
- * B4–B6 for one lead. Called in a sequential loop by the Ready-to-score batch
+ * B5/B6 for one lead. Called in a sequential loop by the Ready-to-score batch
  * runner — one at a time, never Promise.all, so the calls land seconds apart and
- * actually hit B4–B6's cached system prompts. Safe to re-invoke from the top on
+ * actually hit B5/B6's cached system prompts. Safe to re-invoke from the top on
  * a stuck lead (B4/B6 overwrite, B5 skips re-extraction).
  */
 export async function runScoringAction(leadId: string): Promise<StepReport[]> {

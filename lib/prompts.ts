@@ -6,11 +6,19 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { ciGuidanceFor } from './ci';
 
+/**
+ * Step code → note filename. Both sides moved together in the B-phase reorder
+ * (CI · Lead Page as Pipeline Canvas §2.1): extraction is now B2, and roadblocks
+ * / misalignments / translate each shifted down one. The map is literal — a key
+ * and its filename must always name the same step, or a step silently loads
+ * another step's procedure as its system prompt and still returns a valid-looking
+ * tool call. When renumbering, move the pair, never one side.
+ */
 const STEP_NOTE: Record<string, string> = {
-  B2: 'B2. Identify Roadblocks.md',
-  B3: 'B3. Identify Misalignments.md',
-  B4: 'B4. Translate Requirements to Areas of Expertise and Define JD Groups.md',
-  B5: 'B5. Extract Requirements from Job Description.md',
+  B2: 'B2. Extract Requirements from Job Description.md',
+  B3: 'B3. Identify Roadblocks.md',
+  B4: 'B4. Identify Misalignments.md',
+  B5: 'B5. Translate Requirements to Areas of Expertise and Define JD Groups.md',
   B6: 'B6. Role Fit & Investment Worthiness Score.md',
   C2: 'C2. Map JD Requirements to Supporting Evidence.md',
   C3: 'C3. Transform Evidence into CV Bullets.md',

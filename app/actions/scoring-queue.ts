@@ -3,7 +3,7 @@
 /**
  * The screening gate's human decisions (Scoring Phase Redesign §2.2.E).
  *
- * Only leads B2/B3 actually flagged reach the Queue tab — clean leads were
+ * Only leads B3/B4 actually flagged reach the Queue tab — clean leads were
  * auto-advanced to `selected` by runInitialChecks and never appear here. So
  * every row in the Queue is a genuine decision, and this action records it.
  *
@@ -27,6 +27,17 @@ const GATE_VERB: Record<ScreeningGate, string> = {
   selected: 'Selected for scoring',
 };
 
+// Both drop outcomes write the same terminal status — `not_pursued` — since
+// 2026-07-30. The gate still asks *why* (roadblocked vs misaligned, for the
+// activity log and the button the person clicked), but that reason already
+// lives on the row as `roadblocks`/`misalignments`; the status column doesn't
+// need to repeat it. See the leadStatusEnum comment in lib/db/schema.ts.
+const GATE_STATUS: Record<ScreeningGate, 'not_pursued' | 'selected'> = {
+  roadblocked: 'not_pursued',
+  misaligned: 'not_pursued',
+  selected: 'selected',
+};
+
 export async function setScreeningGateAction(leadId: string, status: ScreeningGate): Promise<void> {
   const owner = await currentOwnerId();
   const [lead] = await db
@@ -38,7 +49,7 @@ export async function setScreeningGateAction(leadId: string, status: ScreeningGa
   // updatedAt written explicitly — `base` has no $onUpdate.
   await db
     .update(jobLeads)
-    .set({ status, updatedAt: new Date() })
+    .set({ status: GATE_STATUS[status], updatedAt: new Date() })
     .where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, owner)));
 
   await recordActivity(owner, 'screening', { leadId, summary: `${GATE_VERB[status]} · “${lead.title}”` });

@@ -11,7 +11,7 @@ pr-target:
 ---
 ---
 ```simple-time-tracker
-{"entries":[]}
+{"entries":[{"name":"Draft","startTime":"2026-07-29T12:45:19.000Z","endTime":"2026-07-29T16:28:21.000Z"},{"name":"Draft","startTime":"2026-07-29T20:30:27.000Z","endTime":"2026-07-30T00:30:29.000Z"}]}
 ```
 ---
 ## 1. What is the problem or opportunity?

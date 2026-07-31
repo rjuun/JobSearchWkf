@@ -4,7 +4,7 @@
  * The Ready to score tab — the batch, and the runner that works through it.
  *
  * The loop is deliberately sequential, not Promise.all. That's the whole point
- * of batching: B4–B6's system prompts are cached with a 1h TTL, and calls that
+ * of batching: B5/B6's system prompts are cached with a 1h TTL, and calls that
  * land seconds apart hit that cache where today's one-lead-every-few-hours
  * pattern re-pays the cold write every time. Running them concurrently would
  * also stack N Opus B6 calls against one function's duration budget.

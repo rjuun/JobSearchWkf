@@ -270,9 +270,27 @@ export async function buildDemoTenant(): Promise<void> {
     return ref ? { refCode: ref, positionRef: txt(g(2)), text: txt(g(4)), skills: list(g(6)) } : null;
   }));
 
+  // Column layout (tbl_Education): 1 Education_ID, 2 Education_Type, 3 Degree, 4 Institution,
+  // 5 City_Country, 6 Date_Begin, 7 Date_Completed, 8 Notes, 9 JD_Group_Relevance.
+  // `year` previously read g(6) (Date_Begin) instead of g(7) (Date_Completed) — the sheet's own
+  // note says Date_Completed is "used for CV date ordering," and it's what tailoring.ts prints
+  // on the generated CV, so the wrong column was silently landing on the document.
   await insert('education', education, rowsFrom(ws('tbl_Education'), 3, (g) => {
     const ref = txt(g(1));
-    return ref ? { refCode: ref, type: txt(g(2)), qualification: txt(g(3)), institution: txt(g(4)), year: txt(g(6)) } : null;
+    return ref
+      ? {
+          refCode: ref,
+          type: txt(g(2)),
+          qualification: txt(g(3)),
+          institution: txt(g(4)),
+          cityCountry: txt(g(5)),
+          dateBegin: txt(g(6)),
+          dateCompleted: txt(g(7)),
+          year: txt(g(7)),
+          notes: txt(g(8)),
+          jdGroupRelevance: list(g(9)),
+        }
+      : null;
   }));
 
   await insert('languages', languages, rowsFrom(ws('tbl_Languages'), 3, (g) => {

@@ -5,7 +5,7 @@ ci-status: 3 - Delivered
 ci-priority: medium
 ci-date: 2026-06-26
 ci-estimated-time: 1.5
-ci-time-spent: 8
+ci-time-spent: 10.5
 pr-source: "[[A1. Store Job Leads]]"
 pr-target: "[[A1. Capture and Store Job Leads]]"
 ---

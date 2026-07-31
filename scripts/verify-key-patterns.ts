@@ -2,8 +2,8 @@
  * The one §2.4 criterion verify-scoring-queue.ts deliberately can't prove:
  *
  *   "Every lead scored after this ships has a non-null job_leads.key_patterns
- *    whenever B4's live response included `notes` (verify against
- *    pipeline_runs.output for the B4 step)."
+ *    whenever B5's live response included `notes` (verify against
+ *    pipeline_runs.output for the B5 step)."
  *
  * That needs a real model response, because mock mode's mockSkillMapping()
  * hardcodes `notes: null` (lib/pipeline/screening.ts) — which only ever
@@ -11,13 +11,13 @@
  * script runs LIVE, on purpose, on exactly one throwaway lead, and checks the
  * two things the mock run leaves open:
  *
- *   1. B4's live response actually carries `notes` (the B4 process note asks for
+ *   1. B5's live response actually carries `notes` (the B5 process note asks for
  *      it and the tool schema returns it — §1 of the CI argued the model was
  *      already producing text the write path dropped; this is what confirms it).
  *   2. That exact text landed in job_leads.key_patterns, compared against the
  *      recorded pipeline_runs.output rather than merely "is non-null".
  *
- * Costs three live calls (B4+B5+B6). Everything it creates, it deletes.
+ * Costs two live calls (B5+B6). Everything it creates, it deletes.
  */
 import './_env';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -74,7 +74,7 @@ async function main() {
 
   await cleanup(); // in case a previous run died mid-way
 
-  console.log('\n§2.4 · B4 `notes` reaches job_leads.key_patterns on a live call');
+  console.log('\n§2.4 · B5 `notes` reaches job_leads.key_patterns on a live call');
   const [row] = await db
     .insert(jobLeads)
     .values({ ownerId: OWNER, title: 'Senior Programme Manager — Finance Transformation', jdText: JD, status: 'selected', postedDays: 4, city: 'Vienna' })
@@ -86,12 +86,12 @@ async function main() {
   const [b4] = await db
     .select({ output: pipelineRuns.output })
     .from(pipelineRuns)
-    .where(and(eq(pipelineRuns.jobLeadId, row.id), eq(pipelineRuns.step, 'B4')));
+    .where(and(eq(pipelineRuns.jobLeadId, row.id), eq(pipelineRuns.step, 'B5')));
 
   const notes = (b4?.output as { notes?: string | null } | null)?.notes ?? null;
 
-  check('B4 recorded a run', b4 != null);
-  check('the live B4 response carried `notes`', typeof notes === 'string' && notes.trim().length > 0, notes ? `${notes.length} chars` : 'notes=null');
+  check('B5 recorded a run', b4 != null);
+  check('the live B5 response carried `notes`', typeof notes === 'string' && notes.trim().length > 0, notes ? `${notes.length} chars` : 'notes=null');
   check(
     'and that exact text is what landed in key_patterns',
     lead.keyPatterns === notes,

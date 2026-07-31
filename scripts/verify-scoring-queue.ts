@@ -11,7 +11,7 @@
  * of which depend on a real model call, and mock mode's heuristics are
  * deterministic and grounded in the JD text (lib/pipeline/screening.ts's
  * mockRoadblocks etc.), which is what lets a "clean" and a "flagged" JD be
- * constructed on purpose. The one criterion mock can't prove — B4's `notes`
+ * constructed on purpose. The one criterion mock can't prove — B5's `notes`
  * actually reaching key_patterns — is checked separately, against a real model
  * response, by verify-key-patterns.ts.
  */
@@ -107,20 +107,20 @@ async function main() {
   );
   check('it is still on the active board (not out of play) while it waits', !isOutOfPlay(flaggedLead.status));
 
-  console.log('\n§2.4 · A lead whose B1 gate trips reaches `hold` WITHOUT B2/B3 having run');
+  console.log('\n§2.4 · A lead whose B1 gate trips reaches `hold` WITHOUT B2-B4 having run');
   const staleId = await makeLead('Stale Posting — Head of Controlling', FLAGGED_JD, 90, { city: 'Vienna' });
   await runInitialChecks(staleId, OWNER);
   const staleLead = await statusOf(staleId);
   const staleSteps = await stepsRunFor(staleId);
   check('stale lead reached `hold`', staleLead.status === 'hold', `status=${staleLead.status}`);
-  check('pipeline_runs contains B1 only — B2/B3 never ran', staleSteps.join(',') === 'B1', `steps=[${staleSteps.join(',')}]`);
+  check('pipeline_runs contains B1 only — B2-B4 never ran', staleSteps.join(',') === 'B1', `steps=[${staleSteps.join(',')}]`);
   check(
-    'and its JD would have been flagged had B2/B3 run (so the absence is the gate, not an empty JD)',
-    (await stepsRunFor(flaggedId)).includes('B2'),
-    'same JD text produced B2/B3 rows on the non-stale lead'
+    'and its JD would have been flagged had B3/B4 run (so the absence is the gate, not an empty JD)',
+    (await stepsRunFor(flaggedId)).includes('B3'),
+    'same JD text produced B3/B4 rows on the non-stale lead'
   );
 
-  console.log('\n§2.4 · "Screen anyway" override runs B2/B3 on a held lead');
+  console.log('\n§2.4 · "Screen anyway" override runs B2-B4 on a held lead');
   // The gate is a short-circuit, not a dead end: the override is re-running
   // initial checks. postedDays is what held it, so clear that first — same as
   // a human confirming the posting is still live.
@@ -128,7 +128,7 @@ async function main() {
   await runInitialChecks(staleId, OWNER);
   const staleAfter = await statusOf(staleId);
   const staleStepsAfter = await stepsRunFor(staleId);
-  check('B2/B3 ran on the override', staleStepsAfter.includes('B2') && staleStepsAfter.includes('B3'), `steps=[${[...new Set(staleStepsAfter)].join(',')}]`);
+  check('B2-B4 ran on the override', staleStepsAfter.includes('B2') && staleStepsAfter.includes('B3') && staleStepsAfter.includes('B4'), `steps=[${[...new Set(staleStepsAfter)].join(',')}]`);
   check('and it left `hold`', staleAfter.status !== 'hold', `status=${staleAfter.status}`);
 
   console.log('\n§2.4 · Batch of N `selected` leads runs sequentially; every lead ends at `screened` or `hold`');

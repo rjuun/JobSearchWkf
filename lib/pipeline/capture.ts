@@ -7,9 +7,9 @@
  * for whatever's missing; a plain manual paste supplies none of
  * remote/formatSignals, so it always falls back to the model.
  *
- * Since the Scoring Phase Redesign this also fires B1–B3 (`runInitialChecks`)
+ * Since the Scoring Phase Redesign this also fires B1–B4 (`runInitialChecks`)
  * before returning, so a lead arrives on the board already sorted into
- * `selected` or `scoring_queue`. B4–B6 stay out of the capture path on purpose —
+ * `selected` or `scoring_queue`. B5/B6 stay out of the capture path on purpose —
  * they run as a batch from Ready to score.
  */
 import { and, eq, ilike } from 'drizzle-orm';
@@ -30,6 +30,14 @@ export type CaptureInput = {
   remote?: 'on-site' | 'hybrid' | 'remote' | 'unspecified' | null;
   /** Section C · ditto. An explicit '' is a legitimate answer ("nothing explicit stated"), not "missing". */
   formatSignals?: string | null;
+  /**
+   * Section C · the ATS the capturing agent could actually see on the rendered
+   * page (form host, apply iframe, footer branding). Precedence runs the OPPOSITE
+   * way to the fields above: §B.2's deterministic hostname match wins, and this
+   * fills only where B.2 returned null. A1 owns ATS end to end — B4's prose-based
+   * guess was deleted (CI · Lead Page as Pipeline Canvas §2.2a).
+   */
+  atsSystem?: string | null;
   sourceUrl?: string | null;
   /** B4 · free-text channel this lead came from (alert name / recruiter / manual). */
   source?: string | null;
@@ -45,6 +53,7 @@ Read the job description text below and extract only what is explicitly present 
 - city: the primary work location's city.
 - remote: one of on-site, hybrid, remote, unspecified. Only set remote or hybrid if the posting says so explicitly; default to unspecified rather than assume on-site.
 - formatSignals: verbatim quotes (not paraphrased) of any explicit application-format instructions found in the text: CV length/page limits, required file type, file naming convention, cover-letter requirement, mention of a photo/headshot, language of application, HR/Talent Acquisition contact name. Concatenate whatever is found as short quoted fragments; leave empty if nothing explicit is stated. This is raw material for C1, not a decision.
+- atsSystem: the Applicant Tracking System this application actually runs through — ONLY if it is visibly evidenced: the apply form's host domain, an embedded apply iframe, vendor branding in the form or footer ("Powered by Greenhouse"), or the apply button's destination. NEVER infer it from job-description prose — a posting that requires SAP skills is not a SuccessFactors posting, and "we use Workday internally" says nothing about this application flow. Leave it empty if nothing evidences it; empty is the honest answer and no later step will overwrite it.
 
 This is extraction only — no judgment, no scoring, no recommendation.`;
 
@@ -66,7 +75,9 @@ export async function createLead(input: CaptureInput, ownerId: string): Promise<
   // No match (Easy Apply, or no candidates at all) falls back to today's B.1/B.2 logic.
   const candidateMatch = pickCandidateJobPostLink(input.candidateLinks);
   const jobPostLink = candidateMatch?.jobPostLink ?? cleanJobPostLink(input.sourceUrl);
-  const atsSystem = candidateMatch?.atsSystem ?? detectAtsSystem(jobPostLink);
+  // §B.2 — the deterministic half. Null here means "no known ATS domain matched",
+  // which §C's page extraction may fill below; it never replaces a hit.
+  const detectedAts = candidateMatch?.atsSystem ?? detectAtsSystem(jobPostLink);
   // Not just plumbing: hiring through a third-party agency (vs. the ATS
   // directly) is itself a signal worth keeping. Own column, not atsSpecifics —
   // that field already carries unrelated seed data (application-format notes)
@@ -82,7 +93,7 @@ export async function createLead(input: CaptureInput, ownerId: string): Promise<
       city: input.city ?? null,
       sourceUrl: input.sourceUrl ?? null,
       jobPostLink,
-      atsSystem,
+      atsSystem: detectedAts,
       hiringAgency,
       source: input.source?.trim() || null,
       status: 'captured',
@@ -99,6 +110,11 @@ export async function createLead(input: CaptureInput, ownerId: string): Promise<
   const hasCity = !!input.city?.trim();
   const hasRemote = input.remote !== undefined;
   const hasFormatSignals = input.formatSignals !== undefined;
+  // atsSystem is deliberately NOT part of this test. A text-only pass over the
+  // markdown cannot see the page chrome ATS identity actually lives in, so
+  // forcing the model call just to ask for it would spend a call to be told null.
+  // The agent path supplies it directly (it saw the page); the manual-paste path
+  // legitimately ends up with null. See A1 §C.
   const needsExtraction = !(hasCompany && hasCity && hasRemote && hasFormatSignals);
 
   // A1 · one-shot AI extraction over the captured markdown, only when needed.
@@ -129,6 +145,15 @@ export async function createLead(input: CaptureInput, ownerId: string): Promise<
   const resolvedCity = input.city?.trim() || extraction?.city?.trim() || null;
   const resolvedRemote = hasRemote ? (input.remote ?? null) : extraction?.remote ?? null;
   const resolvedFormatSignals = hasFormatSignals ? (input.formatSignals ?? null) : extraction?.formatSignals ?? null;
+  // A1 §C · ATS precedence, code-first: the §B.2 hostname match already written at
+  // insert wins outright. The page-evidenced value (agent-supplied, else the
+  // extraction pass) only fills a null. This is the inverse of the fields above,
+  // where caller-supplied beats the model — here a deterministic, unit-tested
+  // hostname match beats a judgment, and the whole point of §2.2a is that nothing
+  // downstream gets to overwrite it.
+  // `||` not `??` on the two page-evidenced sources: an empty string means "saw
+  // nothing", same as null, and must not be stored as an ATS name.
+  const resolvedAts = detectedAts ?? (input.atsSystem?.trim() || extraction?.atsSystem?.trim() || null);
   const companyId = await resolveCompanyId(resolvedCompany, ownerId);
 
   await db
@@ -139,16 +164,17 @@ export async function createLead(input: CaptureInput, ownerId: string): Promise<
       companyId,
       remote: resolvedRemote,
       formatSignals: resolvedFormatSignals,
+      atsSystem: resolvedAts,
     })
     .where(eq(jobLeads.id, row.id));
 
-  // B1–B3 · the automatic half of screening, run inline so a captured lead has
+  // B1–B4 · the automatic half of screening, run inline so a captured lead has
   // already sorted itself into `selected` or `scoring_queue` by the time it
   // reaches the board — no manual "Screen" click on leads that can screen
   // themselves. Same contract as the A1 call above: awaited, best-effort,
   // swallowed on error. A failure just leaves the lead at `captured`, where
   // rpNextAction's existing "Screen" affordance is the unchanged manual
-  // fallback. B4–B6 deliberately do NOT run here — they belong to the batch
+  // fallback. B5/B6 deliberately do NOT run here — they belong to the batch
   // (see runScoring's doc comment for the prompt-cache reasoning).
   try {
     await runInitialChecks(row.id, ownerId);

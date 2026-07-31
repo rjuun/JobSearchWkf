@@ -25,6 +25,7 @@ import {
   applications,
 } from './db/schema';
 import { currentOwnerId } from './auth';
+import { normalizeCvPosition, type CvSlot } from './cv-slots';
 import { ARCHIVED_APPLICATION_STATUS, OPEN_APPLICATION_STATUSES } from './applications';
 import { activationMetrics } from './activation';
 import { EMPTY_TARGETS, evidenceTokens, graphCoversRequirement } from './career-graph';
@@ -50,7 +51,7 @@ export async function listLeads() {
 /**
  * Everything the Scoring Queue route renders, in one owner-scoped read.
  *
- * - `queue`   · `scoring_queue` (B2/B3 flagged something) plus `hold` leads,
+ * - `queue`   · `scoring_queue` (B3/B4 flagged something) plus `hold` leads,
  *               which are shown flagged-not-blocking — a held posting is a
  *               judgement call about staleness, not a gate decision.
  * - `ready`   · `selected`, the batch waiting for "Run scoring".
@@ -121,6 +122,84 @@ export async function getProfile() {
   return p ?? null;
 }
 
+/**
+ * The CV's real shape, as the Map's left column draws it (CI · Lead Page as
+ * Pipeline Canvas §2.4): every position, each with a `Role Overview` lane plus one
+ * lane per STAR — the `cv_position → cv_heading` pairs evidence gets placed into.
+ *
+ * Deliberately NOT filtered to the current lead. Every position appears even when
+ * it holds no evidence for this JD, because the skeleton is the candidate's actual
+ * career, not a view of it: an empty lane is information (nothing here supports
+ * this role) in a way a hidden lane is not. It is also why the Map's frame can be
+ * mounted at capture time and never move as later steps fill it in.
+ *
+ * Far lighter than `getCareerGraphFor` on purpose — four columns off three tables,
+ * no actions/results/competences/attributes/coverage, since the Map only needs
+ * lane labels and the ref codes that let it resolve an evidence item to its lane.
+ */
+/**
+ * A lane's `slot` is its CV_SLOTS value or null. Non-null is what makes a lane a
+ * legal drop target: `requirement_tailoring.cvPosition` is already normalised to
+ * exactly this vocabulary (`normalizeCvPosition`), so placement is an equality
+ * check rather than a guess at which lane an evidence item "means". A lane with
+ * `slot: null` is a real part of the CV that simply has no slot on the 2-page
+ * template — it renders, and nothing can be dropped into it.
+ */
+export type CvLane = { heading: string; slot: CvSlot | null; starRef: string | null };
+export type CvPositionSkeleton = {
+  refCode: string | null;
+  title: string | null;
+  company: string | null;
+  lanes: CvLane[];
+};
+
+export async function getCvSkeleton(owner: string): Promise<CvPositionSkeleton[]> {
+  const [pos, st] = await Promise.all([
+    db
+      .select({ refCode: positions.refCode, title: positions.title, company: positions.company })
+      .from(positions)
+      .where(eq(positions.ownerId, owner))
+      .orderBy(asc(positions.refCode)),
+    db
+      .select({ refCode: stars.refCode, positionRef: stars.positionRef, title: stars.title })
+      .from(stars)
+      .where(eq(stars.ownerId, owner))
+      .orderBy(asc(stars.refCode)),
+  ]);
+
+  // Slot letters run A, B, C, D over the four positions the 2-page CV template
+  // actually has room for, in the same refCode order used everywhere else. The
+  // remaining positions (Tokyo, Unilever) have no slots — they still get a lane,
+  // they just can't receive evidence, which is the honest rendering of a position
+  // that doesn't appear on the CV.
+  const slotLetters = ['A', 'B', 'C', 'D'];
+
+  return pos.map((p, positionIndex) => {
+    const letter = slotLetters[positionIndex];
+    const positionStars = st.filter((s) => s.positionRef && p.refCode && s.positionRef === p.refCode);
+    return {
+      refCode: p.refCode,
+      title: p.title,
+      company: p.company,
+      lanes: [
+        // `starRef: null` marks the Role Overview lane — where responsibilities
+        // (position-level evidence, not STAR-level) belong. Slot index 0 by
+        // convention across CV_SLOTS ("A0. Role Overview", "B0. …").
+        { heading: 'Role Overview', slot: letter ? normalizeCvPosition(`${letter}0`) : null, starRef: null },
+        ...positionStars.map((s, starIndex) => ({
+          heading: s.title ?? s.refCode ?? 'Untitled STAR',
+          // STAR lanes take slots 1..n under the same letter. normalizeCvPosition
+          // returns null past the end of the real slot list, so a position with
+          // more STARs than template slots degrades to an undroppable lane rather
+          // than inventing a slot the CV compiler doesn't know.
+          slot: letter ? normalizeCvPosition(`${letter}${starIndex + 1}`) : null,
+          starRef: s.refCode,
+        })),
+      ],
+    };
+  });
+}
+
 /** The whole evidence store for the logged-in user, ordered by ref_code. Used by /profile. */
 export async function getCareerGraph(): Promise<CareerGraph> {
   return getCareerGraphFor(await currentOwnerId());
@@ -187,8 +266,8 @@ export async function getTargetCoverage(owner: string, tokens: Set<string>): Pro
         eq(jobLeads.isTarget, true),
         // Match the coach: a target you've archived or already applied to no longer
         // inflates the relevancy denominator / "still to prove" headroom.
-        // …and neither does one dropped at the screening gate.
-        notInArray(jobLeads.status, ['archived', 'applied', 'roadblocked', 'misaligned']),
+        // …and neither does one dropped at the screening gate (not_pursued).
+        notInArray(jobLeads.status, ['archived', 'applied', 'not_pursued']),
         inArray(jobRequirements.rank, ['Core', 'Important'])
       )
     );
@@ -456,8 +535,8 @@ export async function targetCoverageMatrix(): Promise<CoverageRow[]> {
       and(
         eq(jobLeads.ownerId, owner),
         eq(jobLeads.isTarget, true),
-        // …and neither does one dropped at the screening gate.
-        notInArray(jobLeads.status, ['archived', 'applied', 'roadblocked', 'misaligned']),
+        // …and neither does one dropped at the screening gate (not_pursued).
+        notInArray(jobLeads.status, ['archived', 'applied', 'not_pursued']),
         inArray(jobRequirements.rank, ['Core', 'Important'])
       )
     )
@@ -588,6 +667,7 @@ export async function flowCounts(): Promise<{
   results: number;
   applications: number;
   archive: number;
+  notPursued: number;
 }> {
   const owner = await currentOwnerId();
   const [leadRows, appRows] = await Promise.all([
@@ -610,7 +690,67 @@ export async function flowCounts(): Promise<{
     results: lead('screened'),
     applications: OPEN_APPLICATION_STATUSES.reduce((n, s) => n + app(s), 0),
     archive: app(ARCHIVED_APPLICATION_STATUS),
+    notPursued: lead('not_pursued'),
   };
+}
+
+// ── Not Pursued (2026-07-30) ────────────────────────────────────────────────
+// Roadblocked/misaligned gate drops, plus SharePoint's "Not Proceeding" leads
+// (never applied, no shortcoming — just went stale or the role closed). A
+// sibling of the Archive, not folded into it: these never had an application
+// to stop, so there's no appliedAt/outcomeAt/contactEmail to show — the "why"
+// comes from the row's own roadblocks/misalignments instead.
+export type NotPursuedReason = { kind: 'roadblocked' | 'misaligned' | 'not_proceeding'; detail: string | null };
+
+export type NotPursuedRow = {
+  leadId: string;
+  title: string;
+  company: string | null;
+  city: string | null;
+  overallFitScore: number | null;
+  updatedAt: Date;
+  reason: NotPursuedReason;
+};
+
+function notPursuedReason(
+  roadblocks: { dimension: string; detail: string }[] | null,
+  misalignments: { dimension: string; detail: string }[] | null
+): NotPursuedReason {
+  if (roadblocks && roadblocks.length > 0) {
+    return { kind: 'roadblocked', detail: `${roadblocks[0].dimension}: ${roadblocks[0].detail}` };
+  }
+  if (misalignments && misalignments.length > 0) {
+    return { kind: 'misaligned', detail: `${misalignments[0].dimension}: ${misalignments[0].detail}` };
+  }
+  return { kind: 'not_proceeding', detail: null };
+}
+
+export async function listNotPursuedLeads(): Promise<NotPursuedRow[]> {
+  const owner = await currentOwnerId();
+  const rows = await db
+    .select({
+      leadId: jobLeads.id,
+      title: jobLeads.title,
+      company: jobLeads.company,
+      city: jobLeads.city,
+      overallFitScore: jobLeads.overallFitScore,
+      updatedAt: jobLeads.updatedAt,
+      roadblocks: jobLeads.roadblocks,
+      misalignments: jobLeads.misalignments,
+    })
+    .from(jobLeads)
+    .where(and(eq(jobLeads.ownerId, owner), eq(jobLeads.status, 'not_pursued')))
+    .orderBy(desc(jobLeads.updatedAt));
+
+  return rows.map((r) => ({
+    leadId: r.leadId,
+    title: r.title,
+    company: r.company,
+    city: r.city,
+    overallFitScore: r.overallFitScore,
+    updatedAt: r.updatedAt,
+    reason: notPursuedReason(r.roadblocks, r.misalignments),
+  }));
 }
 
 /** Map of leadId → requirement count for the user's leads, for the lead board. */

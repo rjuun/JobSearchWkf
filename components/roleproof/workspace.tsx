@@ -26,6 +26,7 @@ import { Mach, CodeBadge } from '@/components/machinery';
 import { Frame } from '@/components/layout';
 import { cn, RpStagePill, rpVerdict, scoreTone, SCORE_TEXT } from './kit';
 import { ApplicationSentControl } from './application-sent-control';
+import { PipelineMap, type MapBlock, type MapPosition } from './pipeline-map';
 
 export type RpLead = {
   id: string;
@@ -46,9 +47,11 @@ export type RpLead = {
   postedDays: number | null;
   freshnessBand: string | null;
   saturationBand: string | null;
-  roadblocks: { dimension: string; detail: string }[];
+  /** `requirementId` set ⇒ the Map shows a Block chip on that row; unset ⇒ Key Patterns only (§2.5). */
+  roadblocks: { dimension: string; detail: string; requirementId?: string }[];
   misalignments: { dimension: string; detail: string }[];
   skillRatings: Record<string, number>;
+  keyPatterns: string | null;
 };
 export type RpReq = {
   id: string;
@@ -58,11 +61,15 @@ export type RpReq = {
   description: string | null;
   initialScore: number | null;
   initialMatchStrength: string | null;
-  // Requirement Skills — JD-facing language extracted at B5 (never AoE codes).
+  /** Verbatim JD sentence (§3). Null on leads screened before it shipped — §4.3 left those historical. */
+  sourceText: string | null;
+  // Requirement Skills — JD-facing language extracted at B2 (never AoE codes).
   skills: string[];
 };
 export type RpRow = {
   id: string;
+  /** FK to job_requirements — what lets the Map trace this item to the row(s) it supports. */
+  requirementId: string | null;
   requirementLine: string | null;
   evidenceRef: string | null;
   originalText: string | null;
@@ -89,6 +96,8 @@ type Props = {
   lead: RpLead;
   requirements: RpReq[];
   tailoring: RpRow[];
+  /** The CV's real shape — the Map's left column. Present in every state, including pre-screening. */
+  cvSkeleton: MapPosition[];
   jd: string | null;
   journey: JourneyResult;
   recommendation: string | null;
@@ -119,17 +128,11 @@ const GEN_STEPS = [
   'Compiling the 2-page CV',
   'Rating the ATS match',
 ];
-const TONE_TEXT: Record<string, string> = {
-  proof: 'text-proof-deep',
-  caution: 'text-caution-deep',
-  drop: 'text-drop-deep',
-  neutral: 'text-ink-muted',
-};
-
 type Ctx = {
   lead: RpLead;
   requirements: RpReq[];
   rows: RpRow[];
+  cvSkeleton: MapPosition[];
   jd: string | null;
   journey: JourneyResult;
   recommendation: string | null;
@@ -312,6 +315,7 @@ export function RpWorkspace(props: Props) {
     lead,
     requirements,
     rows: tailoring,
+    cvSkeleton: props.cvSkeleton,
     jd,
     journey,
     recommendation,
@@ -356,6 +360,18 @@ export function RpWorkspace(props: Props) {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * The B phase's step codes, in execution order — ONE definition.
+ *
+ * This was three separate hardcoded `['B1'…'B6']` literals passed to
+ * TraceDisclosure plus a fourth in SCREEN_CODES. The B-phase reorder (CI · Lead
+ * Page as Pipeline Canvas §3.1) called that out as the change most likely to
+ * break silently: miss one array and its trace panel renders nothing rather than
+ * erroring, so nobody finds out. Hoisted so the order can only be wrong in one
+ * place. Add or renumber a B step here and every consumer follows.
+ */
+const B_STEPS = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6'] as const;
+
 const PROMPT_SOURCE: Record<string, string> = {
   B1: 'code rule',
   B2: 'Process/B2',
@@ -372,11 +388,11 @@ const PROMPT_SOURCE: Record<string, string> = {
   C7: 'Process/C7',
 };
 
-function tracesFor(c: Ctx, steps: string[]): RunTrace[] {
+function tracesFor(c: Ctx, steps: readonly string[]): RunTrace[] {
   return steps.map((step) => c.runTrace.find((run) => run.step === step)).filter((run): run is RunTrace => !!run);
 }
 
-function hasTrace(c: Ctx, steps: string[]): boolean {
+function hasTrace(c: Ctx, steps: readonly string[]): boolean {
   return steps.some((step) => c.runTrace.some((run) => run.step === step));
 }
 
@@ -399,7 +415,7 @@ function traceTime(value: string | null): string {
   return new Date(value).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function TraceDisclosure({ c, steps, dark = false }: { c: Ctx; steps: string[]; dark?: boolean }) {
+function TraceDisclosure({ c, steps, dark = false }: { c: Ctx; steps: readonly string[]; dark?: boolean }) {
   const runs = tracesFor(c, steps);
   if (runs.length === 0) return null;
   return (
@@ -455,94 +471,49 @@ function verdictLine(c: Ctx): string {
   return watch ? `${base} Watch-out: ${watch.detail || watch.dimension}.` : base;
 }
 
-const CHECK_QS = [
-  'Is this still worth chasing?',
-  'Any dealbreakers?',
-  'Where might you fall short?',
-  'Which of your skills line up?',
-  'What are the must-haves?',
-  'Overall, is it worth your time?',
-];
-// The methodology step behind each plain-language check (shown in machinery mode).
-const SCREEN_CODES = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6'];
-
-function buildChecks(c: Ctx): { q: string; a: string; tone: string; list?: string[] }[] {
-  const { lead, requirements } = c;
-  const skills = Object.keys(lead.skillRatings ?? {}).length;
-  const rb = lead.roadblocks ?? [];
-  const mis = lead.misalignments ?? [];
-  return [
-    {
-      q: CHECK_QS[0],
-      a:
-        lead.postedDays != null
-          ? `${lead.postedDays} day${lead.postedDays === 1 ? '' : 's'} old — ${lead.freshnessBand ?? 'within the window'}`
-          : lead.freshnessBand ?? 'Fresh enough to pursue',
-      tone: 'proof',
-    },
-    {
-      q: CHECK_QS[1],
-      a:
-        rb.length === 0
-          ? 'None found — nothing hard blocks you.'
-          : rb.length === 1
-            ? rb[0].detail || rb[0].dimension
-            : `${rb.length} potential blockers`,
-      list: rb.length > 1 ? rb.map((r) => r.detail || r.dimension) : undefined,
-      tone: rb.length ? 'drop' : 'proof',
-    },
-    {
-      q: CHECK_QS[2],
-      a:
-        mis.length === 0
-          ? 'Nothing major stands out.'
-          : mis.length === 1
-            ? `${mis[0].dimension ? `${mis[0].dimension}: ` : ''}${mis[0].detail}`
-            : `${mis.length} to weigh`,
-      list:
-        mis.length > 1
-          ? mis.map((m) => `${m.dimension ? `${m.dimension}: ` : ''}${m.detail}`)
-          : undefined,
-      tone: mis.length ? 'caution' : 'proof',
-    },
-    {
-      q: CHECK_QS[3],
-      a: skills ? `${skills} of your skills line up with the role` : 'Skills compared to your history',
-      tone: 'proof',
-    },
-    {
-      q: CHECK_QS[4],
-      a: requirements.length
-        ? `${requirements.length} must-haves read & ranked`
-        : 'Requirements read from the posting',
-      tone: 'neutral',
-    },
-    {
-      q: CHECK_QS[5],
-      a: `${rpVerdict(lead.overallFitScore)} · ${lead.overallFitScore?.toFixed(1)} / 10`,
-      tone: scoreTone(lead.overallFitScore),
-    },
-  ];
-}
+/**
+ * The six B steps as plain-language questions, paired with their step code — in
+ * EXECUTION ORDER, which is what the live progress card counts through.
+ *
+ * One array of pairs rather than the two parallel arrays this used to be
+ * (`CHECK_QS` + `SCREEN_CODES`, matched by index). The B-phase reorder moved
+ * "what are the must-haves?" from fifth to second, and with parallel arrays that
+ * kind of change silently mislabels every row after the one you edited — the
+ * badge would claim a step that didn't produce that answer. Keeping the question
+ * and its code in the same object makes that class of mistake impossible.
+ */
+const SCREEN_CHECKS = [
+  { code: 'B1', q: 'Is this still worth chasing?' },
+  { code: 'B2', q: 'What are the must-haves?' },
+  { code: 'B3', q: 'Any dealbreakers?' },
+  { code: 'B4', q: 'Where might you fall short?' },
+  { code: 'B5', q: 'Which of your skills line up?' },
+  { code: 'B6', q: 'Overall, is it worth your time?' },
+] as const;
 
 // ── layout: 2A two-pane command center ─────────────────────────────────────────
 
 function TwoPane({ c }: { c: Ctx }) {
+  const railRef = useRef<HTMLDivElement>(null);
+  const railHeight = useRailHeight(railRef);
   return (
     <Frame className="pt-5 pb-24">
       <LeadHeader c={c} />
+      {/* `items-start`: the rail keeps its natural height and the JD panel is given
+          that height explicitly (see useRailHeight). Stretch alignment cannot do
+          this — a grid row is as tall as its TALLEST item, so a long posting makes
+          the JD the one setting the height, which is the opposite of §2.3's rule. */}
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.04fr)]">
-        {/* LEFT · JD reader, pinned */}
-        <div className="lg:sticky lg:top-[74px]">
-          <JdReader jd={c.jd} requirements={c.requirements} skillRatings={c.lead.skillRatings} />
-        </div>
+        {/* LEFT · JD reader — height-pinned to the rail, internally scrolled */}
+        <JdReader c={c} height={railHeight} />
         {/* RIGHT · work rail */}
-        <div className="flex flex-col gap-4">
+        <div ref={railRef} className="flex flex-col gap-4">
           {c.scored ? <ScoreCard c={c} /> : c.isHold ? <HeldCard c={c} /> : <RunCard c={c} />}
           <ActionError c={c} />
           {c.scored && <JourneyRail stages={c.journey.stages} />}
           {!c.running && !c.busyPhase && c.journey.next.cta !== 'none' && <NextMove c={c} />}
-          {c.scored && c.screenStage && <ChecksCard c={c} />}
+          {/* Key Patterns takes the slot `How RoleProof checked` used to occupy. */}
+          <KeyPatternsCard c={c} />
           {c.tailorStage &&
             (c.busyPhase ? (
               <PipelineProgress c={c} />
@@ -560,6 +531,31 @@ function TwoPane({ c }: { c: Ctx }) {
           {c.scored && <EnrichBar c={c} />}
         </div>
       </div>
+      {/* The Map, below the fold — mounted in every state, including a lead nothing
+          has run on. It is the page's product; the panels above are its controls. */}
+      <PipelineMap
+        positions={c.cvSkeleton}
+        requirements={c.requirements.map((r) => ({
+          id: r.id,
+          order: r.requirementOrder,
+          rank: r.rank,
+          requirement: r.requirement,
+          description: r.description,
+          sourceText: r.sourceText,
+          initialScore: r.initialScore,
+          initialMatchStrength: r.initialMatchStrength,
+        }))}
+        evidence={c.rows.map((row) => ({
+          id: row.id,
+          requirementId: row.requirementId,
+          slot: row.cvPosition,
+          text: row.originalText,
+          approvalStatus: row.approvalStatus,
+        }))}
+        blocks={mappedBlocks(c)}
+        leadTitle={c.lead.title}
+        company={c.lead.company}
+      />
     </Frame>
   );
 }
@@ -580,8 +576,13 @@ function LeadHeader({ c }: { c: Ctx }) {
         <h1 className="mt-1 font-serif text-[34px] leading-tight text-ink">{lead.title}</h1>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <RpStagePill status={lead.status} />
-          {lead.jdGroupPrimary && <Chip>{lead.jdGroupPrimary}</Chip>}
-          {lead.atsSystem && <Chip>ATS · {lead.atsSystem}</Chip>}
+          {/* JD group and ATS are shown as pending rather than hidden when absent:
+              an absent chip reads as "this lead has no JD group", where the truth is
+              "B5 hasn't run yet". Same reasoning as the freshness chips — the frame
+              stays put and fills in. ATS is A1's, so `Unknown` here means the page
+              chrome carried no evidence of one (§2.2a), not that a step is pending. */}
+          <Chip muted={!lead.jdGroupPrimary}>{lead.jdGroupPrimary ?? 'JD group — pending'}</Chip>
+          <Chip muted={!lead.atsSystem}>ATS · {lead.atsSystem ?? 'Unknown'}</Chip>
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -622,9 +623,14 @@ function TargetToggle({ leadId, initial }: { leadId: string; initial: boolean })
   );
 }
 
-function Chip({ children }: { children: React.ReactNode }) {
+function Chip({ children, muted = false }: { children: React.ReactNode; muted?: boolean }) {
   return (
-    <span className="inline-flex items-center rounded-full bg-raised px-3 py-1 text-[11px] font-semibold text-ink-muted ring-1 ring-inset ring-hairline">
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full bg-raised px-3 py-1 text-[11px] font-semibold ring-1 ring-inset ring-hairline',
+        muted ? 'text-ink-subtle' : 'text-ink-muted'
+      )}
+    >
       {children}
     </span>
   );
@@ -646,199 +652,363 @@ function PostingLink({ href, children }: { href: string; children: React.ReactNo
   );
 }
 
-// ── JD reader (tabbed) ───────────────────────────────────────────────────────
+// ── JD reader + Key Patterns ─────────────────────────────
 
-const SKILL_RANK_WORD: Record<number, string> = { 1: 'Core', 2: 'Important', 3: 'Supporting' };
+/**
+ * Areas-of-Expertise rating labels (B5). Renamed from Core / Important /
+ * Supporting (CI · Lead Page as Pipeline Canvas §2.2c): those words also name the
+ * requirement ranks that B2 assigns, and two different scales sharing a vocabulary
+ * on the same page is what made it look like requirement ranking happened in B5.
+ * `Core` / `Important` / `Nice-to-Have` belongs to requirements only — see
+ * REQ_RANK_* in the Map. Values 1/2/3 are unchanged; only the words moved.
+ */
+const SKILL_RANK_WORD: Record<number, string> = { 1: 'Central', 2: 'Contributing', 3: 'Peripheral' };
 const SKILL_RANK_PILL: Record<number, string> = {
   1: 'bg-proof-soft text-proof-deep',
   2: 'bg-caution-soft text-caution-deep',
   3: 'bg-raised text-ink-muted',
 };
 
-function JdReader({
-  jd,
-  requirements,
-  skillRatings,
-  flat,
-}: {
-  jd: string | null;
-  requirements: RpReq[];
-  skillRatings: Record<string, number>;
-  flat?: boolean;
-}) {
-  const [tab, setTab] = useState<'role' | 'reqs' | 'skills'>('role');
-  const skillEntries = Object.entries(skillRatings).sort((a, b) => a[1] - b[1]);
-  const body = (
-    <>
-      <div className="flex gap-1 border-b border-hairline px-4 pt-2">
-        <TabBtn active={tab === 'role'} onClick={() => setTab('role')}>
-          The role
-        </TabBtn>
-        <TabBtn active={tab === 'reqs'} onClick={() => setTab('reqs')}>
-          Must-haves <span className="font-mono text-[11px]">{requirements.length}</span>
-        </TabBtn>
-        <TabBtn active={tab === 'skills'} onClick={() => setTab('skills')}>
-          Skills <span className="font-mono text-[11px]">{skillEntries.length}</span>
-        </TabBtn>
-      </div>
+/**
+ * The work rail's measured height, for pinning the JD panel to it (§2.3).
+ *
+ * This has to be measured; CSS cannot express it. A grid row is as tall as its
+ * tallest item, so `h-full` on the JD panel resolves to "as tall as the tallest
+ * column" — and for any posting longer than the rail, that column IS the JD. The
+ * panel grew to fit the whole posting, no scrollbar ever appeared, and the Map got
+ * pushed down the page by however long the JD happened to be. Subgrid and
+ * container queries don't help: the constraint is "size to my sibling's content",
+ * which no layout mode offers.
+ *
+ * The dependency runs one way only — the rail's height never depends on the JD's —
+ * so setting the JD's height from the rail cannot feed back into a resize loop.
+ * That direction is the whole reason this is safe, and it's why the JD panel must
+ * keep `overflow: hidden` and never be the observed element.
+ *
+ * Returns null below `lg`, where the columns stack: there is no sibling beside the
+ * posting to match, and pinning would crop it to the height of a rail sitting
+ * underneath it.
+ */
+function useRailHeight(railRef: React.RefObject<HTMLElement>): number | null {
+  const [height, setHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const el = railRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const wide = window.matchMedia('(min-width: 1024px)');
+    // Round to whole pixels: sub-pixel layout jitter would otherwise churn state
+    // on every fractional reflow for no visible gain.
+    const sync = () => setHeight(wide.matches ? Math.round(el.getBoundingClientRect().height) : null);
+    sync();
+    // Observing the rail covers the cases a resize listener misses — expanding
+    // "See the breakdown", a flag list arriving after screening, an error banner.
+    const observer = new ResizeObserver(sync);
+    observer.observe(el);
+    wide.addEventListener('change', sync);
+    return () => {
+      observer.disconnect();
+      wide.removeEventListener('change', sync);
+    };
+  }, [railRef]);
+  return height;
+}
 
-      {tab === 'role' && (
-        <div className="px-5 py-5">
-          {jd ? (
-            <p className="whitespace-pre-wrap text-[13.5px] leading-[1.75] text-ink-muted">{jd.trim()}</p>
-          ) : (
-            <p className="text-sm text-ink-subtle">The posting text hasn’t been captured for this lead.</p>
-          )}
-        </div>
-      )}
-
-      {tab === 'reqs' && (
-        <div className="px-3 py-2">
-          {requirements.length === 0 ? (
-            <p className="px-2 py-6 text-center text-sm text-ink-subtle">
-              No must-haves extracted yet — screen the role first.
-            </p>
-          ) : (
-            <ul className="divide-y divide-hairline/70">
-              {requirements.map((r) => {
-                const gap = r.initialMatchStrength === 'No Match' || (r.initialScore ?? 10) < 4;
-                return (
-                  <li key={r.id} className="flex items-start gap-3 px-2 py-2.5">
-                    <span
-                      className={cn(
-                        'mt-1 h-2.5 w-2.5 shrink-0 rounded-sm ring-1 ring-inset',
-                        gap ? 'bg-caution-soft ring-caution-ring' : 'bg-proof-soft ring-proof-ring'
-                      )}
-                      title={gap ? 'a gap to address' : 'you can evidence this'}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-medium text-ink">{r.requirement}</div>
-                      {r.description && (
-                        <div className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-ink-subtle">
-                          {r.description}
-                        </div>
-                      )}
-                      <div className="mt-0.5 flex items-center gap-2 text-[11px] text-ink-subtle">
-                        {r.rank && <span className="font-semibold uppercase tracking-wide">{r.rank}</span>}
-                        {r.initialMatchStrength && <span>· {r.initialMatchStrength}</span>}
-                      </div>
-                      {r.skills.length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {r.skills.slice(0, 4).map((s) => (
-                            <span
-                              key={s}
-                              className="rounded bg-surface px-1.5 py-0.5 text-[10px] text-ink-subtle ring-1 ring-inset ring-hairline"
-                              title="Requirement Skills — the Job Lead's own language"
-                            >
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {r.initialScore != null && (
-                      <span
-                        className={cn(
-                          'shrink-0 font-serif text-[18px] leading-none tabular-nums',
-                          SCORE_TEXT[scoreTone(r.initialScore)]
-                        )}
-                        title="how well your evidence matches"
-                      >
-                        {r.initialScore.toFixed(1)}
-                      </span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {tab === 'skills' && (
-        <div className="px-3 py-3">
-          {skillEntries.length === 0 ? (
-            <p className="px-2 py-6 text-center text-sm text-ink-subtle">
-              No skills read yet — screen the role first.
-            </p>
-          ) : (
-            <>
-              <div className="mb-2 flex items-center gap-3 px-2 text-[10px] text-ink-subtle">
-                {(
-                  [
-                    ['Core', 'bg-proof'],
-                    ['Important', 'bg-caution'],
-                    ['Supporting', 'bg-ink-subtle'],
-                  ] as const
-                ).map(([label, dot]) => (
-                  <span key={label} className="inline-flex items-center gap-1.5">
-                    <span className={cn('h-2 w-2 rounded-full', dot)} /> {label}
-                  </span>
-                ))}
-              </div>
-              <ul className="grid grid-cols-1 gap-x-5 gap-y-0.5 sm:grid-cols-2">
-                {skillEntries.map(([name, rating]) => (
-                  <li key={name} className="flex items-center justify-between gap-2 px-2 py-1">
-                    <span className="truncate text-[12.5px] text-ink-muted">{name}</span>
-                    <span
-                      className={cn(
-                        'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                        SKILL_RANK_PILL[rating] ?? SKILL_RANK_PILL[3]
-                      )}
-                    >
-                      {SKILL_RANK_WORD[rating] ?? 'Supporting'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </div>
-      )}
-
-      {tab === 'reqs' && (
-        <div className="flex items-center gap-4 border-t border-hairline px-5 py-2.5 text-[11px] text-ink-subtle">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-proof-soft ring-1 ring-inset ring-proof-ring" /> you can
-            evidence this
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-caution-soft ring-1 ring-inset ring-caution-ring" /> a gap
-            to address
-          </span>
-        </div>
-      )}
-    </>
-  );
-  if (flat) return <div className="overflow-hidden rounded-[10px] border border-hairline bg-surface">{body}</div>;
+/**
+ * `The role` — the posting, and nothing else.
+ *
+ * The `Must-haves` and `Skills` tabs are gone (§2.3). They were exactly backwards:
+ * requirements are what the whole B phase produces, and they sat hidden one click
+ * behind the JD. They now live in the Map, at full width, with their JD source
+ * quoted — and skills surface through the JD-group chip in the header. `The role`
+ * is a plain header now, not a tab, because there is nothing to switch between.
+ *
+ * The freed header space carries the freshness and saturation chips, which is
+ * where B1's output belongs: two cheap objective facts about the posting, next to
+ * the posting.
+ *
+ * HEIGHT IS PINNED, deliberately. `h-full` + `min-h-0` + an internally scrolling
+ * body makes this panel exactly as tall as the right-hand column, whatever the
+ * posting's length. That is the one thing keeping the Map's top edge at a constant
+ * Y — without it a long JD pushes the Map down the page and the canvas moves
+ * every time you open a different lead.
+ */
+function JdReader({ c, height }: { c: Ctx; height: number | null }) {
+  const jd = c.jd;
   return (
-    <div className="overflow-hidden rounded-card border border-hairline bg-surface shadow-card">
-      {body}
+    <div
+      // An explicit pixel height, not a class: the value is the rail's measured
+      // height and only exists at runtime. `null` (mobile, or before the first
+      // measurement) falls back to natural height — the posting is never cropped
+      // by a height we haven't actually established.
+      style={height != null ? { height } : undefined}
+      className="flex min-h-0 flex-col overflow-hidden rounded-card border border-hairline bg-surface shadow-card"
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-hairline px-4 py-2.5">
+        <span className="border-b-2 border-proof pb-1 text-[12px] font-semibold text-ink">The role</span>
+        <span className="ml-auto flex flex-wrap items-center gap-1.5">
+          <FreshnessChip c={c} />
+          <SaturationChip c={c} />
+        </span>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+        {jd ? (
+          <p className="whitespace-pre-wrap text-[13.5px] leading-[1.75] text-ink-muted">{jd.trim()}</p>
+        ) : (
+          <p className="text-sm text-ink-subtle">The posting text hasn’t been captured for this lead.</p>
+        )}
+      </div>
+      <div className="border-t border-hairline px-4 py-2 text-[10.5px] text-ink-subtle">
+        Full posting · scroll for the rest · height pinned to the right column
+      </div>
     </div>
   );
 }
 
-function TabBtn({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+/**
+ * B1's freshness band as a colour-coded chip, on the ramp from `B1 §C`:
+ * green 0–7 days / yellow 8–21 / orange 22–60 / red 61–120 / dark 120+.
+ *
+ * Bands are read from `freshnessBand`, which lib/scoring owns — deriving them from
+ * `postedDays` here would be a second copy of the thresholds, free to drift from
+ * the one the pipeline actually scores against.
+ */
+const FRESHNESS_TONE: Record<string, string> = {
+  'very fresh': 'bg-proof-soft text-proof-deep ring-proof-ring',
+  fresh: 'bg-proof-soft text-proof-deep ring-proof-ring',
+  recent: 'bg-caution-soft text-caution-deep ring-caution-ring',
+  ageing: 'bg-[#fde9d4] text-[#854f0b] ring-[#f0c99a]',
+  aging: 'bg-[#fde9d4] text-[#854f0b] ring-[#f0c99a]',
+  stale: 'bg-drop-soft text-drop-deep ring-drop-ring',
+  'very stale': 'bg-ink text-paper ring-ink',
+};
+const SATURATION_TONE: Record<string, string> = {
+  low: 'bg-proof-soft text-proof-deep ring-proof-ring',
+  moderate: 'bg-caution-soft text-caution-deep ring-caution-ring',
+  high: 'bg-drop-soft text-drop-deep ring-drop-ring',
+};
+const PENDING_TONE = 'bg-raised text-ink-subtle ring-hairline';
+
+function MetricChip({ tone, dot, children }: { tone: string; dot: string; children: React.ReactNode }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <span
       className={cn(
-        'border-b-2 px-3 py-2 text-[12px] font-semibold transition',
-        active ? 'border-proof text-ink' : 'border-transparent text-ink-subtle hover:text-ink-muted'
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10.5px] font-semibold ring-1 ring-inset',
+        tone
       )}
     >
+      <span className={cn('h-[6px] w-[6px] shrink-0 rounded-full', dot)} />
       {children}
-    </button>
+    </span>
   );
+}
+
+function FreshnessChip({ c }: { c: Ctx }) {
+  const band = c.lead.freshnessBand;
+  // Grey until B1 has run — a lead captured a minute ago genuinely has no band
+  // yet, and showing "very fresh" before the check would be asserting a result.
+  if (!band) return <MetricChip tone={PENDING_TONE} dot="bg-ink-subtle/50">freshness — pending</MetricChip>;
+  const tone = FRESHNESS_TONE[band.toLowerCase()] ?? PENDING_TONE;
+  const days = c.lead.postedDays;
+  return (
+    <MetricChip tone={tone} dot="bg-current">
+      {days != null ? `${days} day${days === 1 ? '' : 's'} · ` : ''}
+      <b className="font-bold">{band}</b>
+    </MetricChip>
+  );
+}
+
+function SaturationChip({ c }: { c: Ctx }) {
+  const band = c.lead.saturationBand;
+  if (!band) return <MetricChip tone={PENDING_TONE} dot="bg-ink-subtle/50">applicants — pending</MetricChip>;
+  const tone = SATURATION_TONE[band.toLowerCase()] ?? PENDING_TONE;
+  return (
+    <MetricChip tone={tone} dot="bg-current">
+      <b className="font-bold">{band}</b> competition
+    </MetricChip>
+  );
+}
+
+/**
+ * Key Patterns — B5's prose, then the two flag sections.
+ *
+ * Takes the slot `How RoleProof checked` occupied, and the difference is the whole
+ * argument of §2.2/§2.3: that box restated in plain English what the six steps had
+ * done, while every fact it named already existed as a real field. This shows the
+ * fields.
+ *
+ * The two flag sections are deliberately NOT styled alike, because they do not mean
+ * the same thing (§2.2d):
+ *   • Roadblocks — oxblood. These gate the lead.
+ *   • Misalignments — red. Awareness only, and they gate nothing. `B4. Identify
+ *     Misalignments` says so twice in bold; a lead with three misalignments and no
+ *     roadblock is still perfectly viable and still reaches the user's desk.
+ * Anyone tempted to unify these into one "flags" list should read §2.2d first —
+ * the distinction is the point, not styling variety.
+ */
+function KeyPatternsCard({ c }: { c: Ctx }) {
+  const { lead } = c;
+  const roadblocks = lead.roadblocks ?? [];
+  const misalignments = lead.misalignments ?? [];
+  const patterns = lead.keyPatterns?.trim();
+  const flagCount = roadblocks.length + misalignments.length;
+  const empty = !patterns && flagCount === 0;
+
+  return (
+    <div className="overflow-hidden rounded-card border border-hairline bg-surface shadow-card">
+      <div className="flex items-center gap-2.5 border-b border-hairline bg-raised px-4 py-3">
+        <span className="text-[13px] font-semibold text-ink">Key patterns</span>
+        {flagCount > 0 && (
+          <span className="ml-auto text-[11px] font-semibold text-ink-subtle">
+            {flagCount} flag{flagCount === 1 ? '' : 's'}
+          </span>
+        )}
+      </div>
+      <div className="px-4 py-3">
+        {empty ? (
+          <p className="text-[12px] italic text-ink-subtle">
+            Nothing recorded yet — key patterns are written at B5, flags at B3–B4.
+          </p>
+        ) : (
+          <>
+            {patterns ? (
+              <p className="text-[12.5px] leading-relaxed text-ink-muted">{patterns}</p>
+            ) : (
+              <p className="text-[11.5px] italic text-ink-subtle">Key patterns are written at B5.</p>
+            )}
+
+            {roadblocks.length > 0 && (
+              <div className="mt-3.5">
+                <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#7a1f1f]">
+                  Roadblocks — these gate the lead
+                </div>
+                <ul className="mt-1.5 space-y-1.5">
+                  {roadblocks.map((r, i) => (
+                    <li key={i} className="flex gap-2 text-[12px] leading-snug text-ink-muted">
+                      <span className="mt-[5px] h-[6px] w-[6px] shrink-0 rounded-full bg-[#7a1f1f]" />
+                      <span>
+                        <b className="font-semibold text-[#7a1f1f]">{r.dimension}:</b> {r.detail}
+                        {/* Mapped roadblocks also show as a Block chip on their requirement
+                            row in the Map; unmapped ones exist only here. Saying which is
+                            which is what stops the two surfaces looking inconsistent. */}
+                        {r.requirementId && (
+                          <span className="text-ink-subtle"> · shown as Block on its requirement</span>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {misalignments.length > 0 && (
+              <div className="mt-3.5">
+                <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-drop-deep">
+                  Misalignments — awareness only, not a gate
+                </div>
+                <ul className="mt-1.5 space-y-1.5">
+                  {misalignments.map((m, i) => (
+                    <li key={i} className="flex gap-2 text-[12px] leading-snug text-ink-muted">
+                      <span className="mt-[5px] h-[6px] w-[6px] shrink-0 rounded-full bg-drop" />
+                      <span>
+                        <b className="font-semibold text-drop-deep">{m.dimension}:</b> {m.detail}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {/* The B → Coach bridge, relocated from the deleted checks card. It
+                    belongs beside the misalignments now: "where might you fall short"
+                    is exactly what this section answers. Still gated on an OPEN prompt
+                    actually existing, so the CTA can never dead-end. */}
+                {c.coachBridge && (
+                  <Link
+                    href={`/profile/coach?lead=${lead.id}`}
+                    className="mt-2.5 inline-flex items-center gap-1.5 rounded-[7px] bg-proof px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-proof-deep"
+                  >
+                    + Add the evidence with your coach →
+                  </Link>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      <AreasOfExpertisePanel c={c} />
+      {hasTrace(c, B_STEPS) && (
+        <div className="border-t border-hairline px-4 py-3">
+          <TraceDisclosure c={c} steps={B_STEPS} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The 17 Areas of Expertise ratings, collapsed.
+ *
+ * §2.3 deletes the `Skills` tab and says ratings surface "via the JD-group chip and
+ * the Areas of Expertise panel" — this is that panel. Collapsed by default because
+ * the ratings are an input to the JD-group decision rather than something the user
+ * acts on per lead: the chip in the header is the answer, this is the working. It
+ * would have been easy to delete the tab and surface nothing, which would have
+ * quietly dropped the only place B5's output was ever visible.
+ */
+function AreasOfExpertisePanel({ c }: { c: Ctx }) {
+  // Sorted by rating so Central items lead — the ordering carries the same
+  // "what matters here" signal as the Map's tier band.
+  const entries = Object.entries(c.lead.skillRatings ?? {}).sort((a, b) => a[1] - b[1]);
+  if (entries.length === 0) return null;
+  return (
+    <details className="group border-t border-hairline">
+      <summary className="flex cursor-pointer select-none items-center justify-between gap-3 px-4 py-2.5 text-[11px] font-semibold text-ink-subtle hover:text-ink-muted">
+        <span>Areas of expertise · {c.lead.jdGroupPrimary ?? 'no JD group'}</span>
+        <span className="font-mono text-[10px] opacity-70">{entries.length}</span>
+      </summary>
+      <div className="px-4 pb-3">
+        <div className="mb-2 flex flex-wrap items-center gap-3 text-[10px] text-ink-subtle">
+          {([1, 2, 3] as const).map((r) => (
+            <span key={r} className="inline-flex items-center gap-1.5">
+              <span
+                className={cn(
+                  'h-2 w-2 rounded-full',
+                  r === 1 ? 'bg-proof' : r === 2 ? 'bg-caution' : 'bg-ink-subtle'
+                )}
+              />
+              {SKILL_RANK_WORD[r]}
+            </span>
+          ))}
+        </div>
+        <ul className="grid grid-cols-1 gap-x-5 gap-y-0.5 sm:grid-cols-2">
+          {entries.map(([name, rating]) => (
+            <li key={name} className="flex items-center justify-between gap-2 py-0.5">
+              <span className="truncate text-[11.5px] text-ink-muted">{name}</span>
+              <span
+                className={cn(
+                  'shrink-0 rounded-full px-2 py-0.5 text-[9.5px] font-semibold',
+                  SKILL_RANK_PILL[rating] ?? SKILL_RANK_PILL[3]
+                )}
+              >
+                {SKILL_RANK_WORD[rating] ?? SKILL_RANK_WORD[3]}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </details>
+  );
+}
+
+/**
+ * Roadblocks that name a requirement, narrowed to requirement rows that actually
+ * exist. The id check is not paranoia: `job_requirements` rows can be re-extracted
+ * (B2 skips only when rows are already present), and a stale `requirementId` left
+ * on a roadblock would otherwise render a Block chip against nothing.
+ */
+function mappedBlocks(c: Ctx): MapBlock[] {
+  const ids = new Set(c.requirements.map((r) => r.id));
+  return (c.lead.roadblocks ?? [])
+    .filter((r): r is { dimension: string; detail: string; requirementId: string } =>
+      typeof r.requirementId === 'string' && ids.has(r.requirementId)
+    )
+    .map((r) => ({ requirementId: r.requirementId, detail: r.detail, dimension: r.dimension }));
 }
 
 // ── panels ───────────────────────────────────────────────────────────────────
@@ -913,27 +1083,37 @@ function HeldCard({ c }: { c: Ctx }) {
   );
 }
 
+/**
+ * Live screening progress — "step N of 6" while B1→B6 run.
+ *
+ * This used to be two components in one: a live progress card AND a post-hoc
+ * "How RoleProof checked" summary of six plain-English answers. The summary is
+ * gone (CI § 2.3): every fact it restated already exists as a first-class field
+ * elsewhere on the page — freshness and saturation as header chips, roadblocks and
+ * misalignments in Key Patterns, requirements in the Map, skills in the JD-group
+ * chip, the score in the score card — so it was narration of process where the
+ * page should show product. `buildChecks` went with it.
+ *
+ * The live variant stays, because a progress card during a multi-second run is
+ * doing real work: it says which step is in flight rather than freezing a button.
+ */
 function ChecksCard({ c }: { c: Ctx }) {
-  const checks = c.running ? null : buildChecks(c);
   return (
     <div className="overflow-hidden rounded-card border border-hairline bg-surface shadow-card">
       <div className="flex items-center gap-2.5 border-b border-hairline bg-raised px-4 py-3">
-        <span className={cn('h-2.5 w-2.5 rounded-full', c.running ? 'bg-caution' : 'bg-proof')} />
-        <span className="text-[13px] font-semibold text-ink">
-          {c.running ? 'Screening — reading the posting' : 'How RoleProof checked'}
-        </span>
+        <span className="h-2.5 w-2.5 rounded-full bg-caution" />
+        <span className="text-[13px] font-semibold text-ink">Screening — reading the posting</span>
         <span className="ml-auto text-[11px] font-semibold text-ink-subtle">
-          {c.running ? `step ${Math.min(c.runStep + 1, 6)} of 6` : '6 plain-English checks'}
+          step {Math.min(c.runStep + 1, SCREEN_CHECKS.length)} of {SCREEN_CHECKS.length}
         </span>
       </div>
       <div className="p-1.5">
-        {CHECK_QS.map((q, i) => {
-          const done = c.running ? i < c.runStep : true;
-          const isRun = c.running && i === c.runStep;
-          const ans = checks?.[i];
+        {SCREEN_CHECKS.map(({ code, q }, i) => {
+          const done = i < c.runStep;
+          const isRun = i === c.runStep;
           return (
             <div
-              key={q}
+              key={code}
               className={cn(
                 'flex items-start gap-3 rounded-[8px] px-3 py-2.5',
                 isRun && 'bg-raised',
@@ -954,31 +1134,11 @@ function ChecksCard({ c }: { c: Ctx }) {
               </span>
               <div className="min-w-0 flex-1">
                 <div className="text-[12.5px] font-semibold text-ink">
-                  {q} <CodeBadge code={SCREEN_CODES[i] ?? ''} />
+                  {q} <CodeBadge code={code} />
                 </div>
-                <div className={cn('mt-0.5 text-[12px] leading-snug', ans ? TONE_TEXT[ans.tone] : 'text-ink-subtle')}>
-                  {ans ? ans.a : isRun ? 'thinking…' : 'up next'}
+                <div className="mt-0.5 text-[12px] leading-snug text-ink-subtle">
+                  {isRun ? 'thinking…' : done ? 'done' : 'up next'}
                 </div>
-                {ans?.list && (
-                  <ul className="mt-1 space-y-0.5">
-                    {ans.list.map((it, j) => (
-                      <li key={j} className="flex gap-1.5 text-[11px] text-ink-muted">
-                        <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-ink-subtle" />
-                        <span>{it}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {/* B → Coach bridge: shown only when an OPEN screening-gap prompt
-                    actually exists for this lead, so the CTA can never dead-end. */}
-                {i === 2 && !c.running && c.coachBridge && (
-                  <Link
-                    href={`/profile/coach?lead=${c.lead.id}`}
-                    className="mt-2 inline-flex items-center gap-1.5 rounded-[7px] bg-proof px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-proof-deep"
-                  >
-                    + Add the evidence with your coach →
-                  </Link>
-                )}
               </div>
             </div>
           );
@@ -987,11 +1147,6 @@ function ChecksCard({ c }: { c: Ctx }) {
       <div className="border-t border-hairline px-4 py-2.5 text-[11px] text-ink-subtle">
         RoleProof reads the posting and compares it to your history · stop anytime
       </div>
-      {hasTrace(c, ['B1', 'B2', 'B3', 'B4', 'B5', 'B6']) && (
-        <div className="border-t border-hairline px-4 py-3">
-          <TraceDisclosure c={c} steps={['B1', 'B2', 'B3', 'B4', 'B5', 'B6']} />
-        </div>
-      )}
     </div>
   );
 }
@@ -1059,7 +1214,7 @@ function ScoreCard({ c }: { c: Ctx }) {
           <div className="text-[11px] text-paper/45">
             Weighted the same way every time — a consistent, explainable number, not a mood.
           </div>
-          <TraceDisclosure c={c} steps={['B1', 'B2', 'B3', 'B4', 'B5', 'B6']} dark />
+          <TraceDisclosure c={c} steps={B_STEPS} dark />
         </div>
       )}
     </div>
@@ -1261,9 +1416,9 @@ function MapCard({ c }: { c: Ctx }) {
         >
           {c.running ? 'Extracting…' : 'Re-run screening'}
         </button>
-        {hasTrace(c, ['B1', 'B2', 'B3', 'B4', 'B5', 'B6']) && (
+        {hasTrace(c, B_STEPS) && (
           <div className="mt-4">
-            <TraceDisclosure c={c} steps={['B1', 'B2', 'B3', 'B4', 'B5', 'B6']} />
+            <TraceDisclosure c={c} steps={B_STEPS} />
           </div>
         )}
       </div>
