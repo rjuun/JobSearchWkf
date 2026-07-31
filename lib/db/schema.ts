@@ -51,6 +51,17 @@ export const leadStatusEnum = pgEnum('lead_status', [
   'roadblocked',
   'misaligned',
   'selected',
+  // 2026-07-30 — a lead the gate drops (roadblocked/misaligned) or that the
+  // SharePoint reconciliation marked "Not Proceeding" (never applied, no
+  // shortcoming — just went stale or the role closed) all land here. One
+  // terminal status, not three: the *why* already lives on the row as
+  // `roadblocks`/`misalignments` (both empty means "not proceeding," no
+  // structured reason). Mirrors the Salesforce pattern of one closed status
+  // plus a reason, rather than a status per reason. Surfaced in its own "Not
+  // Pursued" tab (lib/queries.ts listNotPursuedLeads, components/roleproof/
+  // not-pursued-list.tsx) — a sibling of Archive, not folded into it, because
+  // these leads never had an application to stop.
+  'not_pursued',
 ]);
 // NOTE: the human gate is labelled Keep/Maybe/Drop in the UI; the DB enum stays
 // green/yellow/red for now (single source of truth for the labels:

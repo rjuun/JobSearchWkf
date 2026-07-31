@@ -266,8 +266,8 @@ export async function getTargetCoverage(owner: string, tokens: Set<string>): Pro
         eq(jobLeads.isTarget, true),
         // Match the coach: a target you've archived or already applied to no longer
         // inflates the relevancy denominator / "still to prove" headroom.
-        // …and neither does one dropped at the screening gate.
-        notInArray(jobLeads.status, ['archived', 'applied', 'roadblocked', 'misaligned']),
+        // …and neither does one dropped at the screening gate (not_pursued).
+        notInArray(jobLeads.status, ['archived', 'applied', 'not_pursued']),
         inArray(jobRequirements.rank, ['Core', 'Important'])
       )
     );
@@ -535,8 +535,8 @@ export async function targetCoverageMatrix(): Promise<CoverageRow[]> {
       and(
         eq(jobLeads.ownerId, owner),
         eq(jobLeads.isTarget, true),
-        // …and neither does one dropped at the screening gate.
-        notInArray(jobLeads.status, ['archived', 'applied', 'roadblocked', 'misaligned']),
+        // …and neither does one dropped at the screening gate (not_pursued).
+        notInArray(jobLeads.status, ['archived', 'applied', 'not_pursued']),
         inArray(jobRequirements.rank, ['Core', 'Important'])
       )
     )
@@ -667,6 +667,7 @@ export async function flowCounts(): Promise<{
   results: number;
   applications: number;
   archive: number;
+  notPursued: number;
 }> {
   const owner = await currentOwnerId();
   const [leadRows, appRows] = await Promise.all([
@@ -689,7 +690,67 @@ export async function flowCounts(): Promise<{
     results: lead('screened'),
     applications: OPEN_APPLICATION_STATUSES.reduce((n, s) => n + app(s), 0),
     archive: app(ARCHIVED_APPLICATION_STATUS),
+    notPursued: lead('not_pursued'),
   };
+}
+
+// ── Not Pursued (2026-07-30) ────────────────────────────────────────────────
+// Roadblocked/misaligned gate drops, plus SharePoint's "Not Proceeding" leads
+// (never applied, no shortcoming — just went stale or the role closed). A
+// sibling of the Archive, not folded into it: these never had an application
+// to stop, so there's no appliedAt/outcomeAt/contactEmail to show — the "why"
+// comes from the row's own roadblocks/misalignments instead.
+export type NotPursuedReason = { kind: 'roadblocked' | 'misaligned' | 'not_proceeding'; detail: string | null };
+
+export type NotPursuedRow = {
+  leadId: string;
+  title: string;
+  company: string | null;
+  city: string | null;
+  overallFitScore: number | null;
+  updatedAt: Date;
+  reason: NotPursuedReason;
+};
+
+function notPursuedReason(
+  roadblocks: { dimension: string; detail: string }[] | null,
+  misalignments: { dimension: string; detail: string }[] | null
+): NotPursuedReason {
+  if (roadblocks && roadblocks.length > 0) {
+    return { kind: 'roadblocked', detail: `${roadblocks[0].dimension}: ${roadblocks[0].detail}` };
+  }
+  if (misalignments && misalignments.length > 0) {
+    return { kind: 'misaligned', detail: `${misalignments[0].dimension}: ${misalignments[0].detail}` };
+  }
+  return { kind: 'not_proceeding', detail: null };
+}
+
+export async function listNotPursuedLeads(): Promise<NotPursuedRow[]> {
+  const owner = await currentOwnerId();
+  const rows = await db
+    .select({
+      leadId: jobLeads.id,
+      title: jobLeads.title,
+      company: jobLeads.company,
+      city: jobLeads.city,
+      overallFitScore: jobLeads.overallFitScore,
+      updatedAt: jobLeads.updatedAt,
+      roadblocks: jobLeads.roadblocks,
+      misalignments: jobLeads.misalignments,
+    })
+    .from(jobLeads)
+    .where(and(eq(jobLeads.ownerId, owner), eq(jobLeads.status, 'not_pursued')))
+    .orderBy(desc(jobLeads.updatedAt));
+
+  return rows.map((r) => ({
+    leadId: r.leadId,
+    title: r.title,
+    company: r.company,
+    city: r.city,
+    overallFitScore: r.overallFitScore,
+    updatedAt: r.updatedAt,
+    reason: notPursuedReason(r.roadblocks, r.misalignments),
+  }));
 }
 
 /** Map of leadId → requirement count for the user's leads, for the lead board. */

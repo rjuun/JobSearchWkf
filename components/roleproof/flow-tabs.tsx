@@ -9,11 +9,16 @@
  * Archive sits after a divider and reads muted: it's a sibling of the group, not
  * a member of it. "Look back", not "keep working" — the same distinction the
  * board already draws when it excludes archived leads from the active list.
+ *
+ * Not Pursued (2026-07-30) joins Archive on the muted side of the divider —
+ * roadblocked/misaligned gate drops and SharePoint's "Not Proceeding" leads.
+ * Same "look back" register as Archive, but deliberately not merged into it:
+ * these leads never had an application to stop (lib/queries.ts §Not Pursued).
  */
 import Link from 'next/link';
 import { cn } from './kit';
 
-export type FlowTab = 'queue' | 'ready' | 'results' | 'applications' | 'archive';
+export type FlowTab = 'queue' | 'ready' | 'results' | 'applications' | 'archive' | 'notPursued';
 
 export type FlowCounts = Partial<Record<FlowTab, number>>;
 
@@ -55,6 +60,13 @@ export function FlowTabs({
             href="/roleproof/archive"
             active={active === 'archive'}
             count={counts.archive ?? 0}
+            muted
+          />
+          <Tab
+            label="Not Pursued"
+            href="/roleproof/not-pursued"
+            active={active === 'notPursued'}
+            count={counts.notPursued ?? 0}
             muted
           />
         </>

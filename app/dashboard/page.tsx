@@ -28,8 +28,8 @@ export default async function DashboardPage() {
   const byStatus = new Map<string, number>(statusRows.map((r) => [r.status as string, r.n]));
   const at = (k: string) => byStatus.get(k) ?? 0;
   const shipped = at('applied');
-  // Leads dropped at the screening gate are out of play like archived ones.
-  const inPlay = totalLeads - at('archived') - at('roadblocked') - at('misaligned') - shipped;
+  // Leads dropped at the screening gate (or marked not proceeding) are out of play like archived ones.
+  const inPlay = totalLeads - at('archived') - at('not_pursued') - shipped;
   const FUNNEL = [
     { label: 'Captured', n: at('captured'), cls: 'bg-ink-subtle/45' },
     // The gate's three live statuses sit between Captured and Screened: waiting
