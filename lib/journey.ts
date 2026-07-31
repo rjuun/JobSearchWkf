@@ -35,13 +35,23 @@ export const STAGES: StageDef[] = [
   { key: 'apply', label: 'Apply', blurb: 'Submit & track', steps: 'D' },
 ];
 
-/** Canonical screening sub-steps (B1–B6). */
+/**
+ * Canonical screening sub-steps (B1–B6).
+ *
+ * Kept in lockstep with the B-phase reorder (CI · Lead Page as Pipeline Canvas §2.1):
+ * extraction is B2 and runs first, roadblocks / misalignments / translate each shifted
+ * down one. This list is the *display* side of the same renumbering that prompts.ts
+ * STEP_NOTE, lib/llm/schemas.ts and lib/pipeline/screening.ts carry — when a step moves,
+ * move it here too, or the pipeline map narrates an order the code no longer runs.
+ * ATS detection is no longer named here: it moved to A1, which is the only step that
+ * holds the rendered page (schemas.ts §A1).
+ */
 export const SCREEN_STEPS: Array<{ id: string; label: string; hint: string }> = [
   { id: 'B1', label: 'Freshness & saturation', hint: 'How old / how contested is the posting' },
-  { id: 'B2', label: 'Roadblocks', hint: 'Hard blockers (visa, location, clearance)' },
-  { id: 'B3', label: 'Misalignments', hint: 'Soft mismatches worth flagging' },
-  { id: 'B4', label: 'Skills · JD group · ATS', hint: 'Map to the 17-dimension framework' },
-  { id: 'B5', label: 'Extract requirements', hint: 'Rank Core / Important / Nice-to-have' },
+  { id: 'B2', label: 'Extract requirements', hint: 'Rank Core / Important / Nice-to-have' },
+  { id: 'B3', label: 'Roadblocks', hint: 'Hard blockers (visa, location, clearance)' },
+  { id: 'B4', label: 'Misalignments', hint: 'Soft mismatches worth flagging' },
+  { id: 'B5', label: 'Skills · JD group', hint: 'Map to the 17-dimension framework' },
   { id: 'B6', label: 'Role fit score', hint: 'Weighted, reproducible 0–10 score' },
 ];
 
