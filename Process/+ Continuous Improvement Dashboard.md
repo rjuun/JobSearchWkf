@@ -6,7 +6,7 @@
 // sections wherever the first page of that status happened to fall, so a
 // group could drift depending on what else was in the folder. Canonical
 // values are documented in "++ Continuous Improvement Procedure.md".
-const STATUS_ORDER = ["0 - Idea", "1 - Development", "2 - Testing", "3 - Delivered"];
+const STATUS_ORDER = ["0 - Idea", "1 - Development", "2 - Testing", "3 - Delivered", "4 - Abandoned", "5 - Superseded"];
 const pages = dv.pages('"Process/CI"')
     .sort(p => p["ci-date"], 'desc');
 const groups = pages.groupBy(p => p["ci-status"] || "No Status").array();

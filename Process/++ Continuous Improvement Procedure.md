@@ -22,7 +22,32 @@ This procedure the structured mechanism for capturing, storing, and revisiting p
 | `2 - Testing` | Code landed and machine-verified (tests/build/harness); live/manual verification still pending |
 | `3 - Delivered` | Live-verified and closed |
 
+Two more values close out a CI outside the `0→3` delivery pipeline, added 2026-07-31 once a real case (`[[Migrating Power Automate Intelligence from Old Sharepoint]]`) showed the pipeline alone can't tell "we decided not to do this" apart from "something else already did it":
+
+| Value | Meaning |
+| --- | --- |
+| `4 - Abandoned` | Decided not to pursue. No successor absorbs the work — it's just dropped. |
+| `5 - Superseded` | The scope (in whole or in part) got absorbed by another CI or by an unrelated product change. The note stays as history; link whatever now carries the work forward (`pr-target` or a `## 3. Resources` line). |
+
+Neither is a silent status flip — see **Rescoping** below. And a CI whose scope only partly overlaps with something else isn't automatically Superseded: if part of the original ask is still open and nobody else is doing it, the right move is usually to rewrite the note's scope in place and keep it moving through the normal pipeline, not to close it.
+
 **CI Table View** A dynamically generated table that displays CI Items using Tags and Properties. Used for quick scanning, triage, and planning.
+
+## **Lifecycle in Practice**
+
+The definitions above describe the states; this section describes how a CI note actually moves through them, distilled from how `Scoring Phase Redesign - Part 1` and `Part 2` were actually run — the two passes that forced the `ci-status` table itself into existence.
+
+**Shape of a note.** Properties block (`ci-title`, `ci-area`, `ci-status`, `ci-priority`, `ci-date`, `ci-estimated-time`, `ci-time-spent`, `pr-source`/`pr-target`) + a `simple-time-tracker` code block, then four numbered sections: **1. What is the problem or opportunity** (why now, what's actually broken today — cite the specific file/line, not a vague symptom), **2. What would the improvement look like** (scope in/out, a "current state" audit of the code as it stands *today*, checked fresh rather than assumed carried over from an earlier chat; a target-state design; an ordered implementation checklist; acceptance criteria), **3. Resources or references** (design docs, code paths, sibling CIs), **4. Notes / Progress log** (dated entries, append-only).
+
+**Estimating.** `ci-estimated-time` is anchored to this repo's own closest precedent by actual time spent, not a fresh guess — e.g. Part 1's estimate was set by comparing shape (schema + pipeline + new UI) against two prior CIs' recorded `ci-time-spent`. When a first guess turns out wrong, correct it in place and log the reasoning (Part 1: 18h → 4h) rather than leaving a number nobody trusts.
+
+**`2 - Testing` vs `3 - Delivered` is the distinction that matters most, and both Parts hit it for real.** Green tests and a clean build are not the same claim as "this works when a human actually clicks it." Part 1 shipped with an explicit "Open for Reggie" note: the Queue/Ready-to-score surfaces were verified at the action/DB layer only, never browser-tested. Part 2 went further and named the *one* criterion that couldn't be verified any other way — a real `.msg` file dragged out of Outlook Classic — and stayed at `2 - Testing` specifically because that step wasn't done, even though 154 unit tests and a 41-check harness were green. Don't mark `3 - Delivered` on harness/test success alone; name what's still open, and only move to `3` once that's actually been clicked through or explicitly waived with a reason.
+
+**Splitting large CIs.** When a design doc covers more than one deliverable, split it into its own CIs (`Part 1`/`Part 2`, or — for reconciliation-style work — `Round 1`/`Round 2`/`Round 3`) rather than one sprawling note. Each part re-verifies its own "current state" section against the *post-previous-part* repo instead of trusting assumptions from the original design chat — Part 2's §2.1 explicitly re-checked every fact it carried over from Part 1 before building on it.
+
+**Post-implementation reconciliation.** Real-world data cleanup that happens *after* a feature ships — backfills, source-of-truth audits, fixing a script that wrote the wrong label — is genuinely different work from the original checklist (data correction, not new capability) but belongs in the same note. Log it as its own dated subsection (Part 2's "Reconciliation & backfill" is the precedent), not folded into the original numbered steps or lost in chat.
+
+**Rescoping.** If the world changes after a CI is opened — a capability elsewhere makes part of the original ask moot, or the user's actual need turns out to be narrower/different than first written — don't quietly rewrite history and don't reach straight for `4 - Abandoned`/`5 - Superseded` either unless the *whole* thing is genuinely done or dropped. Instead: update `§1`/`§2.0` in place to describe the current intent, add a dated `§4` entry explaining what changed and why (what's now moot, what's still live), and reconsider `ci-status` — time spent under the old scope doesn't count toward a new one, so this usually means resetting toward `0 - Idea` even if the note was previously further along.
 
 
 ## **Continuous Improvement Types and Treatments**
