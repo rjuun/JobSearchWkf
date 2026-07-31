@@ -494,18 +494,20 @@ const SCREEN_CHECKS = [
 // ── layout: 2A two-pane command center ─────────────────────────────────────────
 
 function TwoPane({ c }: { c: Ctx }) {
+  const railRef = useRef<HTMLDivElement>(null);
+  const railHeight = useRailHeight(railRef);
   return (
     <Frame className="pt-5 pb-24">
       <LeadHeader c={c} />
-      {/* `items-stretch`, not `items-start`: the JD panel's height is pinned to the
-          right column's natural height, which is what keeps the Map's top edge at a
-          constant Y no matter how long the posting is (§2.3). The JD scrolls
-          internally instead of stretching the page. */}
-      <div className="mt-5 grid items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.04fr)]">
-        {/* LEFT · JD reader — height-pinned, internally scrolled */}
-        <JdReader c={c} />
+      {/* `items-start`: the rail keeps its natural height and the JD panel is given
+          that height explicitly (see useRailHeight). Stretch alignment cannot do
+          this — a grid row is as tall as its TALLEST item, so a long posting makes
+          the JD the one setting the height, which is the opposite of §2.3's rule. */}
+      <div className="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.04fr)]">
+        {/* LEFT · JD reader — height-pinned to the rail, internally scrolled */}
+        <JdReader c={c} height={railHeight} />
         {/* RIGHT · work rail */}
-        <div className="flex flex-col gap-4">
+        <div ref={railRef} className="flex flex-col gap-4">
           {c.scored ? <ScoreCard c={c} /> : c.isHold ? <HeldCard c={c} /> : <RunCard c={c} />}
           <ActionError c={c} />
           {c.scored && <JourneyRail stages={c.journey.stages} />}
@@ -668,6 +670,49 @@ const SKILL_RANK_PILL: Record<number, string> = {
 };
 
 /**
+ * The work rail's measured height, for pinning the JD panel to it (§2.3).
+ *
+ * This has to be measured; CSS cannot express it. A grid row is as tall as its
+ * tallest item, so `h-full` on the JD panel resolves to "as tall as the tallest
+ * column" — and for any posting longer than the rail, that column IS the JD. The
+ * panel grew to fit the whole posting, no scrollbar ever appeared, and the Map got
+ * pushed down the page by however long the JD happened to be. Subgrid and
+ * container queries don't help: the constraint is "size to my sibling's content",
+ * which no layout mode offers.
+ *
+ * The dependency runs one way only — the rail's height never depends on the JD's —
+ * so setting the JD's height from the rail cannot feed back into a resize loop.
+ * That direction is the whole reason this is safe, and it's why the JD panel must
+ * keep `overflow: hidden` and never be the observed element.
+ *
+ * Returns null below `lg`, where the columns stack: there is no sibling beside the
+ * posting to match, and pinning would crop it to the height of a rail sitting
+ * underneath it.
+ */
+function useRailHeight(railRef: React.RefObject<HTMLElement>): number | null {
+  const [height, setHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const el = railRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const wide = window.matchMedia('(min-width: 1024px)');
+    // Round to whole pixels: sub-pixel layout jitter would otherwise churn state
+    // on every fractional reflow for no visible gain.
+    const sync = () => setHeight(wide.matches ? Math.round(el.getBoundingClientRect().height) : null);
+    sync();
+    // Observing the rail covers the cases a resize listener misses — expanding
+    // "See the breakdown", a flag list arriving after screening, an error banner.
+    const observer = new ResizeObserver(sync);
+    observer.observe(el);
+    wide.addEventListener('change', sync);
+    return () => {
+      observer.disconnect();
+      wide.removeEventListener('change', sync);
+    };
+  }, [railRef]);
+  return height;
+}
+
+/**
  * `The role` — the posting, and nothing else.
  *
  * The `Must-haves` and `Skills` tabs are gone (§2.3). They were exactly backwards:
@@ -686,10 +731,17 @@ const SKILL_RANK_PILL: Record<number, string> = {
  * Y — without it a long JD pushes the Map down the page and the canvas moves
  * every time you open a different lead.
  */
-function JdReader({ c }: { c: Ctx }) {
+function JdReader({ c, height }: { c: Ctx; height: number | null }) {
   const jd = c.jd;
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-card border border-hairline bg-surface shadow-card">
+    <div
+      // An explicit pixel height, not a class: the value is the rail's measured
+      // height and only exists at runtime. `null` (mobile, or before the first
+      // measurement) falls back to natural height — the posting is never cropped
+      // by a height we haven't actually established.
+      style={height != null ? { height } : undefined}
+      className="flex min-h-0 flex-col overflow-hidden rounded-card border border-hairline bg-surface shadow-card"
+    >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-hairline px-4 py-2.5">
         <span className="border-b-2 border-proof pb-1 text-[12px] font-semibold text-ink">The role</span>
         <span className="ml-auto flex flex-wrap items-center gap-1.5">
