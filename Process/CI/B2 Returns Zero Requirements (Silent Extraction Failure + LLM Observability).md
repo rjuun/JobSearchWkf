@@ -12,7 +12,7 @@ pr-target:
 
 ---
 ```simple-time-tracker
-{"entries":[]}
+{"entries":[{"name":"Troubleshoot","startTime":"2026-07-31T15:18:05.000Z","endTime":"2026-07-31T18:18:23.000Z"},{"name":"Troubleshoot","startTime":"2026-07-31T21:34:22.000Z","endTime":"2026-07-31T23:34:27.000Z"},{"name":"Troubleshoot","startTime":"2026-08-01T09:44:39.000Z","endTime":null}]}
 ```
 ---
 
@@ -148,10 +148,15 @@ The retired path is kept as a marked historic note so the CI trail stays legible
       capture (`lib/pipeline/capture.ts:180`, try/catch → lead stays `captured`, `kit.tsx:182` "Screen"
       fallback already documented this state); batch (`scripts/batch-screen.ts:106`, per-lead catch);
       manual UI (`components/roleproof/scoring-queue.tsx:85`, try/catch → inline error)
-- [ ] **Live diagnostic run** — restart dev server (mandatory: `lib/prompts.ts` `noteCache` never
-      invalidates), re-run screening on Vestas, read `stop_reason`
-- [ ] Decide `max_tokens` / model tier from that result
-- [ ] Confirm the Map populates for a lead that previously returned zero
+- [x] **Live diagnostic run** — Vestas re-screened 2026-08-01 10:40 UTC. `stop_reason='tool_use'`,
+      `attempts=1`, `output_tokens=3332`, no retry needed
+- [x] Decide `max_tokens` / model tier from that result — both ruled out as causes (§4, 2026-08-01
+      "Root cause"); `max_tokens` still raised 8000 → 16000 to close the separate truncation mode
+- [x] Confirm the Map populates for a lead that previously returned zero — 21 requirements written,
+      `source_text` on 21/21, `group_rank` correct per group (Core 1-8, Important 1-9, Nice-to-Have 1-4)
+- [ ] Re-run the back catalogue — `job_requirements` held **0 rows across all 157 leads**, so every
+      lead's Map is empty and every stored fit score was computed without requirements
+- [ ] Fix the same incomplete-`required` defect on the other ten strict schemas (§4, follow-up)
 
 ---
 
@@ -194,7 +199,14 @@ These name data sources the model cannot open. They have not failed as visibly a
 steps receive their real inputs injected in the user message, but it is the same class of defect and it is
 a genuine CI item in its own right. **Not actioned here.**
 
-### 3.4 Suspected driver of the truncation mode
+### 3.4 Suspected driver of the truncation mode — ~~hypothesis~~ **DISPROVED 2026-08-01**
+
+> **Superseded. Kept as history; do not act on it.** The reasoning below was that §C.7's
+> *"aim for completeness over brevity"* plus §C.5's verbatim quotes would push output past
+> `max_tokens: 8000`, making the ceiling the fix. Testing killed it: the same prompt returns **exactly
+> one requirement at both 8000 and 32000** (6/6 runs, all `stop_reason='tool_use'`). Length was never the
+> constraint. The real cause is in the tool schema — §4, 2026-08-01 "Root cause". `max_tokens` was still
+> raised to 16000, but for the separate and much rarer truncation mode, not for this.
 
 B2's own §C.7 instructs: *"Aim for completeness over brevity — better to over-extract and consolidate than
 to miss a requirement that drives scoring."* Combined with §C.5's verbatim `sourceText` quote per
@@ -296,3 +308,105 @@ write would have failed *silently* and `llm_calls` would have stopped recording 
 - Two things **not** verified: the §A fix is a well-motivated hypothesis, not a confirmed cause — no
   reproduce has been run against it; and §B–§D of the B2 note have not been re-read line by line against
   the `emit_requirements` contract for subtler mismatches beyond those reported in §3.3/§3.4.
+
+### 2026-08-01 · Root cause — B2's strict tool schema, not the prompt
+
+The `stop_reason` instrumentation from §2.2 did its job on the first live run and pointed away from
+everything we had been chasing: `stop_reason='tool_use'`, a **complete, well-formed** tool call carrying one
+requirement. Not truncation. From there the investigation moved from the prompt to the request.
+
+**Two defects, both in `B2.tool.input_schema`, both introduced with the B-phase reorder.**
+
+**(a) `required` listed three of six properties.** Under `strict: true` the tool input is
+grammar-constrained. An incomplete `required` list does not make fields optional — it degrades the grammar.
+The decisive control: with `strict: false` the identical prompt returns ~3,200 tokens of real content, but
+delivers `requirements` as a JSON **string** rather than an array, which zod rejects. The model always had
+the answer; the constraint was collapsing it. Turning `strict` off is therefore not a workaround.
+
+**(b) No field for §B's "Rank".** The note has always specified a within-group counter distinct from the
+global `Requirement Order`. The schema's `rank` carries the *Requirement Group* enum, so the counter had
+nowhere to go. A strict schema that cannot express what its own prompt demands accounts for the residual
+instability once (a) was fixed.
+
+Measured on three real JDs (success = ≥4 requirements):
+
+| Schema | Vestas | COWI | Aliaxis |
+| --- | --- | --- | --- |
+| As shipped (`required` = 3 of 6) | 0/13 | 0/2 | 0/2 |
+| `required` completed only | 2/5 | — | — |
+| `required` completed **+ `groupRank`** | **6/6** | **3/4** | **4/4** |
+
+Counts are stable per posting — Vestas 20, Aliaxis 15, COWI 13–14 — which is what a working extraction
+should look like.
+
+**Ruled out, with evidence, in this order:** the branch consolidation (§4 timeline); a missing JD
+(`jd_text` 3,550–5,267 chars); CI guidance injection (zero unresolved tips, empty `dynamic` prompt);
+`max_tokens` (identical results at 8000 and 32000); the §A source fix (behaviour unchanged, confirmed by a
+cold `cache[w=3830 r=0]`); **model tier — Opus 4.8 fails identically at one requirement**, which closes the
+"should B2 be Opus?" question from §4's earlier entry for good; and `effort` (`xhigh` made no difference).
+
+One negative result worth keeping: rewriting the note's §B to *remove* the numeric Rank — the obvious way to
+resolve the note↔schema contradiction — made things **worse** (1/5). The note was not wrong. The schema was
+under-implemented against it.
+
+### 2026-08-01 · The `rank` / `requirement_group` decision
+
+The note calls the Core/Important/Nice-to-Have field *Requirement Group* and reserves *Rank* for the
+within-group counter. The code does the opposite: **`rank` holds the group name and is read that way in
+~25 places** — `queries.ts` filters (`inArray(jobRequirements.rank, ['Core','Important'])`), `scoring.ts`
+`RANK_WEIGHT`, `tailoring.ts`, `coaching-queue.ts`, raw SQL in `seed.ts`, and four components — while
+`requirement_group` receives a duplicate of the same value and **is read by nothing**.
+
+Reggie approved aligning the schema to the procedure. Implemented by **adding the missing field, not
+repossessing an occupied one**: repurposing `rank` to hold an integer would have broken all ~25 readers
+including the scoring weights. So `rank` keeps the group name, the note's Rank becomes `groupRank` /
+`group_rank` (migration `0031`, nullable integer), and the naming divergence from the note is documented at
+both definitions. This also preserves the exact tool schema that measured 13/14.
+
+`requirement_group` still takes its duplicate write and still has no readers. **Left alone deliberately** —
+retiring it is a separate, reviewable change, not something to fold into a defect fix.
+
+### 2026-08-01 · Live verification — Vestas, 10:40 UTC
+
+| Check | Result |
+| --- | --- |
+| B2 call | `stop_reason='tool_use'`, `attempts=1`, `output_tokens=3332`, single attempt — no retry |
+| Requirements written | **21** (was 0) |
+| `source_text` | 21/21 populated |
+| `group_rank` | 21/21, resetting per group: Core 1–8, Important 1–9, Nice-to-Have 1–4 |
+| `requirement_order` | 1–21 globally, Core → Important → Nice-to-Have |
+| B3–B6 | all `ok`, `attempts=1`; run trace 6/6 |
+
+**The fit score moved 6.0 → 3.6 (Borderline → Hold).** Not a regression — the opposite. B6 was previously
+scoring against raw JD prose because the requirement list was empty (`Req. align` was `0.0`); it now scores
+against 21 real requirements (`5.2`) and produces a specific, defensible judgement: *"Overqualified (role
+targets 5-7 years experience vs candidate's 15+ years senior leadership profile); reports to SVP suggesting
+a director-level, non-top-executive position."*
+
+That has a consequence beyond this lead, recorded here because it affects pipeline decisions already taken:
+**`job_requirements` held 0 rows across all 157 leads**, so every stored fit score in the system was computed
+without requirements. Any promote/drop decision resting on those scores should be treated as unreliable
+until the back catalogue is re-run.
+
+### 2026-08-01 · Follow-up — the defect is systemic
+
+A static audit of every `strict: true` tool schema found the same incomplete-`required` pattern on **all
+eleven**: `A1`, `B2` (fixed), `B3`, `B4`, `B5`, `B6`, `C2`, `C3`, `C7`, `COACH_DRAFT`, `IMPORT`. Most
+exposed are the array-of-many schemas, where the collapse is total rather than a dropped optional field —
+`B6.requirements[]`, `C2.links[]`, `C7.requirements[]`, and the whole `IMPORT` tree (`IMPORT.profile` has an
+**empty** `required` while declaring three properties).
+
+Only B2's fix is measured. The other ten are a separate CI: same one-line change per schema, but each needs
+its own before/after run rather than being assumed.
+
+### 2026-08-01 · Commits (continued)
+
+| Commit | Subject |
+| --- | --- |
+| `2a0115b` | B2 note: point the step at the JD it is actually given |
+| `291b581` | CI note: B2 returns zero requirements — retrospective |
+| `92f80cc` | B2: complete the strict tool schema so extraction stops collapsing |
+
+`92f80cc` also raises `max_tokens` 8000 → 16000 and converts §2.1's floor from throw-on-first-miss to
+**three bounded re-asks before throwing** — `runStructured`'s own retry can never fire here, because a thin
+extraction is schema-valid and there is nothing for zod to reject.
