@@ -104,6 +104,24 @@ tracking (D1), and a Camunda 8 runtime engine. *(Multi-tenant signup, once out o
 O4 — each new user gets an empty graph.)* The architecture leaves clean seams for the rest (see
 [`ARCHITECTURE.md`](ARCHITECTURE.md#camunda-later)) — they are *post-prototype*.
 
+## Demo-readiness cut line (2026-08-01)
+
+Reviewed against `DEMO_RUNBOOK.md`'s click-path, per
+[`How to Present it as a Product`](../Process/CI/How%20to%20Present%20it%20as%20a%20Product.md)
+(Process/CI). P0–P5's acceptance criteria hold; what's left before an external demo is UI-level
+finishing on three surfaces, not new pipeline work:
+
+- **Career Graph** (`/profile?view=meter`) — needs a dynamic interaction design and a guided
+  creation workflow that enforces `position → star → action/competence/attribute/result`
+  (see [`DATA_MODEL.md`](DATA_MODEL.md)).
+- **Leads** (`/roleproof`) — drop the landing page in favor of opening directly on the scoring
+  queue; finish the Map (`Lead Page as Pipeline Canvas` CI) and the Evidence Picker that follows it.
+- **Dashboard** (`/dashboard`) — add weekly/monthly interaction views.
+
+Everything already marked done above, or listed under "Out of scope for the prototype," stays out
+of scope for this cut. Re-run the CI note's review procedure before the next demo rather than
+re-deriving this list from scratch.
+
 ## Sequence at a glance
 
 ```

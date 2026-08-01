@@ -1,6 +1,7 @@
 ---
 ci-title: Introduce Job Leads Campaigns
 ci-area:
+ci-roadmap:
 ci-status: 0 - Idea
 ci-priority: medium
 ci-date: 2026-07-07

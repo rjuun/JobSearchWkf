@@ -1,17 +1,20 @@
 
+
 This procedure the structured mechanism for capturing, storing, and revisiting potential enhancements to any workflow without interrupting the current documentation or execution of the process -> **Continuous Improvement (CI)**.
 
 ## **Definitions**
 
 **CI Admonition** A lightweight, in‑place marker inserted during process documentation to flag an improvement opportunity. Contains a short description and a link to the Central CI Register.
 
-**Central CI Register** A single, dedicated page (e.g., _0. Note Taking Workflow – Continuous Improvement_) that stores all CI items. Each item includes description, tags, properties, and optional metadata for later review or prioritization.
+**Central CI Register** In practice, this is the `Process/CI` folder — one note per CI item — rather than a single page. Each item includes description, tags, properties, and optional metadata for later review or prioritization. The **CI Dashboard** (below) is what makes the folder read like a single register.
 
 **CI Item** A discrete improvement opportunity stored in the Central CI Register. Created from a CI Admonition. Must be atomic, actionable, and independently trackable.
 
 **CI Tags** Machine‑readable labels assigned to CI Items (e.g., _workflow_, _UX_, _automation_, _structure_). Used for filtering, table views, and automated reporting.
 
 **CI Properties** Structured fields attached to CI Items (e.g., _Status_, _Impact_, _Effort_, _Owner_, _CreatedOn_). Enables automated visualization, sorting, and prioritization.
+
+**`ci-roadmap`** A 2-character code linking the CI to the wave of RoleProof's own build roadmap (`ROADMAP.md` — Next.js/Supabase app repo, not this vault) that it belongs to — e.g. `O2`, `M1`, `P4`. Blank until that wave mapping is finalized; the dashboard shows it as-is either way.
 
 **`ci-status` values** (formalized 2026-07-29, after two independent implementation passes — Scoring Phase Redesign Parts 1 and 2 — both landed on the same fourth value on their own):
 
@@ -31,13 +34,31 @@ Two more values close out a CI outside the `0→3` delivery pipeline, added 2026
 
 Neither is a silent status flip — see **Rescoping** below. And a CI whose scope only partly overlaps with something else isn't automatically Superseded: if part of the original ask is still open and nobody else is doing it, the right move is usually to rewrite the note's scope in place and keep it moving through the normal pipeline, not to close it.
 
-**CI Table View** A dynamically generated table that displays CI Items using Tags and Properties. Used for quick scanning, triage, and planning.
+**CI Table View** A dynamically generated table that displays CI Items using Tags and Properties. Used for quick scanning, triage, and planning. Implemented today as the **CI Dashboard** — see **Artifacts** below.
+
+## **Artifacts**
+
+**CI Template** — [[CI - Continuous Improvement]]. The Templater source for new CI notes: fills `ci-title` and `ci-date` automatically, defaults `ci-status` to `0 - Idea` and `ci-priority` to `medium`, and lays down the empty `simple-time-tracker` block plus the four numbered sections. Its properties block must be kept in sync with **Shape of a note** below — if a property is added there, add it here too, or every new CI note will be born missing it.
+
+**CI Dashboard** — [[+ Continuous Improvement Dashboard]]. A `dataviewjs` query over every note in `Process/CI`; nothing here is hand-maintained, it just reads whatever's currently in that folder. Groups notes by `ci-status` in the fixed pipeline order (`0 - Idea` → `5 - Superseded`, see the table above), and within the `3 - Delivered` group orders by delivery date, latest first — every other group keeps creation-date order. Columns, left to right:
+
+| Column | Header | Source |
+| --- | --- | --- |
+| Code | Code | Computed, not stored — `CI-001`, `CI-002`… assigned by `ci-date` ascending (tie-broken by file name). Deliberately not file-creation time, since git clone/checkout resets that and would scramble the numbering. |
+| File | File | Link to the note itself |
+| Area | Area | `ci-area` |
+| Wave | Wave | `ci-roadmap` |
+| Pri | Pri | `ci-priority`, shown as a colour-coded letter (H/M/L — red/amber/green) rather than the full word |
+| Made | Made | `ci-date`, formatted `dd.MMM` |
+| Done | Done | Latest `endTime` parsed out of the note's `simple-time-tracker` block — shown only once `ci-status` is `3 - Delivered`, so it reads as an actual delivery date rather than "last logged session" |
+| Est. | Est. | `ci-estimated-time`, summed per group and overall |
+| Used | Used | `ci-time-spent`, summed per group and overall |
 
 ## **Lifecycle in Practice**
 
 The definitions above describe the states; this section describes how a CI note actually moves through them, distilled from how `Scoring Phase Redesign - Part 1` and `Part 2` were actually run — the two passes that forced the `ci-status` table itself into existence.
 
-**Shape of a note.** Properties block (`ci-title`, `ci-area`, `ci-status`, `ci-priority`, `ci-date`, `ci-estimated-time`, `ci-time-spent`, `pr-source`/`pr-target`) + a `simple-time-tracker` code block, then four numbered sections: **1. What is the problem or opportunity** (why now, what's actually broken today — cite the specific file/line, not a vague symptom), **2. What would the improvement look like** (scope in/out, a "current state" audit of the code as it stands *today*, checked fresh rather than assumed carried over from an earlier chat; a target-state design; an ordered implementation checklist; acceptance criteria), **3. Resources or references** (design docs, code paths, sibling CIs), **4. Notes / Progress log** (dated entries, append-only).
+**Shape of a note.** Properties block (`ci-title`, `ci-area`, `ci-roadmap`, `ci-status`, `ci-priority`, `ci-date`, `ci-estimated-time`, `ci-time-spent`, `pr-source`/`pr-target`) + a `simple-time-tracker` code block, then four numbered sections: **1. What is the problem or opportunity** (why now, what's actually broken today — cite the specific file/line, not a vague symptom), **2. What would the improvement look like** (scope in/out, a "current state" audit of the code as it stands *today*, checked fresh rather than assumed carried over from an earlier chat; a target-state design; an ordered implementation checklist; acceptance criteria), **3. Resources or references** (design docs, code paths, sibling CIs), **4. Notes / Progress log** (dated entries, append-only).
 
 **Estimating.** `ci-estimated-time` is anchored to this repo's own closest precedent by actual time spent, not a fresh guess — e.g. Part 1's estimate was set by comparing shape (schema + pipeline + new UI) against two prior CIs' recorded `ci-time-spent`. When a first guess turns out wrong, correct it in place and log the reasoning (Part 1: 18h → 4h) rather than leaving a number nobody trusts.
 
@@ -59,12 +80,4 @@ The definitions above describe the states; this section describes how a CI note 
 This isn't a change to how the system _works_ — it's a change to the _data the system reasons over_. When you add a sharper ATS keyword variant to a skill, or add a new STAR, or refine a misalignment pattern, you're feeding the engine better fuel. The engine itself doesn't change. 
 
 The interface for *Type 2 CIs is the Career Graph's "Strengthen" and "Build with AI" features* exist precisely to let you enrich this data directly in the app. So Type 2 CIs become a **habit inside the app**, not documents.
-
-### Introducing Properties to Process Template
-
-
->[!Continuous Improvement]
->
-[[Introduce Versioning Process to Continuous Improvement]]
-
 

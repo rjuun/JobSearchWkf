@@ -1,5 +1,6 @@
 ---
 ci-area: UX
+ci-roadmap:
 ci-title: Lead Status Badge vs Pipeline Card Inconsistency
 ci-status: 0 - Idea
 ci-priority: low

@@ -1,5 +1,6 @@
 ---
 ci-area: Infrastructure
+ci-roadmap:
 ci-title: RoleProof as Stand-alone App (Migration to Supabase + NAS Postgres Setup)
 ci-status: 0 - Idea
 ci-priority: medium

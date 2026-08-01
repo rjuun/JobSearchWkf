@@ -1,6 +1,7 @@
 ---
 ci-title: Constant Update of Master Bullet
 ci-area:
+ci-roadmap:
 ci-status: 1 - Development
 ci-priority: medium
 ci-date: 2026-06-27

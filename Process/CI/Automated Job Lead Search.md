@@ -1,6 +1,7 @@
 ---
 ci-title: Automated Job Lead Search
 ci-area:
+ci-roadmap:
 ci-status: 0 - Idea
 ci-priority: medium
 ci-date: 2026-06-19

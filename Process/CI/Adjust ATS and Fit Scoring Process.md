@@ -1,6 +1,7 @@
 ---
 ci-title: ATS and Fit Scoring
 ci-area:
+ci-roadmap:
 ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-06-23

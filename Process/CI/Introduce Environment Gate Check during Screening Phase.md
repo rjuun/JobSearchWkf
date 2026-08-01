@@ -1,8 +1,9 @@
 ---
 ci-title: Introduce Environment Gate Check during Screening Phase
 ci-area:
-ci-status: 1 - Development
-ci-priority: High
+ci-roadmap:
+ci-status: 0 - Idea
+ci-priority: high
 ci-date: 2026-06-29
 ci-estimated-time:
 ci-time-spent:

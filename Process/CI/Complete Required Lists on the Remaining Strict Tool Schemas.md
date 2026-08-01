@@ -1,5 +1,6 @@
 ---
 ci-area: LLM tool schemas / pipeline reliability
+ci-roadmap:
 ci-title: Complete `required` lists on the remaining strict tool schemas
 ci-status: 0 - Idea
 ci-priority: high

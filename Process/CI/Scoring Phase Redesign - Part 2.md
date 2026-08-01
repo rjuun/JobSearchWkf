@@ -1,5 +1,6 @@
 ---
 ci-area: Monitoring / D-Phase
+ci-roadmap:
 ci-title: Scoring Phase Redesign — Part 2 (Monitoring / Applications / Archive)
 ci-status: 3 - Delivered
 ci-priority: high

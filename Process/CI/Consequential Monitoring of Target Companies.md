@@ -1,6 +1,7 @@
 ---
 ci-title: Consequential Monitoring of Target Companies
 ci-area:
+ci-roadmap:
 ci-status: 0 - Idea
 ci-priority: medium
 ci-date: 2026-06-25

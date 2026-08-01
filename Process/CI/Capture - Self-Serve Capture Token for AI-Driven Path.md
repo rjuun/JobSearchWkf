@@ -1,5 +1,6 @@
 ---
 ci-area: Capture
+ci-roadmap:
 ci-title: Self-Serve Capture Token for AI-Driven Path
 ci-status: 0 - Idea
 ci-priority: medium

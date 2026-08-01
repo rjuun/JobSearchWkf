@@ -1,6 +1,7 @@
 ---
 ci-title: Eliminating Metadata from Final file
 ci-area:
+ci-roadmap:
 ci-status: 0 - Idea
 ci-priority: medium
 ci-date: 2026-06-29

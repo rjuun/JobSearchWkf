@@ -1,6 +1,7 @@
 ---
 ci-title: Migrating Power Automate Intelligence from Old Sharepoint
 ci-area: Monitoring / D-Phase
+ci-roadmap:
 ci-status: 0 - Idea
 ci-priority: medium
 ci-date: 2026-06-24
