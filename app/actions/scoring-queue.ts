@@ -58,3 +58,34 @@ export async function setScreeningGateAction(leadId: string, status: ScreeningGa
   revalidatePath('/roleproof');
   revalidatePath(`/roleproof/leads/${leadId}`);
 }
+
+/**
+ * Mark any lead "Not Pursued" (2026-07-30) — from any stage, not just the gate.
+ * The case this exists for: a lead reaches Ready to score (or sits anywhere
+ * else in the pipeline) and turns out the posting closed, or you simply decide
+ * not to chase it — no roadblock, no misalignment, you just never apply.
+ *
+ * Deliberately does NOT touch roadblocks/misalignments (those stay whatever
+ * B3/B4 already found, if anything) — an empty pair is exactly what
+ * lib/queries.ts's listNotPursuedLeads reads as "Not proceeding."
+ */
+export async function markNotPursuedAction(leadId: string): Promise<void> {
+  const owner = await currentOwnerId();
+  const [lead] = await db
+    .select({ title: jobLeads.title })
+    .from(jobLeads)
+    .where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, owner)));
+  if (!lead) throw new Error('Lead not found.');
+
+  await db
+    .update(jobLeads)
+    .set({ status: 'not_pursued', updatedAt: new Date() })
+    .where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, owner)));
+
+  await recordActivity(owner, 'screening', { leadId, summary: `Not pursued · “${lead.title}”` });
+
+  revalidatePath('/roleproof/scoring-queue');
+  revalidatePath('/roleproof/not-pursued');
+  revalidatePath('/roleproof');
+  revalidatePath(`/roleproof/leads/${leadId}`);
+}

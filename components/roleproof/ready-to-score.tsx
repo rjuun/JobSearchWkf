@@ -20,6 +20,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { runScoringAction } from '@/app/actions/pipeline';
+import { markNotPursuedAction } from '@/app/actions/scoring-queue';
 import { cn } from './kit';
 
 /** Comfortably past even a generous maxDuration, so a slow run isn't called stuck. */
@@ -43,6 +44,10 @@ export function ReadyToScore({ ready, running }: { ready: ScorableLead[]; runnin
   const [states, setStates] = useState<Record<string, RowState>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [batchRunning, setBatchRunning] = useState(false);
+  // Leads sent to Not Pursued optimistically drop out of view before the
+  // server round-trip (revalidatePath) actually re-fetches this list.
+  const [notPursued, setNotPursued] = useState<Record<string, boolean>>({});
+  const [notPursuing, setNotPursuing] = useState<Record<string, boolean>>({});
 
   // Re-render on a timer so "stuck" appears while the user is watching, rather
   // than only after a navigation. Cheap: one tick every 15s, and only while
@@ -79,8 +84,22 @@ export function ReadyToScore({ ready, running }: { ready: ScorableLead[]; runnin
     router.refresh();
   }
 
-  const stuck = running.filter((l) => Date.now() - new Date(l.updatedAt).getTime() > STUCK_AFTER_MS);
-  const inFlight = running.filter((l) => !stuck.includes(l));
+  async function notPursue(id: string) {
+    setNotPursuing((s) => ({ ...s, [id]: true }));
+    try {
+      await markNotPursuedAction(id);
+      setNotPursued((s) => ({ ...s, [id]: true }));
+      router.refresh();
+    } catch (e) {
+      setNotPursuing((s) => ({ ...s, [id]: false }));
+      setErrors((s) => ({ ...s, [id]: e instanceof Error ? e.message : 'Could not mark not pursued.' }));
+    }
+  }
+
+  const stuckAll = running.filter((l) => Date.now() - new Date(l.updatedAt).getTime() > STUCK_AFTER_MS);
+  const stuck = stuckAll.filter((l) => !notPursued[l.id]);
+  const inFlight = running.filter((l) => !stuckAll.includes(l));
+  const readyVisible = ready.filter((l) => !notPursued[l.id]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -104,14 +123,24 @@ export function ReadyToScore({ ready, running }: { ready: ScorableLead[]; runnin
                 state={states[l.id] ?? 'idle'}
                 error={errors[l.id]}
                 action={
-                  <button
-                    type="button"
-                    onClick={() => runOne(l.id).then(() => router.refresh())}
-                    disabled={batchRunning || states[l.id] === 'running'}
-                    className="rounded-[9px] bg-caution-soft px-3 py-1.5 text-[12px] font-bold text-caution-deep transition hover:bg-caution hover:text-white disabled:opacity-50"
-                  >
-                    Retry
-                  </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => runOne(l.id).then(() => router.refresh())}
+                      disabled={batchRunning || states[l.id] === 'running' || notPursuing[l.id]}
+                      className="rounded-[9px] bg-caution-soft px-3 py-1.5 text-[12px] font-bold text-caution-deep transition hover:bg-caution hover:text-white disabled:opacity-50"
+                    >
+                      Retry
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => notPursue(l.id)}
+                      disabled={batchRunning || states[l.id] === 'running' || notPursuing[l.id]}
+                      className="rounded-[9px] border border-hairline px-3 py-1.5 text-[12px] font-bold text-ink-muted transition hover:border-drop hover:text-drop disabled:opacity-50"
+                    >
+                      {notPursuing[l.id] ? 'Marking…' : 'Not pursued'}
+                    </button>
+                  </div>
                 }
               />
             ))}
@@ -134,27 +163,27 @@ export function ReadyToScore({ ready, running }: { ready: ScorableLead[]; runnin
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-sm font-bold text-ink">
             Ready to score{' '}
-            {ready.length > 0 && (
+            {readyVisible.length > 0 && (
               <span className="ml-1 rounded-full bg-proof-soft px-2 py-0.5 text-[11px] font-semibold text-proof-deep">
-                {ready.length}
+                {readyVisible.length}
               </span>
             )}
           </h3>
-          {ready.length > 0 && (
+          {readyVisible.length > 0 && (
             <button
               type="button"
-              onClick={() => runBatch(ready.map((l) => l.id))}
+              onClick={() => runBatch(readyVisible.map((l) => l.id))}
               disabled={batchRunning}
               className="rounded-[9px] bg-proof px-[18px] py-[11px] text-[13px] font-bold text-white shadow-[0_2px_10px_-3px_rgba(19,122,91,.5)] transition hover:bg-proof-deep disabled:opacity-60"
             >
               {batchRunning
                 ? 'Running…'
-                : `Run scoring · ${ready.length} lead${ready.length === 1 ? '' : 's'}`}
+                : `Run scoring · ${readyVisible.length} lead${readyVisible.length === 1 ? '' : 's'}`}
             </button>
           )}
         </div>
 
-        {ready.length === 0 ? (
+        {readyVisible.length === 0 ? (
           <div className="rounded-card border border-hairline bg-surface px-6 py-16 text-center shadow-card">
             <div className="font-serif text-2xl text-ink">Nothing queued</div>
             <p className="mx-auto mt-2 max-w-sm text-sm text-ink-muted">
@@ -164,8 +193,23 @@ export function ReadyToScore({ ready, running }: { ready: ScorableLead[]; runnin
           </div>
         ) : (
           <div className="overflow-hidden rounded-card border border-hairline bg-surface shadow-card">
-            {ready.map((l) => (
-              <Row key={l.id} lead={l} state={states[l.id] ?? 'idle'} error={errors[l.id]} />
+            {readyVisible.map((l) => (
+              <Row
+                key={l.id}
+                lead={l}
+                state={states[l.id] ?? 'idle'}
+                error={errors[l.id]}
+                action={
+                  <button
+                    type="button"
+                    onClick={() => notPursue(l.id)}
+                    disabled={batchRunning || states[l.id] === 'running' || notPursuing[l.id]}
+                    className="shrink-0 rounded-[9px] border border-hairline px-3 py-1.5 text-[12px] font-bold text-ink-muted transition hover:border-drop hover:text-drop disabled:opacity-50"
+                  >
+                    {notPursuing[l.id] ? 'Marking…' : 'Not pursued'}
+                  </button>
+                }
+              />
             ))}
           </div>
         )}
