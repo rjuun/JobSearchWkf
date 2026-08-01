@@ -4,6 +4,7 @@ import { db } from './db';
 import {
   jobLeads,
   jobRequirements,
+  requirementEvidence,
   requirementTailoring,
   profiles,
   positions,
@@ -96,6 +97,71 @@ export async function getRequirements(leadId: string) {
     .from(jobRequirements)
     .where(and(eq(jobRequirements.jobLeadId, leadId), eq(jobRequirements.ownerId, owner)))
     .orderBy(asc(jobRequirements.requirementOrder));
+}
+
+/**
+ * B6's initial requirement→evidence links (CI · B6 Never Receives the Master
+ * Bullet Bank §2.3) — what fills the Map's evidence lanes on a screened lead,
+ * before C2 has run and produced anything triageable.
+ */
+/**
+ * The parts of the CV below Professional Experience — Education, Executive
+ * Education, Languages — as Map sections.
+ *
+ * These exist because B6 cites them. Its note §B.1.2 says to reference
+ * `tbl_Education` and `tbl_Language` alongside the Bullet Bank, and it does: on the
+ * first live re-score, 8 of 62 links were `EDU-*`/`LANG-*`. Those links had nowhere
+ * to render, because the Map's left column was only ever the 11 `CV_SLOTS`
+ * positions — so the single best-evidenced requirement on the page ("University
+ * Degree in Relevant Field", Excellent on EDU-1/EDU-2) showed no evidence at all.
+ *
+ * Lanes here are keyed on the evidence's own ref code rather than a `CV_SLOTS`
+ * label, because these rows have no `cv_position` and never will — education is not
+ * one of the 2-page template's slots. A ref code is already the stable identifier
+ * B6 cites by, so placement stays the same equality check it is for positions, with
+ * no sentinel vocabulary invented for the occasion. The two namespaces cannot
+ * collide: `CV_SLOTS` values are long prose labels, ref codes are `EDU-2`/`LANG-3`.
+ *
+ * The Education / Executive Education split mirrors the real CV, which prints them
+ * as two sections; `education.type` is the source (the workbook's own distinction).
+ */
+export type CvCredentialLane = { heading: string; slot: string | null; starRef: string | null };
+export type CvCredentialSection = { heading: string; lanes: CvCredentialLane[] };
+
+export async function getCredentialSkeleton(owner: string): Promise<CvCredentialSection[]> {
+  const [edu, langs] = await Promise.all([
+    db.select().from(education).where(eq(education.ownerId, owner)).orderBy(asc(education.refCode)),
+    db.select().from(languages).where(eq(languages.ownerId, owner)).orderBy(asc(languages.refCode)),
+  ]);
+  const laneFor = (refCode: string | null, heading: string): CvCredentialLane => ({
+    heading,
+    slot: refCode,
+    starRef: null,
+  });
+  const isExec = (type: string | null) => /executive/i.test(type ?? '');
+  const eduLane = (e: (typeof edu)[number]) =>
+    laneFor(e.refCode, e.qualification ?? e.institution ?? e.refCode ?? 'Qualification');
+
+  const sections: CvCredentialSection[] = [];
+  const degrees = edu.filter((e) => !isExec(e.type));
+  const executive = edu.filter((e) => isExec(e.type));
+  if (degrees.length) sections.push({ heading: 'Education', lanes: degrees.map(eduLane) });
+  if (executive.length) sections.push({ heading: 'Executive Education', lanes: executive.map(eduLane) });
+  if (langs.length)
+    sections.push({
+      heading: 'Languages',
+      lanes: langs.map((l) => laneFor(l.refCode, `${l.language ?? l.refCode}${l.cefrLevel ? ` · ${l.cefrLevel}` : ''}`)),
+    });
+  return sections;
+}
+
+export async function getInitialEvidence(leadId: string) {
+  const owner = await currentOwnerId();
+  return db
+    .select()
+    .from(requirementEvidence)
+    .where(and(eq(requirementEvidence.jobLeadId, leadId), eq(requirementEvidence.ownerId, owner)))
+    .orderBy(asc(requirementEvidence.evidenceRef));
 }
 
 export async function getTailoring(leadId: string) {

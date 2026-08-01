@@ -237,7 +237,15 @@ export const B5 = {
   } satisfies ToolDef,
 };
 
-// ── B6 · Role fit (dimensions + per-requirement judgments) ───────────────────
+// ── B6 · Role fit (dimensions + per-requirement judgments + evidence) ────────
+// `evidenceRefs` is why this step was rewritten (CI · B6 Never Receives the Master
+// Bullet Bank §2.2). B6's note has always required it to "map the requirement to
+// the strongest available evidence in the Master Bullet Bank" and to "quote or
+// reference the exact bullet text" — and until now the schema had nowhere to put
+// the answer, so the mapping the whole step is built around was discarded at the
+// tool boundary. An ARRAY, not a single ref: a requirement is routinely carried by
+// several bullets across several positions, and that many-to-many relationship is
+// the Requirement→Evidence Map's entire subject.
 export const B6 = {
   zod: z.object({
     relevance: z.number().min(0).max(10),
@@ -253,6 +261,8 @@ export const B6 = {
           matchStrength: z.string(),
           keyStrengths: z.string().nullable().optional(),
           gaps: z.string().nullable().optional(),
+          evidenceRefs: z.array(z.string()).default([]),
+          evidenceNote: z.string().nullable().optional(),
         })
       )
       .default([]),
@@ -262,7 +272,7 @@ export const B6 = {
     name: 'emit_role_fit',
     strict: true,
     description:
-      'Emit 0–10 judgments for Relevance, Seniority, Impact, ATS, and a per-requirement match score. Do NOT compute the overall — the system does that.',
+      'Emit 0–10 judgments for Relevance, Seniority, Impact, ATS, and a per-requirement match score backed by named evidence from the CANDIDATE EVIDENCE list. Do NOT compute the overall — the system does that.',
     input_schema: {
       type: 'object', additionalProperties: false,
       properties: {
@@ -278,13 +288,33 @@ export const B6 = {
             score: { type: 'number' },
             matchStrength: { type: 'string', enum: ['Excellent', 'Very Strong', 'Good', 'Weak', 'No Match'] },
             keyStrengths: str,
-            gaps: str,
+            gaps: {
+              type: 'string',
+              description:
+                'What the evidence does NOT cover for this requirement. On "No Match" this is mandatory prose — state what is missing, never leave it blank.',
+            },
+            evidenceRefs: arr({
+              type: 'string',
+              description:
+                'An exact ref code from the CANDIDATE EVIDENCE list (e.g. "C4", "EDU-2", "LANG-3"). Never invent a code and never cite one that is not in that list.',
+            }),
+            evidenceNote: {
+              type: 'string',
+              description:
+                'One sentence naming why the cited evidence carries this requirement, quoting the load-bearing phrase from the bullet. Leave empty when evidenceRefs is empty.',
+            },
           },
-          required: ['order', 'requirement', 'score', 'matchStrength'],
+          // Every property is listed — see the B2 note above. Under `strict: true`
+          // a partial `required` list degrades the constrained grammar rather than
+          // making fields optional, which is what collapsed B2's generation to 0-1
+          // requirements on 17 consecutive real JDs. `required` means "the key is
+          // present", not "the value is non-empty": an unsupported requirement
+          // still emits `evidenceRefs: []` and `evidenceNote: ""`.
+          required: ['order', 'requirement', 'score', 'matchStrength', 'keyStrengths', 'gaps', 'evidenceRefs', 'evidenceNote'],
         }),
         summary: str,
       },
-      required: ['relevance', 'seniority', 'impact', 'ats', 'requirements'],
+      required: ['relevance', 'seniority', 'impact', 'ats', 'requirements', 'summary'],
     },
   } satisfies ToolDef,
 };

@@ -26,7 +26,7 @@ import { Mach, CodeBadge } from '@/components/machinery';
 import { Frame } from '@/components/layout';
 import { cn, RpStagePill, rpVerdict, scoreTone, SCORE_TEXT } from './kit';
 import { ApplicationSentControl } from './application-sent-control';
-import { PipelineMap, type MapBlock, type MapPosition } from './pipeline-map';
+import { PipelineMap, type MapBlock, type MapCredentialSection, type MapPosition } from './pipeline-map';
 
 export type RpLead = {
   id: string;
@@ -84,6 +84,22 @@ export type RpRow = {
   mySkills: string[];
   requirementSkills: string[];
 };
+/**
+ * B6's initial requirement→evidence link, scoped to the Master Bullet Bank
+ * (CI · B6 Never Receives the Master Bullet Bank). Machine-proposed and not yet
+ * triaged — which is why it has no `approvalStatus`: Keep/Maybe/Drop is C2's
+ * decision, and rendering these as "pending" would invite a click that does
+ * nothing at this stage.
+ */
+export type RpEvidence = {
+  id: string;
+  requirementId: string;
+  evidenceRef: string;
+  evidenceText: string | null;
+  /** The Map lane this belongs in: a CV_SLOTS label for a bullet, the ref code for education/languages. */
+  slot: string | null;
+  note: string | null;
+};
 export type RunTrace = {
   step: string;
   model: string | null;
@@ -96,8 +112,12 @@ type Props = {
   lead: RpLead;
   requirements: RpReq[];
   tailoring: RpRow[];
+  /** B6's initial evidence links — what fills the Map's lanes on a screened lead, before C2 runs. */
+  initialEvidence: RpEvidence[];
   /** The CV's real shape — the Map's left column. Present in every state, including pre-screening. */
   cvSkeleton: MapPosition[];
+  /** Education / Executive Education / Languages — the CV sections below the positions. */
+  credentials: MapCredentialSection[];
   jd: string | null;
   journey: JourneyResult;
   recommendation: string | null;
@@ -132,7 +152,9 @@ type Ctx = {
   lead: RpLead;
   requirements: RpReq[];
   rows: RpRow[];
+  initialEvidence: RpEvidence[];
   cvSkeleton: MapPosition[];
+  credentials: MapCredentialSection[];
   jd: string | null;
   journey: JourneyResult;
   recommendation: string | null;
@@ -315,7 +337,9 @@ export function RpWorkspace(props: Props) {
     lead,
     requirements,
     rows: tailoring,
+    initialEvidence: props.initialEvidence,
     cvSkeleton: props.cvSkeleton,
+    credentials: props.credentials,
     jd,
     journey,
     recommendation,
@@ -535,6 +559,7 @@ function TwoPane({ c }: { c: Ctx }) {
           has run on. It is the page's product; the panels above are its controls. */}
       <PipelineMap
         positions={c.cvSkeleton}
+        credentials={c.credentials}
         requirements={c.requirements.map((r) => ({
           id: r.id,
           order: r.requirementOrder,
@@ -545,13 +570,37 @@ function TwoPane({ c }: { c: Ctx }) {
           initialScore: r.initialScore,
           initialMatchStrength: r.initialMatchStrength,
         }))}
-        evidence={c.rows.map((row) => ({
-          id: row.id,
-          requirementId: row.requirementId,
-          slot: row.cvPosition,
-          text: row.originalText,
-          approvalStatus: row.approvalStatus,
-        }))}
+        // Two sources, one lane set, in stage order — never both at once. B6's
+        // links land at screening and are what the header has always promised
+        // ("evidence lanes fill at B6"); C2's rows supersede them the moment
+        // tailoring runs, because those are the same evidence re-picked over the
+        // whole Career Graph and carrying a Keep/Maybe/Drop state. Merging the two
+        // would stack each bullet twice in its slot and make the triage colours
+        // meaningless (CI · B6 Never Receives the Master Bullet Bank §2.3).
+        evidence={
+          c.rows.length > 0
+            ? c.rows.map((row) => ({
+                id: row.id,
+                requirementIds: row.requirementId ? [row.requirementId] : [],
+                slot: row.cvPosition,
+                text: row.originalText,
+                approvalStatus: row.approvalStatus,
+                groupKey: row.evidenceRef,
+              }))
+            : c.initialEvidence.map((e) => ({
+                id: e.id,
+                requirementIds: [e.requirementId],
+                slot: e.slot,
+                text: e.evidenceText,
+                // No approval state exists yet — the neutral chip is the honest
+                // rendering of "B6 proposed this; nobody has judged it".
+                approvalStatus: 'initial',
+                note: e.note,
+                // B6 emits one row per (requirement, bullet) pair — this is what
+                // collapses them back to one chip per bullet in the lane.
+                groupKey: e.evidenceRef,
+              }))
+        }
         blocks={mappedBlocks(c)}
         leadTitle={c.lead.title}
         company={c.lead.company}
