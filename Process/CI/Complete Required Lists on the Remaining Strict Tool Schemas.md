@@ -75,8 +75,10 @@ before/after measurement per §2.3.
 
 **Out of scope — each needs its own CI:**
 - **Re-running the back catalogue.** `job_requirements` held 0 rows across all 157 leads, and every stored
-  fit score was computed without requirements. **Sequencing matters: do not re-run until this CI is done**,
-  or 157 leads get re-screened through still-degraded B3–B6 and have to be run again.
+  fit score was computed without requirements. **Sequencing matters: do not re-run until this CI *and*
+  `[[B6 Never Receives the Master Bullet Bank (Empty Evidence Lanes in the Map)]]` are done** — scores are
+  currently produced without requirements *and* without evidence, so an early re-run just manufactures a
+  second generation of untrustworthy numbers.
 - **Retiring `job_requirements.requirement_group`.** It receives a duplicate of `rank` and is read by
   nothing. Data-shape decision on its own terms.
 - **Connector-era references in the `Process/*.md` notes** (OneDrive / SharePoint / `.xlsx` as data
