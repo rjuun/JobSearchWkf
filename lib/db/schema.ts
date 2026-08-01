@@ -340,8 +340,20 @@ export const jobRequirements = pgTable('job_requirements', {
   jobLeadId: uuid('job_lead_id').notNull(),
   leadTitle: text('lead_title'),
   requirementOrder: integer('requirement_order'),
+  // NB: `rank` holds the GROUP NAME ('Core' | 'Important' | 'Nice-to-Have'), not a
+  // number — ~25 call sites read it that way (queries.ts filters, scoring.ts
+  // RANK_WEIGHT, tailoring.ts, coaching-queue.ts, the UI). B2's note calls that
+  // field the "Requirement Group" and reserves "Rank" for the within-group
+  // counter, which is `groupRank` below. Names diverge from the note on purpose;
+  // repossessing `rank` would break every reader.
   rank: text('rank'),
+  // Written from the same value as `rank` and currently read by nothing. Kept as-is
+  // pending a separate decision — see the CI note.
   requirementGroup: text('requirement_group'),
+  // §B of B2's note: the sequential position of this requirement within its group,
+  // starting at 1. Null on rows written before this shipped and on any lead whose
+  // extraction predates the backfill.
+  groupRank: integer('group_rank'),
   requirement: text('requirement').notNull(),
   description: text('description'),
   // CI · Lead Page as Pipeline Canvas §3 — the verbatim JD sentence this

@@ -168,7 +168,12 @@ async function callClaude(
     },
     body: JSON.stringify({
       model,
-      max_tokens: 8000,
+      // 8000 was the original value and is low for a non-streaming call — a full
+      // B2 extraction runs ~3200 output tokens, and one Vestas run hit the ceiling
+      // dead-on and returned a truncated (silently empty) tool call. 16000 matches
+      // Anthropic's guidance for non-streaming requests while staying well under
+      // the SDK HTTP timeout.
+      max_tokens: 16000,
       // The static prefix (guardrails + step note) is byte-identical across
       // leads/runs → cache it for 1h. The CI guidance grows over time → never
       // cached, so a new tip only invalidates itself, not the prefix.

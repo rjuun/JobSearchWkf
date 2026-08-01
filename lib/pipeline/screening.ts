@@ -172,21 +172,36 @@ export async function runInitialChecks(leadId: string, ownerId?: string | null):
     if (requirements.length > 0) {
       summary = `${requirements.length} requirements (kept)`;
     } else {
-      const r = await runStructured({
-        step: 'B2',
-        model: 'sonnet',
-        system: await systemPromptFor('B2', effectiveOwnerId),
-        user: `JOB DESCRIPTION:\n${jd || lead.title}`,
-        tool: B2.tool,
-        zod: B2.zod,
-        mock: () => mockRequirements(jd),
-        leadId,
-        ownerId: effectiveOwnerId,
-      });
+      // The floor is enforced by re-asking, not by giving up. runStructured's own
+      // retry can never fire here — a thin extraction is schema-valid, so there is
+      // nothing for zod to reject — which is exactly why this loop exists at this
+      // layer instead. Completing B2's `required` list took the misfire rate from
+      // ~100% to roughly 1-in-10 (CI note §4); a couple of re-asks absorb what is
+      // left, and a lead that genuinely cannot be read still ends in the throw.
+      const ATTEMPTS = 3;
+      const extract = async () =>
+        runStructured({
+          step: 'B2',
+          model: 'sonnet',
+          system: await systemPromptFor('B2', effectiveOwnerId),
+          user: `JOB DESCRIPTION:\n${jd || lead.title}`,
+          tool: B2.tool,
+          zod: B2.zod,
+          mock: () => mockRequirements(jd),
+          leadId,
+          ownerId: effectiveOwnerId,
+        });
+
+      let r = await extract();
       model = r.model;
+      for (let attempt = 2; attempt <= ATTEMPTS && tooThin(r.data.requirements.length); attempt++) {
+        r = await extract();
+        model = r.model;
+      }
       if (tooThin(r.data.requirements.length)) {
         throw new Error(
-          `B2 extracted only ${r.data.requirements.length} requirement(s) from a ${jd.trim().length}-character JD — ` +
+          `B2 extracted only ${r.data.requirements.length} requirement(s) from a ${jd.trim().length}-character JD, ` +
+            `after ${ATTEMPTS} attempts — ` +
             (r.data.requirements.length === 0
               ? 'the model call misfired rather than the JD genuinely being empty.'
               : 'too few for a posting this long to be a genuine full reading.') +
@@ -204,6 +219,7 @@ export async function runInitialChecks(leadId: string, ownerId?: string | null):
               requirementOrder: req.order,
               rank: req.rank,
               requirementGroup: req.rank,
+              groupRank: req.groupRank ?? null,
               requirement: req.requirement,
               description: req.description ?? null,
               // §3 · the verbatim JD sentence, distinct from the paraphrase in

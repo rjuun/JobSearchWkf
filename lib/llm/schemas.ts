@@ -74,6 +74,7 @@ export const B2 = {
           description: z.string().nullable().optional(),
           sourceText: z.string().nullable().optional(),
           rank: z.string(),
+          groupRank: z.number().int().nullable().optional(),
           skills: z.array(z.string()).default([]),
         })
       )
@@ -100,10 +101,33 @@ export const B2 = {
               description:
                 'The VERBATIM sentence from the job description this requirement was drawn from — character for character, no tidying, no trimming, no translation, and never stitched together from separated lines. If the requirement synthesises several lines, quote the single most load-bearing one. Leave empty only if the requirement is implied by the posting\'s structure rather than stated in any sentence.',
             },
-            rank: { type: 'string', enum: ['Core', 'Important', 'Nice-to-Have'] },
+            // The note (§B) calls this the *Requirement Group* and reserves the
+            // word "Rank" for the within-group counter below. The field keeps the
+            // name `rank` because that is what the whole app reads it as
+            // (queries.ts, scoring.ts, tailoring.ts, coaching-queue.ts, the UI).
+            rank: {
+              type: 'string',
+              enum: ['Core', 'Important', 'Nice-to-Have'],
+              description: 'The Requirement Group from the procedure: Core, Important, or Nice-to-Have.',
+            },
+            // §B's actual "Rank": the sequence WITHIN the group. The procedure has
+            // always asked for it; until now the tool had nowhere to put it, and a
+            // strict schema that cannot express what its own prompt demands is what
+            // collapsed this step's generation (see the CI note).
+            groupRank: {
+              type: 'integer',
+              description:
+                'The sequential number of this requirement WITHIN its group, starting at 1. The procedure calls this "Rank" — distinct from `order`, which is the global counter across all groups.',
+            },
             skills: arr(str),
           },
-          required: ['order', 'requirement', 'rank'],
+          // Every property is listed. Under `strict: true` the tool input is
+          // grammar-constrained, and a partial `required` list degrades that
+          // grammar rather than making fields optional: with three of seven listed
+          // this step returned 0-1 requirements on 17 consecutive real JDs. Listing
+          // them all took it to 13/14. `required` means "the key is present", not
+          // "the value is non-empty" — an unstated sourceText is still "".
+          required: ['order', 'requirement', 'description', 'sourceText', 'rank', 'groupRank', 'skills'],
         }),
       },
       required: ['requirements'],

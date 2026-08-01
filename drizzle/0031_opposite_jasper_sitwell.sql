@@ -1,0 +1,1 @@
+ALTER TABLE "job_requirements" ADD COLUMN "group_rank" integer;
