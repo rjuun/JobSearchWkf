@@ -31,34 +31,46 @@ At the start of every conversation:
 
 ### 0.2 File Map – Core Reference Files
 
-This table lists the core files required to run the job hunting process. Files are grouped by category for clarity.
+**Nothing in this map is a file you open.** The steps run inside the RoleProof app: the data is in
+Postgres, the step note is supplied to you as your system prompt, and everything a step needs arrives
+in the message you are given. There is no filesystem, no OneDrive connector and no SharePoint site.
 
-#### Core Process Files
+Do not attempt to open, fetch or look up a workbook, a list or a path. If something you expect is not
+in the message you were given, say so — do not treat its absence as a reason to return an empty
+result.
 
-| File                                 | Purpose                                                                 | Path (OneDrive)                                             | Claude Access                   | Grok Access   | Notes                       |
-| ------------------------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------- | ------------- | --------------------------- |
-| `Job_Hunting_Master_Instructions.md` | Single source of truth for principles, rules and process overview       | `JobSearch Camunda/Job_Hunting_Master_Instructions.md`      | OneDrive connector / Upload     | Manual upload | Always required             |
-| `0. Application Process (MOC).md`    | Master index linking all process steps                                  | `JobSearch Camunda/0. Application Process (MOC).md`         | OneDrive connector              | Manual upload | -                           |
-| `Values & Motives Summary.md`        | Core values, definition of success and misalignment criteria            | `JobSearch Camunda/Profile/Values & Motives Summary.md`     | OneDrive connector              | Manual upload | **Mandatory for Step B.3**  |
-| `Profile_Reference_Workbook.xlsx`    | Evidence source (STARs, Responsibilities, Skills, Education, Languages) | `JobSearch Camunda/Profile/Profile_Reference_Workbook.xlsx` | OneDrive connector              | Manual upload | Always required             |
-| `Job Hunting Lists.xlsx`             | Mirror of SharePoint (Job Leads, Requirements, Tailoring)               | SharePoint site root (or exported copy)                     | OneDrive / SharePoint connector | Manual upload | Always required for updates |
+#### Reference data — where it actually lives
 
-#### Step Notes (Screening Phase)
+| What the process calls it | Where it is now | How a step receives it |
+| --- | --- | --- |
+| `Profile_Reference_Workbook.xlsx` — the evidence source | the Career Graph tables in Postgres: `star_actions`, `star_results`, `star_competences`, `star_attributes`, `responsibilities`, `bullet_bank`, `skills_master`, `education`, `languages` | rendered into the user message by the step that needs it — B6 gets the Master Bullet Bank plus education and languages; C2 gets the whole graph |
+| `Job Hunting Lists.xlsx` / the SharePoint lists | `job_leads`, `job_requirements`, `requirement_tailoring`, `requirement_evidence`, `cv_variants` | read and written by the app around the call; a step never queries them itself |
+| `Values & Motives Summary.md` | still a file, read by the app (`lib/profile-context.ts`) | inlined into **B4**'s user message as `CANDIDATE VALUES & MOTIVES` |
+| The job description | `job_leads.jd_text` | inlined under `JOB DESCRIPTION:` |
 
-| File                                      | Purpose                                              | Path (OneDrive)                                                              | Claude Access                  | Grok Access                          | Notes |
-|-------------------------------------------|------------------------------------------------------|------------------------------------------------------------------------------|--------------------------------|--------------------------------------|-------|
-| `B1. Capture Posting Freshness and Market Saturation.md` | Step B.1 instructions                                | `JobSearch Camunda/Process/B1. Capture Posting Freshness and Market Saturation.md` | OneDrive connector             | Manual upload                        | - |
-| `B3. Identify Roadblocks.md`              | Step B.3 instructions                                | `JobSearch Camunda/Process/B3. Identify Roadblocks.md`                       | OneDrive connector             | Manual upload                        | - |
-| `B4. Identify Misalignments.md`           | Step B.4 instructions                                | `JobSearch Camunda/Process/B4. Identify Misalignments.md`                    | OneDrive connector             | Manual upload                        | - |
-| `B5. Translate Requirements to Areas of Expertise and Define JD Groups.md` | Step B.5 instructions                      | `JobSearch Camunda/Process/B5. Translate Requirements to Areas of Expertise and Define JD Groups.md` | OneDrive connector     | Manual upload                        | - |
-| `B2. Extract Requirements from Job Description.md` | Step B.2 instructions                           | `JobSearch Camunda/Process/B2. Extract Requirements from Job Description.md` | OneDrive connector             | Manual upload                        | - |
-| `B6. Run Initial ATS Matching Rating.md`  | Step B.6 instructions                                | `JobSearch Camunda/Process/B6. Run Initial ATS Matching Rating.md`           | OneDrive connector             | Manual upload                        | - |
+Column-by-column translation from the old vocabulary: **[`docs/DATA_MODEL.md`](../docs/DATA_MODEL.md)**
+— including the two inverted `job_requirements` fields (`rank` holds the *group name*; the
+within-group counter is `group_rank`).
 
-#### Optional / State Files
+#### Step notes
 
-| File            | Purpose                           | Path (OneDrive)                                    | Claude Access | Grok Access            | Notes                      |
-| --------------- | --------------------------------- | -------------------------------------------------- | ------------- | ---------------------- | -------------------------- |
-| `Grok_State.md` | Cross-session continuity for Grok | User-managed (recommended in `JobSearch Camunda/`) | Not used      | Manual upload + update | Recommended for Grok users |
+The notes in `Process/` are the step procedures. Ten of them are loaded verbatim as system prompts by
+`lib/prompts.ts` (`STEP_NOTE`): **B2, B3, B4, B5, B6, C2, C3, C5, C7** and **Onboarding/O2**. You do
+not fetch your own note — the one you are running is already in your context, above this document.
+
+| Step | Note |
+| --- | --- |
+| B1 · Posting freshness and market saturation | pure code, no note loaded |
+| B2 · Extract requirements from the JD | `B2. Extract Requirements from Job Description.md` |
+| B3 · Identify roadblocks | `B3. Identify Roadblocks.md` |
+| B4 · Identify misalignments | `B4. Identify Misalignments.md` |
+| B5 · Translate requirements to Areas of Expertise, assign JD groups | `B5. Translate Requirements to Areas of Expertise and Define JD Groups.md` |
+| B6 · Role fit & investment worthiness score | `B6. Role Fit & Investment Worthiness Score.md` |
+
+> Historic (superseded): this map used to give a OneDrive path, a "Claude Access" connector and a
+> "Grok Access" upload column for each file, back when the process ran through the Microsoft 365
+> connector and notes were uploaded by hand. It also listed a `B6. Run Initial ATS Matching Rating.md`
+> that was retired in the B-phase reorder; it is kept in `Process/Past Versions/`.
 
 ### 0.3 Model-Specific Startup Behavior
 
@@ -78,7 +90,8 @@ These rules apply **without exception**.
 
 ### 1.2 On ATS Optimisation
 - Only use JD keywords when they are genuinely supported by profile evidence.
-- Use the `ATS_Keyword_Variants` column in `tbl_Skills_Master` when choosing phrasing.
+- When a step supplies skills evidence, prefer the phrasing in its `ats_keyword_variants`
+  (`skills_master`) over inventing a synonym.
 - Adjust CV formatting based on the detected ATS system.
 - Never add unsupported keywords.
 
@@ -101,42 +114,62 @@ These rules apply **without exception**.
 
 ---
 
-## 3. SharePoint / Output Conventions
+## 3. Field Conventions
 
-Use the following exact structures when producing outputs for SharePoint or `Job Hunting Lists.xlsx`.
+**These are the fields the app persists, not an output format you produce.** Each step emits one
+structured tool call; the app validates it and writes the rows. There is no SharePoint export, no
+paste-ready block and no workbook row to fill in — do not generate one.
 
-### 3.1 Job Requirements List
+The names below are given because the step notes still use them in prose. The authoritative
+column-by-column mapping is **[`docs/DATA_MODEL.md`](../docs/DATA_MODEL.md)**.
 
-Lead: ID: [value] 
-Requirement_Order: [value] 
-Rank: [value] 
-Requirement_Group: [Core / Important / Nice-to-Have] 
-Requirement: [value] 
-Requirement_Description: [value] 
-Skills: [value] 
-Initial_Match_Strength: [Excellent / Very Strong / Good / Weak / No Match] 
-Initial_Key_Strengths: [value] 
-Initial_Missing_Weak: [value or "None"] 
-Initial_Score: [0-10] 
-Requirement_Line: [Requirement_Order - Group - Rank - Requirement]
+### 3.1 Requirements — the `job_requirements` table
 
+Written by **B2** (extraction) and then by **B6** (the `Initial_*` fields).
 
-### 3.2 Requirements Tailoring List
+| Field as the notes name it | Column | Written by |
+| --- | --- | --- |
+| `Lead: ID` | `job_lead_id` | B2 |
+| `Requirement_Order` | `requirement_order` — global counter | B2 |
+| `Rank` | `group_rank` — the counter **within** the group | B2 |
+| `Requirement_Group` | ⚠️ `rank` — this column holds the group name (`Core` / `Important` / `Nice-to-Have`) | B2 |
+| `Requirement` | `requirement` | B2 |
+| `Requirement_Description` | `description` | B2 |
+| `Source Text` | `source_text` — the verbatim JD sentence | B2 |
+| `Skills` | `skills` | B2 |
+| `Initial_Match_Strength` | `initial_match_strength` — Excellent / Very Strong / Good / Weak / No Match | B6 |
+| `Initial_Key_Strengths` | `initial_key_strengths` | B6 |
+| `Initial_Missing_Weak` | `initial_missing_weak` | B6 |
+| `Initial_Score` | `initial_score` — 0–10 | B6 |
+| `Requirement_Line` | not stored — composed for display from the four fields above | — |
 
-Requirement_Line: [Requirement_Order - Group - Rank - Requirement] 
-Connection_to_Expertise: [JD Group tags] 
-Reference: [tbl_STAR_Actions > X-Y or tbl_Responsibilities > X-RY] 
-Original_Text: [verbatim from Profile Reference Workbook] 
-CV_Position: [CV section where this appears] 
-CV_Bullet: [drafted ATS-optimised bullet] 
-CV_Placement: [CV Body / Profile / Both] 
-Actual_Skills: [skills as expressed in the bullet] 
-Approved: [leave blank — Candidate decision]
+B6 also writes its requirement→evidence citations to `requirement_evidence`, one row per cited
+bullet. A requirement may cite several.
 
+### 3.2 Tailoring — the `requirement_tailoring` table
+
+Written by **C2**, then reviewed by the candidate.
+
+| Field as the notes name it | Column |
+| --- | --- |
+| `Requirement_Line` | `requirement_line` |
+| `Connection_to_Expertise` | `connection_to_expertise` |
+| `Reference` | `evidence_ref` — the stable ref code (`5-3`, `A-R3`, `EDU-3`, `LANG-3`) |
+| `Original_Text` | `original_text` — snapshotted from the evidence row at mapping time |
+| `CV_Position` | `cv_position` |
+| `CV_Bullet` | `cv_bullet` |
+| `CV_Placement` | `cv_placement` |
+| `Actual_Skills` | `my_skills` |
+| `Approved` | `approval_status` — `pending` / `green` / `yellow` / `red`; **the candidate's call, never the model's** |
 
 ### 3.3 General Rules
-- Use exact field names.
-- Refer to previously completed rows in `Job Hunting Lists.xlsx` for calibration.
+- Cite evidence by its exact ref code. Never invent one — a code that is not in the list you were
+  given is a fabricated citation, and it is dropped at the write path rather than trusted.
+- Emit only the structured tool call the step asks for.
+
+> *Historic (superseded): §3.1 and §3.2 were `Field: [value]` templates to be filled in and pasted into
+> SharePoint or `Job Hunting Lists.xlsx`, back when the process ran through the Microsoft 365
+> connector.*
 
 ---
 

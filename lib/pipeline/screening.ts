@@ -48,7 +48,7 @@ import { normalizeCvPosition } from '../cv-slots';
 
 export type { StepReport } from './runs';
 import { systemPromptFor } from '../prompts';
-import { runStructured } from '../llm/client';
+import { runStructured, type UserContentBlock } from '../llm/client';
 import { B2, B3, B4, B5, B6 } from '../llm/schemas';
 import {
   freshnessBand,
@@ -83,6 +83,76 @@ const nullIfBlank = (s: string | null | undefined): string | null => (s && s.tri
  */
 export function gateStatusFor(roadblockCount: number, misalignmentCount: number): 'selected' | 'scoring_queue' {
   return roadblockCount === 0 && misalignmentCount === 0 ? 'selected' : 'scoring_queue';
+}
+
+/**
+ * ── The user messages, as pure builders ─────────────────────────────────────
+ *
+ * Extracted so `scripts/backtest-notes.ts` sends each step the message this file
+ * sends, byte for byte. That harness is the ONLY gate on a Process-note edit —
+ * `tsc` and `vitest` never read a note's body — so a harness that reconstructed
+ * these strings by hand would drift silently and then certify a prompt production
+ * does not use. Same reasoning as `composeSystemPrompt` in lib/prompts.ts.
+ *
+ * Pure and DB-free on purpose: they take the rows, they do not fetch them.
+ */
+export type PromptRequirement = { rank: string | null; requirement: string; description?: string | null };
+
+/** How every step numbers requirements for the model — B3's roadblock mapping and B6's `order` key both depend on this being identical. */
+const numberedRequirements = (rows: PromptRequirement[], withDescription = false) =>
+  rows
+    .map((q, i) => `${i + 1}. [${q.rank}] ${q.requirement}${withDescription && q.description ? ` — ${q.description}` : ''}`)
+    .join('\n');
+
+/** B2 · the JD is the complete and only source (its note §A). */
+export function b2UserMessage(jd: string, leadTitle: string): string {
+  return `JOB DESCRIPTION:\n${jd || leadTitle}`;
+}
+
+export function b3UserMessage(jd: string, leadTitle: string, requirements: PromptRequirement[]): string {
+  const reqList = requirements.length
+    ? `\n\nREQUIREMENTS:\n${numberedRequirements(requirements)}\n\nIf a roadblock blocks exactly one of the requirements above, set its "requirementOrder" to that number. Omit it when the roadblock is implied across the posting as a whole — do not force a mapping.`
+    : '';
+  return `JOB DESCRIPTION:\n${jd || leadTitle}${reqList}`;
+}
+
+export function b4UserMessage(jd: string, leadTitle: string, city: string | null, valuesSummary: string): string {
+  return (
+    `JOB DESCRIPTION:\n${jd || leadTitle}\nCITY: ${city ?? 'unknown'}` +
+    (valuesSummary ? `\n\nCANDIDATE VALUES & MOTIVES:\n${valuesSummary}` : '')
+  );
+}
+
+export function b5UserMessage(jd: string, leadTitle: string, requirements: PromptRequirement[]): string {
+  const reqList = requirements.length ? `\n\nREQUIREMENTS (extracted at B2):\n${numberedRequirements(requirements, true)}` : '';
+  return `JOB DESCRIPTION:\n${jd || leadTitle}${reqList}`;
+}
+
+/**
+ * B6 · two blocks, and the split is load-bearing: the evidence listing is
+ * owner-wide and lead-independent — byte-identical across every lead in a scoring
+ * batch — so it carries its own 1h cache breakpoint and is read from cache for
+ * every lead after the first. The per-lead JD and requirements follow as the
+ * varying suffix. Same shape C2 uses (lib/pipeline/tailoring.ts).
+ */
+export function b6UserMessage(
+  evidence: B6Evidence[],
+  jd: string,
+  leadTitle: string,
+  requirements: PromptRequirement[]
+): UserContentBlock[] {
+  return [
+    { type: 'text', text: renderB6Evidence(evidence), cache_control: { type: 'ephemeral', ttl: '1h' } },
+    {
+      type: 'text',
+      text:
+        `JOB DESCRIPTION:\n${jd || leadTitle}\n\nREQUIREMENTS:\n${numberedRequirements(requirements)}\n\n` +
+        `For each requirement, set "order" to its number above and list in "evidenceRefs" every ref code ` +
+        `from CANDIDATE EVIDENCE that genuinely supports it — several where several apply, none where none do. ` +
+        `Cite only codes that appear in that list. Where nothing supports the requirement, use "No Match", ` +
+        `leave "evidenceRefs" empty, and state in "gaps" what is missing.`,
+    },
+  ];
 }
 
 /**
@@ -311,7 +381,7 @@ export async function runInitialChecks(leadId: string, ownerId?: string | null):
           step: 'B2',
           model: 'sonnet',
           system: await systemPromptFor('B2', effectiveOwnerId),
-          user: `JOB DESCRIPTION:\n${jd || lead.title}`,
+          user: b2UserMessage(jd, lead.title),
           tool: B2.tool,
           zod: B2.zod,
           mock: () => mockRequirements(jd),
@@ -370,16 +440,11 @@ export async function runInitialChecks(leadId: string, ownerId?: string | null):
   {
     // Requirements are numbered for the model exactly the way B6 numbers them, so
     // it can return `requirementOrder` to attach a roadblock to one specific row.
-    const reqList = requirements.length
-      ? `\n\nREQUIREMENTS:\n${requirements
-          .map((q, i) => `${i + 1}. [${q.rank}] ${q.requirement}`)
-          .join('\n')}\n\nIf a roadblock blocks exactly one of the requirements above, set its "requirementOrder" to that number. Omit it when the roadblock is implied across the posting as a whole — do not force a mapping.`
-      : '';
     const r = await runStructured({
       step: 'B3',
       model: 'sonnet',
       system: await systemPromptFor('B3', effectiveOwnerId),
-      user: `JOB DESCRIPTION:\n${jd || lead.title}${reqList}`,
+      user: b3UserMessage(jd, lead.title, requirements),
       tool: B3.tool,
       zod: B3.zod,
       mock: () => mockRoadblocks(jd, lead.roadblocks ?? []),
@@ -411,9 +476,7 @@ export async function runInitialChecks(leadId: string, ownerId?: string | null):
       step: 'B4',
       model: 'sonnet',
       system: await systemPromptFor('B4', effectiveOwnerId),
-      user:
-        `JOB DESCRIPTION:\n${jd || lead.title}\nCITY: ${lead.city ?? 'unknown'}` +
-        (valuesSummary ? `\n\nCANDIDATE VALUES & MOTIVES:\n${valuesSummary}` : ''),
+      user: b4UserMessage(jd, lead.title, lead.city, valuesSummary),
       tool: B4.tool,
       zod: B4.zod,
       mock: () => mockMisalignments(jd, lead.city, lead.misalignments ?? []),
@@ -485,16 +548,11 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
       .select()
       .from(jobRequirements)
       .where(and(eq(jobRequirements.jobLeadId, leadId), eq(jobRequirements.ownerId, effectiveOwnerId)));
-    const reqList = requirementRows.length
-      ? `\n\nREQUIREMENTS (extracted at B2):\n${requirementRows
-          .map((q, i) => `${i + 1}. [${q.rank}] ${q.requirement}${q.description ? ` — ${q.description}` : ''}`)
-          .join('\n')}`
-      : '';
     const r = await runStructured({
       step: 'B5',
       model: 'sonnet',
       system: await systemPromptFor('B5', effectiveOwnerId),
-      user: `JOB DESCRIPTION:\n${jd || lead.title}${reqList}`,
+      user: b5UserMessage(jd, lead.title, requirementRows),
       tool: B5.tool,
       zod: B5.zod,
       mock: () => mockSkillMapping(lead),
@@ -540,25 +598,7 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
       step: 'B6',
       model: 'opus',
       system: await systemPromptFor('B6', effectiveOwnerId),
-      // Two blocks, and the split matters: the evidence listing is owner-wide and
-      // lead-independent — byte-identical across every lead in a scoring batch —
-      // so it carries its own 1h cache breakpoint and is read from cache for every
-      // lead after the first. The per-lead JD and requirements follow as the
-      // varying suffix. Same shape C2 already uses (lib/pipeline/tailoring.ts).
-      user: [
-        { type: 'text' as const, text: renderB6Evidence(evidence), cache_control: { type: 'ephemeral' as const, ttl: '1h' as const } },
-        {
-          type: 'text' as const,
-          text:
-            `JOB DESCRIPTION:\n${jd || lead.title}\n\nREQUIREMENTS:\n${requirements
-              .map((q, i) => `${i + 1}. [${q.rank}] ${q.requirement}`)
-              .join('\n')}\n\n` +
-            `For each requirement, set "order" to its number above and list in "evidenceRefs" every ref code ` +
-            `from CANDIDATE EVIDENCE that genuinely supports it — several where several apply, none where none do. ` +
-            `Cite only codes that appear in that list. Where nothing supports the requirement, use "No Match", ` +
-            `leave "evidenceRefs" empty, and state in "gaps" what is missing.`,
-        },
-      ],
+      user: b6UserMessage(evidence, jd, lead.title, requirements),
       tool: B6.tool,
       zod: B6.zod,
       mock: () => mockRoleFit(lead.skillRatings ?? {}, lead.atsSystem, requirements, evidence),

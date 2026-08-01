@@ -2,11 +2,11 @@
 ci-title: Repoint the Process notes from workbooks and SharePoint to the app
 ci-area: Process notes / prompt hygiene
 ci-roadmap:
-ci-status: 0 - Idea
+ci-status: 2 - In Progress
 ci-priority: high
 ci-date: 2026-08-01
 ci-estimated-time: 5
-ci-time-spent: 0
+ci-time-spent: 5
 pr-source:
 pr-target:
 ---
@@ -21,9 +21,8 @@ pr-target:
 > Written to be picked up in a fresh chat. §1 is the problem, §2.2 is the canonical name mapping, §2.3 is
 > the decision on Output sections.
 >
-> **Start at §4's last entry (2026-08-01, "B6 merged").** §2.2 was verified before the B6 CI landed and is
-> known to be stale in at least two rows — re-verify it against current `main` as step 0 rather than
-> trusting it.
+> **§2.2 has been re-verified against current `main` (2026-08-01) and corrected — it is now safe to
+> use.** Three rows were wrong; see §4's "step 0" entry for what changed and why.
 
 ---
 
@@ -90,13 +89,15 @@ retired path as a marked historic note.
 
 ### 2.2 Canonical mapping — workbook / SharePoint → Postgres
 
-Verified against `lib/db/schema.ts` on 2026-08-01. Put this table in `docs/DATA_MODEL.md` and have the
-notes reference it rather than each note inventing its own wording.
+**Re-verified against `lib/db/schema.ts` and `lib/pipeline/screening.ts` on current `main`,
+2026-08-01, after the B6 CI merged.** The pre-B6 version of this table was wrong in three places; the
+corrections are marked ✅ below and the superseded rows are recorded in §4. Put this table in
+`docs/DATA_MODEL.md` and have the notes reference it rather than each note inventing its own wording.
 
 | Note says | Actually is |
 | --- | --- |
 | `Profile_Reference_Workbook.xlsx` | the Career Graph tables (below) |
-| `tbl_Bullet_Bank` | `bullet_bank` |
+| `tbl_Bullet_Bank` | `bullet_bank` — and since the B6 CI this is **really sent** to B6 (`gatherB6Evidence`), so the note's reference is repointed, not deleted |
 | `tbl_Skills_Master` | `skills_master` |
 | `tbl_Education` | `education` |
 | `tbl_Languages` / `tbl_Language` | `languages` |
@@ -105,6 +106,7 @@ notes reference it rather than each note inventing its own wording.
 | `Job Hunting Lists.xlsx` / SharePoint | `job_leads`, `job_requirements`, `requirement_tailoring`, `cv_variants` |
 | "Job Requirements List" (§3.1) | `job_requirements` |
 | "Requirements Tailoring List" (§3.2) | `requirement_tailoring` |
+| *(no workbook or SharePoint equivalent — it postdates them)* | ✅ `requirement_evidence` — B6's requirement→evidence map (`schema.ts`, migration `0032`). Many-to-many by design: one requirement is routinely carried by several bullets. Rows are replaced wholesale on each scoring run |
 
 Field-level, for `job_requirements`:
 
@@ -119,13 +121,16 @@ Field-level, for `job_requirements`:
 | `Source Text` | `source_text` | |
 | `Skills` | `skills` (jsonb) | |
 | `Initial_Match_Strength` | `initial_match_strength` | |
-| `Initial_Key_Strengths` | `initial_key_strengths` | currently never written |
-| `Initial_Missing_Weak` | `initial_missing_weak` | currently never written |
+| `Initial_Key_Strengths` | `initial_key_strengths` | ✅ written by B6 (`screening.ts` `initialKeyStrengths`) |
+| `Initial_Missing_Weak` | `initial_missing_weak` | ✅ written by B6 (`screening.ts` `initialMissingWeak`) |
 | `Initial_Score` | `initial_score` | |
 | `Requirement_Line` | — | computed for display, not stored |
 
-The two "currently never written" rows are real gaps, not mapping errors: `screening.ts` writes only
-`initialScore` and `initialMatchStrength`. Flag them to the B6 CI rather than fixing here.
+The two `Initial_*` rows above **used to say "currently never written"** and no longer do. The B6 CI
+closed that gap: B6 already emitted `keyStrengths`/`gaps`, the columns had existed since `0000`, and
+only the write path was missing. Blanks are normalized to null (`nullIfBlank`), so an `IS NOT NULL`
+read means B6 genuinely had something to say. See
+`[[B6 Never Receives the Master Bullet Bank (Empty Evidence Lanes in the Map)]]` §2.3.
 
 ### 2.3 Decision — what to do with the Output sections
 
@@ -160,16 +165,57 @@ the literal value `placeholder` — a template in the prompt is a thing the mode
 
 ### 2.5 Acceptance criteria
 
-- [ ] `docs/DATA_MODEL.md` carries the mapping table
-- [ ] No loaded note instructs the model to open a file, workbook, SharePoint list or OneDrive path
-- [ ] Every Output/`## D` section replaced with a Persistence subsection naming tool + code path + table
-- [ ] No template/example tables with placeholder cells remain in any loaded note
-- [ ] Retired paths kept as marked historic notes, not deleted
+- [x] `docs/DATA_MODEL.md` carries the mapping table — plus `requirement_evidence` in the schema tables
+      and the relationship diagram, and the "Sources" section moved to past tense
+- [x] No loaded note instructs the model to open a file, workbook, SharePoint list or OneDrive path —
+      audit down from 7/9/2/11/9/20 refs (B2/B3/B4/B5/B6/C2) to 3/2/2/3/3/3, every remaining hit being
+      either the prohibition itself or a marked historic note
+- [x] Every Output/`## D` section replaced with a Persistence subsection naming tool + code path + table
+      — zero `## Output` / `## D. Outputs` headings remain across all ten loaded notes
+- [x] No template/example tables with placeholder cells remain in any loaded note — bracket-placeholder
+      count across the six edited notes fell 39 → 11, the remainder being prose examples, not table cells
+- [x] Retired paths kept as marked historic notes, not deleted
 - [ ] **Dev server restarted** — `lib/prompts.ts` `noteCache` never invalidates
 - [ ] One live B-phase run per edited step; `cache[w=… r=0]` on the `[llm]` line confirms the new bytes
       loaded, and output quality is unchanged or better
-- [ ] `npx tsc --noEmit` clean; `npx vitest run` passing (notes are not compiled, but the seed/CI tests
-      read some of them)
+- [x] `npx tsc --noEmit` clean; `npx vitest run` passing (171/171, 15 files); `verify-b6-evidence.ts`
+      13/13 — **necessary but not sufficient, and not evidence about the notes at all**: no test reads a
+      step note's body (see §4, step 0)
+- [x] **§2.6's backtest green against the recently scored leads** — this is the real gate. 102 paired
+      live calls over the 7 most recently scored leads: 0 model failures, and candidate better than
+      baseline on every reliability measure that moved (see §4, 2026-08-02)
+
+### 2.6 The gate — a read-only backtest, not the type checker
+
+Because `tsc` and `vitest` cannot see into a note, the merge gate is an A/B backtest over the leads
+that were most recently scored for real. What is under test is **the reliability of the scoring
+process running** — that each step still emits its tool call, the payload still validates, every
+requirement is still covered, every citation still resolves. Score *values* are reported for
+visibility and are deliberately **not** a pass/fail condition: this CI repoints references, and a
+judgment that moves half a point is not a regression.
+
+`scripts/backtest-notes.ts`, modelled on `scripts/measure-b6-required.ts`:
+
+- **Read-only by construction.** It calls each step's LLM directly rather than through
+  `runScoring`/`runScreening`, so nothing is written to `job_leads`, `job_requirements` or
+  `requirement_evidence`. The only rows it creates are `llm_calls` audit rows, tagged
+  `<STEP>-backtest-base` / `-cand` so they stay separable from production traffic.
+- **A/B without stashing.** The baseline note is read via `git show main:Process/<file>`, the
+  candidate from the working tree. Both variants exist at once; no note swapping, and the run is
+  repeatable.
+- **Sampled, not single-shot.** The sibling CI established that a strict-schema collapse is
+  *probabilistic* — B2 went ~0/17 to 13/14, which one run either side could not have shown. B6 is run
+  three times per variant per lead.
+
+**Blocks the merge:** any hard failure (no tool call, schema rejection, `stop_reason` `max_tokens` or
+`refusal`) the baseline did not also produce · B6 requirement coverage below baseline · any fabricated
+citation · any template leak (the literal `placeholder`, or `[short label]`-style bracket cells — the
+§2.3 rationale, since B2 was observed emitting `placeholder` verbatim).
+
+**Investigate, don't auto-block:** candidate input tokens *rising*. These notes get shorter; a rise
+means something was added rather than removed.
+
+**Report only:** score drift, flag counts, recommendation changes.
 
 ---
 
@@ -212,3 +258,165 @@ The B6 CI landed on `main` after this note was written. Two consequences:
 
 Do this re-verification as step 0. The Procedure's "current state audit, checked fresh rather than assumed
 carried over from an earlier chat" exists for exactly this.
+
+### 2026-08-01 · Step 0 done — §2.2 re-verified and corrected
+
+Branch `claude/jobleads-scoring-backtest-35d61c`. Checked against `lib/db/schema.ts` and
+`lib/pipeline/screening.ts` on current `main`. The previous entry predicted two stale rows; there were
+**three**.
+
+| §2.2 said | `main` says | Verdict |
+| --- | --- | --- |
+| `Initial_Key_Strengths` "currently never written" | `screening.ts` writes `initialKeyStrengths` in the B6 block | **wrong — corrected** |
+| `Initial_Missing_Weak` "currently never written" | `screening.ts` writes `initialMissingWeak` in the same block | **wrong — corrected** |
+| (no row at all) | `requirement_evidence` exists — `schema.ts`, migration `0032`, applied to the live DB | **missing — row added** |
+| trailer: "Flag them to the B6 CI rather than fixing here" | the B6 CI already fixed them | **obsolete — replaced with a pointer to it** |
+
+Re-confirmed as still correct, so the rest of the table can be trusted: the `rank` /
+`requirement_group` inversion (`rank` holds the group name; `requirement_group` is the dead
+duplicate), `Rank` → `group_rank`, and `tbl_Bullet_Bank` → `bullet_bank`.
+
+**One finding that changes how this CI must be verified.** The only consumers of `Process/*.md` are
+`lib/prompts.ts` (step notes → system prompts) and `scripts/seed.ts` (which reads `CI/*.md`
+frontmatter only). **No test reads a step note's body.** `tsc` and `vitest` are therefore structurally
+incapable of catching a bad note edit — a note can be gutted and CI stays green. §2.5's last two
+criteria are not a supplement to the type/unit gate here; they are the *only* gate. Hence the
+read-only backtest harness added as §2.6.
+
+### 2026-08-01 · The noise floor — and a pre-existing B6 defect the backtest found
+
+Before editing anything, `scripts/backtest-notes.ts` was run with **both variants pointing at the
+unedited notes** — a deliberate no-op A/B, B6 × 3 leads × 3 runs, to measure how much two byte-identical
+prompts differ. The answer is: more than enough to make a naive gate useless.
+
+| Lead | run 1 | run 2 | run 3 |
+| --- | --- | --- | --- |
+| Senior Manager, Advisory · EPAM | 18/18 · 18/18 | 18/18 · 18/18 | 18/18 · 18/18 |
+| Head of Group FP&A · Signify | 12/12 · 12/12 | 12/12 · 12/12 | 12/12 · 12/12 |
+| Associate Director, Strategy & Transformation · Riverflex | 17/17 · 17/17 | **1/17 · 2/17** | 17/17 · 17/17 |
+
+*(baseline · candidate, requirements judged out of requirements on file)*
+
+**Two conclusions, and the second one is not about this CI.**
+
+1. **The gate has to be relative, not absolute.** Mean coverage came out 89.6% baseline vs 90.2%
+   candidate on identical prompts, and each side produced one template leak. A rule like "no leaks" or
+   "coverage must be 100%" fails a change that does nothing at all. Every §2.6 condition is therefore
+   phrased as *worse than baseline*, with a 5-point tolerance on mean coverage — and collapse **count**
+   as the un-averaged signal, since a mean built from eight perfect runs and one catastrophic one
+   describes neither.
+
+2. **B6 collapses probabilistically on `main` today.** On the Riverflex lead, one run in three returned
+   1 of 17 requirements and emitted the literal string `placeholder` — the same signature the B2
+   investigation documented, on both variants, with nothing changed. B2 has a re-ask guard for exactly
+   this (`tooThin` / `ATTEMPTS` in `screening.ts`); **B6 has none**, so a lead scored during a collapsed
+   run gets a real-looking `overall_fit_score` computed from one requirement. Out of scope here —
+   raised separately. Worth knowing that any lead already scored may have been scored this way.
+
+### 2026-08-01 · Implemented — all ten loaded notes, plus the index and the data model
+
+Branch `claude/jobleads-scoring-backtest-35d61c`.
+
+**Two enabling production changes, both pure refactors.** `composeSystemPrompt(step, note)` is now
+exported from `lib/prompts.ts` and used by `systemPromptFor`; each step's user message is now built by
+an exported pure function (`b2UserMessage` … `b6UserMessage` in `screening.ts`, `c2UserMessage` in
+`tailoring.ts`). Both exist so the backtest sends what production sends. A harness that rebuilt these
+strings locally would drift the first time a call site changed and would then certify a prompt the app
+never sends — worse than no backtest. Covered by `tsc`, `vitest` and `verify-b6-evidence.ts` (13/13).
+
+**§2.4 order, all steps done.**
+
+| # | Target | What changed |
+| --- | --- | --- |
+| 1 | `docs/DATA_MODEL.md` | The corrected §2.2 mapping table, as the single source of truth. The "Sources" section moved to past tense — the workbooks were the one-time import, not a live input. `requirement_evidence` added to the pipeline table and the relationship diagram. |
+| 2 | Master Instructions §0.2 | The File Map no longer lists OneDrive paths and connector columns. It now says what a step actually receives and points at `DATA_MODEL.md`. §3 (was "SharePoint / Output Conventions", `Field: [value]` templates) repointed too — §2.2 names §3.1/§3.2 directly, so it is part of the same mapping surface. |
+| 3 | **B5** (worst: 11 refs) | §B step 1 read a `.md` from OneDrive and looped a batch; both gone. §D.1's empty-celled 17-dimension table and §D.2's SharePoint export replaced by §D Persistence. The *definitional* A–Q table in §A stays — it is the framework the step reasons with, not an output template. |
+| 4 | **C2** (20 refs) | The Reference format was a table path (`Tbl_STAR_Actions > Action_ID 5-3`) into the workbook; it is now "cite the exact ref code from the listing you were given", with the kinds the listing actually uses. §G Output → Persistence, naming `requirement_tailoring` and stating that `approval_status` is the human's, not the model's. |
+| 5 | **B3** | The profile facts (§A languages, §B/§C missing lists) are stated in the note itself and always were — the pointers at `tbl_Languages` / `tbl_Skills_Master` implied a lookup the model cannot do. §F → Persistence. |
+| 6 | **B4** | `tbl_Locations` → the `offices` table, with the lists restated inline. §D → Persistence. |
+| 7 | **B2** | §A was already fixed (`2a0115b`); its §D.1 template table and §D.2 export are now Persistence. |
+| 8 | **B6** | Exclusion lifted. `tbl_Bullet_Bank` **repointed, not deleted** — the bank is really sent now, so §A describes the three supplied blocks. §B.1.2 rewritten around `evidenceRefs` being an array. §D.1/§D.2 → Persistence, naming all three write targets. |
+| 9 | **C3, C5** | Not clean after all: both carried an Output section describing an artifact the app never produces (C3 an expanded C2 export table; C5 "store the Profile in the Job Lead folder", plus permission to emit 1–2 labelled variations into a slot that holds one). Both now Persistence. C7 and O2 audited clean, unedited. |
+
+**Two instruction bugs found and fixed while repointing** — neither is a stale reference, both would
+have reached the model:
+
+1. **B3 and B4 both said: "if no roadblocks / misalignments are found, write `None`."** Against the
+   current schema that reads as *emit an entry whose detail is `None`* — recording a roadblock called
+   "None" on a clean lead. The correct instruction is an empty array, and the note now says so and says
+   why the old sentinel existed.
+2. **B6's header told the model to check which model it was running as and prompt the user to switch.**
+   The app selects the tier and the step can only emit a tool call; the instruction was unfollowable.
+
+**Net size.** 54.1 KB → 57.1 KB across the six edited prompt notes: B2 −795 B and B5 −2.1 KB, but B3,
+B4, B6 and C2 grew, because the Persistence sections carry operational content that was not there
+before (field→column mappings, the empty-array correction, the "citations are verified" rule).
+**Template placeholder cells fell from 39 to 11.** The growth is instruction, not decoration, and it
+sits in the 1h-cached prefix — but §2.6 flags an input-token rise deliberately, so it is recorded here
+rather than waved past.
+
+**Files:** `docs/DATA_MODEL.md` · `Process/+ Job Hunting Master Instructions.md` · `Process/B2` `B3`
+`B4` `B5` `B6` `C2` `C3` `C5` notes · `lib/prompts.ts` · `lib/pipeline/screening.ts` ·
+`lib/pipeline/tailoring.ts` · `scripts/backtest-notes.ts` (new) · `.gitignore`.
+
+### 2026-08-02 · Verification — §2.6 backtest, 102 paired live calls · **PASS**
+
+`npx tsx scripts/backtest-notes.ts --apply`. Read-only throughout: every step was called directly
+rather than through `runScoring`/`runEvidenceMapping`, so no lead's score, requirements, evidence links
+or tailoring rows were written. Cohort: the 7 most recently scored leads carrying both a JD and
+requirements.
+
+| Step | n (each side) | Baseline | Candidate |
+| --- | --- | --- | --- |
+| **B2** | 6 | 15.2 reqs · 100% source-text · 100% group-rank | 15.5 · 100% · 100% |
+| **B3** | 6 | 0 roadblocks flagged | 0 — identical |
+| **B4** | 6 | 1.7 misalignments flagged | 1.7 — identical |
+| **B5** | 6 | 17/17 dimensions rated | 17/17 |
+| **B6** | 21 | coverage **83.8%** · 4 collapsed · 4 leaked · 0 fabricated | coverage **90.8%** · **2** collapsed · **2** leaked · 0 fabricated |
+| **C2** | 6 | coverage **63.5%** · 2 collapsed · 1 fabricated · 91.7% with CV slot | coverage **79%** · **1** collapsed · **0** fabricated · **100%** |
+
+Zero model-level failures and zero bad `stop_reason` on either side. **The candidate is not merely
+non-regressive — it is better than baseline on every reliability measure that moved.** B6 gained ~7
+points of requirement coverage and halved both its collapse and leak rate; C2 gained ~15 points and
+lost its fabricated citation.
+
+**How much of that is real, honestly.** Not much of it should be claimed as an *improvement*. The
+run-to-run variance on B6 and C2 is large enough that direction is readable but magnitude is not — an
+earlier C2 pass at n=2 per lead showed the candidate 4-collapses-to-1 *worse*, and re-running the same
+comparison unchanged flipped it to 1-to-2 *better*. What the 102 calls support is the claim the gate
+actually makes: **nothing got worse.** Anyone reading the +7 and +15 as a win should re-run at higher n
+first.
+
+**The `placeholder` leak is now identified exactly**, which the earlier B2 investigation could only
+infer. The field is B6's root-level `summary`, and the payload reads
+`…"evidenceRefs":[],"evidenceNote":""}],"summary":"placeholder"}`. `summary` **is** in B6's `required`
+list — so this is the limit of what a complete `required` list buys: it guarantees the key is present,
+never that the value is meaningful. It happens on both variants, so it is pre-existing.
+
+**C2's collapse mechanism is identified too, and it is the sibling CI's defect, not this one's.** The
+collapsed payloads drop `connection` entirely, repeat the same link verbatim, and in one case appended
+evidence text *into* `cvPosition`:
+
+> `"cvPosition":"Professional Experience - A3. BBAG Wind Down Project the Project Plan and Budget with input from 10 department heads, driving regulatory, operational, legal, and financial closure end-to-end."`
+
+That is constrained-grammar degradation, and `C2.tool` declares five properties on `links[]` while
+requiring three — `connection` and `cvPosition` are the two omitted, and they are exactly the two that
+misbehave. See `[[Complete Required Lists on the Remaining Strict Tool Schemas]]`. **B3, B4, B5, C3 and
+C7 have the same shape of incomplete list** and should be checked in that CI, not this one.
+
+**Four harness defects the run exposed, all fixed** — recorded because a gate that is wrong in the
+permissive direction is worse than no gate:
+
+1. **Line endings.** `core.autocrlf=true` means git stores LF and the Windows tree holds CRLF, so an
+   untouched 272-line note read 272 bytes larger out of the working copy than out of `git show`. Every
+   line of every note would have differed by whitespace and the "identical baseline" check could never
+   have fired. Both sides are normalized now.
+2. **A lead with 0 requirements was in the cohort.** Coverage is undefined there, `pct()` returned 0,
+   and it counted as a collapse on *both* variants — six phantom collapses in the first full run.
+3. **The gate blocked on a `fetch failed`.** A dropped connection with `out=0` says nothing about a
+   prompt. Transport errors are now classified apart and never gate.
+4. **Failed rows poisoned the averages.** An empty metric object made every numeric column fall back to
+   printing raw value lists, so one dropped connection rendered the candidate column unreadable while
+   baseline still showed clean means.
+
+`npx tsc --noEmit` clean · `npx vitest run` 171/171 (15 files) · `verify-b6-evidence.ts` 13/13.

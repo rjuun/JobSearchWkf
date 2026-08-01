@@ -64,6 +64,12 @@ skills-lock.json
 # --- Bulky one-off handoff artifacts ---------------------------------------
 *.zip
 
+# --- Backtest checkpoints (scripts/backtest-notes.ts) ----------------------
+# Per-run rows, one JSON object per LLM call, carrying lead titles and companies.
+# Transient and re-creatable; the aggregated .md report next to it IS committed,
+# since that is the evidence the CI note cites and it names no lead.
+/scripts/data/backtest-*.jsonl
+
 # --- Node / Next.js / Supabase (for the upcoming app phases) ---------------
 node_modules/
 .next/
