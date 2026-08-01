@@ -1,5 +1,6 @@
 ---
 ci-area: Screening / B6 · Requirement-Evidence Map
+ci-roadmap:
 ci-title: B6 never receives the Master Bullet Bank — evidence lanes cannot fill
 ci-status: 2 - In Progress
 ci-priority: high

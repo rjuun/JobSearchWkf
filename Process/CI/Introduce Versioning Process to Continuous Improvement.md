@@ -1,7 +1,8 @@
 ---
 ci-title: Introduce Versioning Process to Continuous Improvement
 ci-area:
-ci-status: 1 - Development
+ci-roadmap:
+ci-status: 3 - Delivered
 ci-priority: medium
 ci-date: 2026-06-23
 ci-estimated-time: "3"

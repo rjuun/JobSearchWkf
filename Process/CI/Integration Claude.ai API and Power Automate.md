@@ -1,6 +1,7 @@
 ---
 ci-title: Integration Claude.ai API and Power Automate
 ci-area:
+ci-roadmap:
 ci-status: 5 - Superseded
 ci-priority: medium
 ci-date: 2026-06-16

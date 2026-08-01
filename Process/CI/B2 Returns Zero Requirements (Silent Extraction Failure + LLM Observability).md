@@ -1,5 +1,6 @@
 ---
 ci-area: Screening / B-Phase — B2 extraction reliability
+ci-roadmap:
 ci-title: B2 Returns Zero Requirements — silent extraction failure, stop_reason observability, stale step procedure
 ci-status: 3 - Delivered
 ci-priority: high

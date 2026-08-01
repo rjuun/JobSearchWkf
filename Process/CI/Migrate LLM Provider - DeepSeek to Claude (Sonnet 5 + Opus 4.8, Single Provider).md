@@ -1,5 +1,6 @@
 ---
 ci-area: Infrastructure / LLM
+ci-roadmap:
 ci-title: Migrate LLM Provider - DeepSeek to Claude (Sonnet 5 + Opus 4.8, Single Provider)
 ci-status: 3 - Delivered
 ci-priority: high

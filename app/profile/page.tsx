@@ -9,6 +9,7 @@ import { listActivity } from '@/lib/activity';
 import { recordUxEvent } from '@/lib/ux-events';
 import { env } from '@/lib/env';
 import { ProofLinkControl } from '@/components/roleproof/proof-link-control';
+import { CaptureTokenControl } from '@/components/roleproof/capture-token-control';
 import { AssembledGraph } from '@/components/roleproof/assembled-graph';
 import { addTipAction, resolveTipAction } from '@/app/actions/tips';
 
@@ -63,6 +64,7 @@ export default async function ProfilePage({
           </div>
         </div>
         {env.nextProofLink && <ProofLinkControl enabled={g.profile?.publicEnabled ?? false} token={g.profile?.publicToken ?? null} />}
+        <CaptureTokenControl />
         <AssembledGraph score={score} label={label} matrix={matrix} activity={activity} />
       </AppShell>
     );
@@ -130,6 +132,7 @@ export default async function ProfilePage({
       </div>
 
       {env.nextProofLink && <ProofLinkControl enabled={g.profile?.publicEnabled ?? false} token={g.profile?.publicToken ?? null} />}
+      <CaptureTokenControl />
 
       {/* ── Onboarding front door (the "BUILD" stage, surfaced by graph state) ── */}
       {showOnboardingHero && (

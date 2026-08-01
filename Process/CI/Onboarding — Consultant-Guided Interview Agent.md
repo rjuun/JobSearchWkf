@@ -1,5 +1,6 @@
 ---
 ci-area: Onboarding
+ci-roadmap:
 ci-title: Consultant-Guided Interview Agent
 ci-status: 0 - Idea
 ci-priority: medium

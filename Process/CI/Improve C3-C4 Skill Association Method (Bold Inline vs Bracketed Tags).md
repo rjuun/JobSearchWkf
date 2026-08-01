@@ -1,6 +1,7 @@
 ---
 ci-title: Improve C3-C4 Skill Association Method (Bold Inline vs Bracketed Tags)
 ci-area:
+ci-roadmap:
 ci-status: 3 - Delivered
 ci-priority: medium
 ci-date: 2026-06-22

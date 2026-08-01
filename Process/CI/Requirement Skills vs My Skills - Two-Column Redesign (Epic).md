@@ -1,6 +1,7 @@
 ---
 ci-title: Requirement Skills vs My Skills — Two-Column Redesign (Epic for Claude Code)
 ci-area: Screening (B4-B5) / Tailoring (C2-C4, C7)
+ci-roadmap:
 ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-07-22

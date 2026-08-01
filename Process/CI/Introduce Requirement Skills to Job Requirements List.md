@@ -1,6 +1,7 @@
 ---
 ci-title: Introducing Requirement Skills to Job Requirements List
 ci-area:
+ci-roadmap:
 ci-status: 3 - Delivered
 ci-priority: medium
 ci-date: 2026-06-22

@@ -17,6 +17,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { runScreeningAction, promoteLeadAction, toggleTargetAction } from '@/app/actions/pipeline';
+import { markNotPursuedAction } from '@/app/actions/scoring-queue';
 import { mapEvidenceAction, setApprovalAction, generateCvAction } from '@/app/actions/tailoring';
 import { addTipAction, resolveTipAction } from '@/app/actions/tips';
 import { trackUxAction } from '@/app/actions/ux';
@@ -636,10 +637,40 @@ function LeadHeader({ c }: { c: Ctx }) {
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <TargetToggle leadId={lead.id} initial={lead.isTarget} />
+        {/* Reachable from any stage — the case this covers (posting closed,
+            simply decided not to chase it) isn't limited to Ready to score;
+            it's just where it was first noticed. Hidden once a lead is
+            already in one of the terminal buckets. */}
+        {!['not_pursued', 'archived', 'applied'].includes(lead.status) && <NotPursuedButton leadId={lead.id} />}
         {lead.sourceUrl && <PostingLink href={lead.sourceUrl}>LinkedIn</PostingLink>}
         {lead.jobPostLink && <PostingLink href={lead.jobPostLink}>Company posting</PostingLink>}
       </div>
     </div>
+  );
+}
+
+/** Mirrors TargetToggle's shape — one button, one server action, router.refresh on success. */
+function NotPursuedButton({ leadId }: { leadId: string }) {
+  const router = useRouter();
+  const [busy, start] = useTransition();
+  const [done, setDone] = useState(false);
+  if (done) return null;
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={() =>
+        start(async () => {
+          await markNotPursuedAction(leadId);
+          setDone(true);
+          router.refresh();
+        })
+      }
+      title="Park this lead in Not Pursued — no roadblock or misalignment, just not chasing it."
+      className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-muted ring-1 ring-inset ring-hairline transition hover:text-drop hover:ring-drop disabled:opacity-60"
+    >
+      {busy ? 'Marking…' : 'Not pursued'}
+    </button>
   );
 }
 

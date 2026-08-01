@@ -1,6 +1,7 @@
 ---
 ci-title: postgres-backup-setup-guide
 ci-area: Infrastructure
+ci-roadmap:
 ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-07-31
