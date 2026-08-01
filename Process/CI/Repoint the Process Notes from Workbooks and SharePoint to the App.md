@@ -19,9 +19,11 @@ pr-target:
 
 > [!IMPORTANT] Self-contained
 > Written to be picked up in a fresh chat. §1 is the problem, §2.2 is the canonical name mapping, §2.3 is
-> the decision on Output sections. Sibling:
-> `[[B6 Never Receives the Master Bullet Bank (Empty Evidence Lanes in the Map)]]` — do **not** edit B6's
-> §2 here, that CI owns it.
+> the decision on Output sections.
+>
+> **Start at §4's last entry (2026-08-01, "B6 merged").** §2.2 was verified before the B6 CI landed and is
+> known to be stale in at least two rows — re-verify it against current `main` as step 0 rather than
+> trusting it.
 
 ---
 
