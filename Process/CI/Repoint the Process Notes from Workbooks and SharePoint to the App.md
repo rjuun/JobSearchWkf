@@ -69,10 +69,10 @@ instruction that actively misleads.
 File Map table) since it is the index everything else points at.
 
 **Out of scope:**
-- **B6's §2 evidence instructions** — owned by
-  `[[B6 Never Receives the Master Bullet Bank (Empty Evidence Lanes in the Map)]]`, which is *supplying*
-  the Bullet Bank. Fix B6's other references here only if that CI has already landed; otherwise leave B6
-  alone entirely to avoid two CIs editing one file.
+- ~~**B6's §2 evidence instructions**~~ — **exclusion lifted 2026-08-01**: the B6 CI landed on `main`, so
+  B6 is now fully in scope. Its note's `tbl_Bullet_Bank` reference is no longer a dead pointer — the bank
+  is really sent — so the wording needs repointing at the DB rather than deleting. Re-read B6's note
+  against the merged implementation before editing.
 - Notes not loaded as prompts (A1, B1, C1, C4, C6) — stale references there mislead humans only. Lower
   priority; do them after, or in their own pass.
 - Changing any step's *methodology*. This CI repoints references; it does not re-specify what a step does.
@@ -197,3 +197,16 @@ current schema, not recalled.
 The Output-section decision (§2.3) is the part that needed a call rather than an audit: replace with a
 Persistence subsection naming the tool, code path and table — serving the human reader and the model at
 once. Nothing implemented.
+
+### 2026-08-01 · B6 merged — re-verify §2.2 before starting
+
+The B6 CI landed on `main` after this note was written. Two consequences:
+
+1. **The §2.0 exclusion on B6 is lifted** (struck through above). B6 is in scope.
+2. **§2.2 is stale in at least two places and must be re-verified against current `main`, not trusted.**
+   The merge added a `requirement_evidence` table that the mapping table does not mention, and it may have
+   started writing `initial_key_strengths` / `initial_missing_weak`, which §2.2 records as "currently never
+   written". Re-run the audit before relying on any row.
+
+Do this re-verification as step 0. The Procedure's "current state audit, checked fresh rather than assumed
+carried over from an earlier chat" exists for exactly this.
