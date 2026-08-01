@@ -371,6 +371,43 @@ export const jobRequirements = pgTable('job_requirements', {
   initialScore: real('initial_score'),
 });
 
+/**
+ * CI · B6 Never Receives the Master Bullet Bank §2.3 — B6's initial
+ * requirement→evidence mapping, scoped to the Master Bullet Bank (plus education
+ * and languages, which B6's note §B.1.2 names explicitly).
+ *
+ * Its own table, NOT extra columns on job_requirements, because the relationship
+ * is many-to-many: the Map exists precisely to show that one requirement is often
+ * carried by several bullets across several positions, and a `initial_evidence_ref`
+ * column could only ever hold the first one.
+ *
+ * And NOT `requirement_tailoring`, even though the shape rhymes. That table is the
+ * C2 triage surface: `tailoring.length` is what `journeyState` reads as "evidence
+ * has been mapped", and `rows.length === 0` is what the workspace reads as "show
+ * the Map card, not the Triage card". Writing B6's machine-proposed links there
+ * would make every screened lead claim a human triage that never happened.
+ *
+ * Rows are replaced wholesale on each B6 run (delete-then-insert), which keeps
+ * re-scoring idempotent the same way every other B-step write is.
+ */
+export const requirementEvidence = pgTable('requirement_evidence', {
+  ...base,
+  jobLeadId: uuid('job_lead_id').notNull(),
+  requirementId: uuid('requirement_id').notNull(),
+  /** The stable ref code the model cited — `bullet_bank.ref_code`, `EDU-n`, `LANG-n`. */
+  evidenceRef: text('evidence_ref').notNull(),
+  /** Bullet | Education | Language — which table the ref resolved against. */
+  evidenceKind: text('evidence_kind'),
+  // Snapshots, resolved from the bank at scoring time rather than joined at read
+  // time. Same choice requirement_tailoring makes for the same reason: the Map is
+  // a record of what B6 actually saw, so editing a bullet afterwards must not
+  // silently rewrite a past score's stated evidence.
+  evidenceText: text('evidence_text'),
+  cvPosition: text('cv_position'),
+  /** One sentence from B6 on why this evidence carries the requirement (§B.1.2 "quote or reference"). */
+  note: text('note'),
+});
+
 export const requirementTailoring = pgTable('requirement_tailoring', {
   ...base,
   jobLeadId: uuid('job_lead_id'),

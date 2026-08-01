@@ -39,11 +39,12 @@
  * `gateStatusFor` is unchanged and still non-abandoning: flagged leads park for a
  * human, they are never dropped.
  */
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { db } from '../db';
-import { jobLeads, jobRequirements } from '../db/schema';
+import { bulletBank, education, jobLeads, jobRequirements, languages, requirementEvidence } from '../db/schema';
 import { recordRun, type StepReport } from './runs';
 import { readValuesSummary } from '../profile-context';
+import { normalizeCvPosition } from '../cv-slots';
 
 export type { StepReport } from './runs';
 import { systemPromptFor } from '../prompts';
@@ -63,6 +64,9 @@ import {
 
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
+/** "" and "   " are what a complete strict `required` list produces for "nothing to say" — store null. */
+const nullIfBlank = (s: string | null | undefined): string | null => (s && s.trim() ? s.trim() : null);
+
 /**
  * The screening gate rule, as a pure function so it can be unit-tested without a
  * DB (vitest here runs on plain node — no jsdom, no Postgres). `runInitialChecks`
@@ -79,6 +83,123 @@ const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.le
  */
 export function gateStatusFor(roadblockCount: number, misalignmentCount: number): 'selected' | 'scoring_queue' {
   return roadblockCount === 0 && misalignmentCount === 0 ? 'selected' : 'scoring_queue';
+}
+
+/**
+ * ── B6's evidence side (CI · B6 Never Receives the Master Bullet Bank) ───────
+ *
+ * One candidate B6 may cite, keyed by the same stable ref code the Career Graph
+ * uses everywhere else, so the model never has to quote free text to identify a
+ * bullet — and so a citation can be verified against the bank rather than trusted.
+ */
+export type B6Evidence = {
+  ref: string;
+  kind: 'Bullet' | 'Education' | 'Language';
+  text: string;
+  tags: string[];
+  cvPosition: string | null;
+};
+
+/**
+ * The provenance stamp `job_leads.bullet_bank_version` is supposed to carry.
+ *
+ * It was the literal `'2026-06'` until this CI: a hardcoded claim that a specific
+ * bank version informed the score, written on every lead by a step that had never
+ * been sent a bank at all. Derived from the rows actually sent instead — `null`
+ * when the bank is empty, because "no bank was consulted" is a fact worth being
+ * able to read back off the row.
+ */
+export function bulletBankVersionOf(rows: { version: string | null }[]): string | null {
+  if (rows.length === 0) return null;
+  const versions = [...new Set(rows.map((r) => (r.version ?? '').trim()).filter(Boolean))].sort();
+  // Rows exist but none is stamped — still not the same as no bank at all.
+  return versions.length === 0 ? 'unversioned' : versions.join('+');
+}
+
+/**
+ * Everything B6's note §A/§B.1.2 says it scores against: the Master Bullet Bank as
+ * the primary reference, plus education and languages, which the note names
+ * explicitly ("when relevant, also reference tbl_Education and tbl_Language").
+ *
+ * Deliberately NOT the whole Career Graph — responsibilities, STAR actions and
+ * results, competences and skills are C2's scope (§2.0), and widening B6 to them
+ * would erase the distinction between the initial screen and the tailoring pass.
+ */
+export async function gatherB6Evidence(ownerId: string): Promise<{ items: B6Evidence[]; bankVersion: string | null }> {
+  const [bank, edu, langs] = await Promise.all([
+    db.select().from(bulletBank).where(eq(bulletBank.ownerId, ownerId)).orderBy(asc(bulletBank.refCode)),
+    db.select().from(education).where(eq(education.ownerId, ownerId)).orderBy(asc(education.refCode)),
+    db.select().from(languages).where(eq(languages.ownerId, ownerId)).orderBy(asc(languages.refCode)),
+  ]);
+  const items: B6Evidence[] = [];
+  for (const b of bank) {
+    if (!b.refCode || !b.text) continue;
+    items.push({ ref: b.refCode, kind: 'Bullet', text: b.text, tags: b.tags ?? [], cvPosition: normalizeCvPosition(b.cvPosition) });
+  }
+  for (const e of edu) {
+    if (!e.refCode) continue;
+    items.push({
+      ref: e.refCode,
+      kind: 'Education',
+      text: [e.qualification, e.institution, e.year].filter(Boolean).join(', '),
+      tags: e.type ? [e.type] : [],
+      cvPosition: null,
+    });
+  }
+  for (const l of langs) {
+    if (!l.refCode || !l.language) continue;
+    items.push({ ref: l.refCode, kind: 'Language', text: `${l.language} — ${l.cefrLevel ?? 'level unstated'}`, tags: [], cvPosition: null });
+  }
+  return { items, bankVersion: bulletBankVersionOf(bank) };
+}
+
+/** The evidence listing exactly as B6 sees it. Extracted so a test can assert every ref reaches the model. */
+export function renderB6Evidence(items: B6Evidence[]): string {
+  if (items.length === 0) {
+    return (
+      'CANDIDATE EVIDENCE: none on file — this owner has no Master Bullet Bank, education or language records.\n' +
+      'You therefore have nothing to match requirements against: mark every requirement "No Match", leave ' +
+      '"evidenceRefs" empty, and say in "gaps" that no evidence bank was available. Do not invent evidence.'
+    );
+  }
+  return (
+    'CANDIDATE EVIDENCE — the Master Bullet Bank plus education and languages. Cite by EXACT ref code:\n' +
+    items
+      .map((e) => `[${e.ref}] (${e.kind})${e.tags.length ? ` [${e.tags.join(', ')}]` : ''} ${e.text}`)
+      .join('\n')
+  );
+}
+
+/**
+ * Resolve the refs B6 cited into rows for `requirement_evidence`.
+ *
+ * Two things this does that a straight map would not. It drops refs that aren't in
+ * the listing the model was given — a code that isn't in the bank is a fabricated
+ * citation, and NON_NEGOTIABLES says we never let one through. And it de-duplicates
+ * per requirement, so a model that names the same bullet twice yields one lane item
+ * rather than two identical ones stacked in the same slot.
+ */
+export function resolveEvidenceLinks<TReq extends { id: string }>(
+  perReq: { row: TReq; refs: string[]; note: string | null }[],
+  byRef: Map<string, B6Evidence>
+): { links: { requirementId: string; ev: B6Evidence; note: string | null }[]; unknownRefs: string[] } {
+  const links: { requirementId: string; ev: B6Evidence; note: string | null }[] = [];
+  const unknownRefs: string[] = [];
+  for (const p of perReq) {
+    const seen = new Set<string>();
+    for (const raw of p.refs) {
+      const ref = raw.trim();
+      if (!ref || seen.has(ref)) continue;
+      seen.add(ref);
+      const ev = byRef.get(ref);
+      if (!ev) {
+        unknownRefs.push(ref);
+        continue;
+      }
+      links.push({ requirementId: p.row.id, ev, note: p.note });
+    }
+  }
+  return { links, unknownRefs };
 }
 
 /** Owner-scoped lead load shared by all four entry points below. */
@@ -163,6 +284,12 @@ export async function runInitialChecks(leadId: string, ownerId?: string | null):
     // a thin, pre-guard extraction; reusing that forever would just perpetuate the bug
     // this guard exists to catch. Clear it and fall through to a fresh attempt instead.
     if (requirements.length > 0 && tooThin(requirements.length)) {
+      // B6's evidence links go with them: they carry `requirement_id`, so leaving
+      // them behind would strand chips in the Map's lanes pointing at rows that no
+      // longer exist — visible evidence that traces to nothing.
+      await db
+        .delete(requirementEvidence)
+        .where(and(eq(requirementEvidence.jobLeadId, leadId), eq(requirementEvidence.ownerId, effectiveOwnerId)));
       await db
         .delete(jobRequirements)
         .where(and(eq(jobRequirements.jobLeadId, leadId), eq(jobRequirements.ownerId, effectiveOwnerId)));
@@ -402,16 +529,39 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
 
   // ── B6 · Role fit (Opus judgments → deterministic rollup) ────────────────
   {
+    // The Master Bullet Bank — the reference B6's note has always been written
+    // against and which the implementation never actually sent (CI §1). Without
+    // it, "No Match" meant "no evidence was supplied", not "no evidence exists",
+    // and the two were indistinguishable in the output.
+    const { items: evidence, bankVersion } = await gatherB6Evidence(effectiveOwnerId);
+    const byRef = new Map(evidence.map((e) => [e.ref, e]));
+
     const r = await runStructured({
       step: 'B6',
       model: 'opus',
       system: await systemPromptFor('B6', effectiveOwnerId),
-      user: `JOB DESCRIPTION:\n${jd || lead.title}\n\nREQUIREMENTS:\n${requirements
-        .map((q, i) => `${i + 1}. [${q.rank}] ${q.requirement}`)
-        .join('\n')}\n\nFor each requirement, set "order" to its number above.`,
+      // Two blocks, and the split matters: the evidence listing is owner-wide and
+      // lead-independent — byte-identical across every lead in a scoring batch —
+      // so it carries its own 1h cache breakpoint and is read from cache for every
+      // lead after the first. The per-lead JD and requirements follow as the
+      // varying suffix. Same shape C2 already uses (lib/pipeline/tailoring.ts).
+      user: [
+        { type: 'text' as const, text: renderB6Evidence(evidence), cache_control: { type: 'ephemeral' as const, ttl: '1h' as const } },
+        {
+          type: 'text' as const,
+          text:
+            `JOB DESCRIPTION:\n${jd || lead.title}\n\nREQUIREMENTS:\n${requirements
+              .map((q, i) => `${i + 1}. [${q.rank}] ${q.requirement}`)
+              .join('\n')}\n\n` +
+            `For each requirement, set "order" to its number above and list in "evidenceRefs" every ref code ` +
+            `from CANDIDATE EVIDENCE that genuinely supports it — several where several apply, none where none do. ` +
+            `Cite only codes that appear in that list. Where nothing supports the requirement, use "No Match", ` +
+            `leave "evidenceRefs" empty, and state in "gaps" what is missing.`,
+        },
+      ],
       tool: B6.tool,
       zod: B6.zod,
-      mock: () => mockRoleFit(lead.skillRatings ?? {}, lead.atsSystem, requirements),
+      mock: () => mockRoleFit(lead.skillRatings ?? {}, lead.atsSystem, requirements, evidence),
       leadId,
       ownerId: effectiveOwnerId,
     });
@@ -426,13 +576,61 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
         r.data.requirements.find((x) => x.requirement === q.requirement) ??
         r.data.requirements[i];
       const score = j?.score ?? 6;
-      return { row: q, score, matchStrength: j?.matchStrength ?? matchStrengthForScore(score) };
+      return {
+        row: q,
+        score,
+        matchStrength: j?.matchStrength ?? matchStrengthForScore(score),
+        // §B.1.2 asks for both, and both columns have existed on job_requirements
+        // since 0000 — the write path simply never filled them. `keyStrengths` is
+        // what the evidence covers, `gaps` is B6's own Initial_Missing_Weak.
+        //
+        // Blanks are normalized to null: a complete `required` list means the model
+        // always emits the KEY, so "nothing to say here" arrives as "" rather than
+        // as an absent field, and storing that would make every `IS NOT NULL` read
+        // downstream lie about what B6 actually said.
+        keyStrengths: nullIfBlank(j?.keyStrengths),
+        gaps: nullIfBlank(j?.gaps),
+        refs: j?.evidenceRefs ?? [],
+        note: nullIfBlank(j?.evidenceNote),
+      };
     });
     for (const p of perReq) {
       await db
         .update(jobRequirements)
-        .set({ initialScore: p.score, initialMatchStrength: p.matchStrength })
+        .set({
+          initialScore: p.score,
+          initialMatchStrength: p.matchStrength,
+          initialKeyStrengths: p.keyStrengths,
+          initialMissingWeak: p.gaps,
+        })
         .where(and(eq(jobRequirements.id, p.row.id), eq(jobRequirements.ownerId, effectiveOwnerId)));
+    }
+
+    // The evidence lanes. Replaced wholesale so a re-score never accumulates links
+    // from a previous run alongside the current one.
+    const { links, unknownRefs } = resolveEvidenceLinks(perReq, byRef);
+    await db
+      .delete(requirementEvidence)
+      .where(and(eq(requirementEvidence.jobLeadId, leadId), eq(requirementEvidence.ownerId, effectiveOwnerId)));
+    if (links.length) {
+      await db.insert(requirementEvidence).values(
+        links.map((l) => ({
+          ownerId: effectiveOwnerId ?? undefined,
+          jobLeadId: leadId,
+          requirementId: l.requirementId,
+          evidenceRef: l.ev.ref,
+          evidenceKind: l.ev.kind,
+          evidenceText: l.ev.text,
+          cvPosition: l.ev.cvPosition,
+          note: l.note,
+        }))
+      );
+    }
+    if (unknownRefs.length) {
+      // Not an error — the citation was dropped, the score stands. Printed because
+      // a model inventing ref codes is exactly the failure NON_NEGOTIABLES exists
+      // to catch, and it would otherwise be invisible.
+      console.warn(`[B6] dropped ${unknownRefs.length} citation(s) not in the bank: ${[...new Set(unknownRefs)].join(', ')}`);
     }
 
     // ALL arithmetic here, never the LLM.
@@ -452,13 +650,30 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
         scoreAts: dims.ats,
         overallFitScore: overall,
         recommendation,
-        bulletBankVersion: '2026-06',
+        // The version of the bank this score was ACTUALLY produced against — null
+        // when the owner has no bank. Was a hardcoded '2026-06' literal, stamped by
+        // a step that had never seen a bank (CI §1, defect 3).
+        bulletBankVersion: bankVersion,
         status: hold ? 'hold' : 'screened',
       })
       .where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, effectiveOwnerId)));
 
-    await recordRun(leadId, 'B6', r.model, { ...dims, overall, recommendation }, r.ms, effectiveOwnerId);
-    reports.push({ step: 'B6', label: 'Role fit score', status: 'done', model: r.model, ms: r.ms, summary: `${overall.toFixed(1)} / 10 · ${recommendation}` });
+    await recordRun(
+      leadId,
+      'B6',
+      r.model,
+      { ...dims, overall, recommendation, evidenceSent: evidence.length, evidenceLinks: links.length, bankVersion, unknownRefs },
+      r.ms,
+      effectiveOwnerId
+    );
+    reports.push({
+      step: 'B6',
+      label: 'Role fit score',
+      status: 'done',
+      model: r.model,
+      ms: r.ms,
+      summary: `${overall.toFixed(1)} / 10 · ${recommendation} · ${links.length} evidence link${links.length === 1 ? '' : 's'}`,
+    });
   }
 
   return reports;
@@ -589,11 +804,24 @@ function mockRequirements(jd: string) {
   };
 }
 
-function mockRoleFit(ratings: Record<string, number>, ats: string | null, reqs: ReqRow[]) {
+// Word-overlap evidence pick, mirroring the C2 mock (lib/pipeline/tailoring.ts).
+// Honest about what it is: a regex can't judge whether a bullet supports a
+// requirement, so it cites only where words genuinely coincide and cites nothing
+// otherwise — which is what makes a mock run exercise both the linked and the
+// unlinked lane rendering.
+const mockTokens = (s: string): Set<string> => new Set((s || '').toLowerCase().match(/[a-z]{4,}/g) ?? []);
+const mockOverlap = (a: Set<string>, b: Set<string>): number => {
+  let n = 0;
+  for (const t of a) if (b.has(t)) n++;
+  return n;
+};
+
+function mockRoleFit(ratings: Record<string, number>, ats: string | null, reqs: ReqRow[], evidence: B6Evidence[]) {
   const ratingScores = Object.values(ratings).map((r) => (r === 1 ? 9 : r === 2 ? 7 : 5));
   const relevance = round1(ratingScores.length ? avg(ratingScores) : 6.5);
   const hasLeadership = Object.entries(ratings).some(([k, v]) => /leadership/i.test(k) && v <= 2);
   const seniority = hasLeadership ? 8 : 6.8;
+  const scored = evidence.map((e) => ({ e, t: mockTokens(`${e.text} ${e.tags.join(' ')}`) }));
   return {
     relevance,
     seniority,
@@ -601,7 +829,22 @@ function mockRoleFit(ratings: Record<string, number>, ats: string | null, reqs: 
     ats: ats ? 7 : 6,
     requirements: reqs.map((q, i) => {
       const s = q.initialScore ?? matchStrengthToScore(q.initialMatchStrength) ?? 6;
-      return { order: i + 1, requirement: q.requirement, score: s, matchStrength: matchStrengthForScore(s) };
+      const rt = mockTokens(`${q.requirement} ${(q.skills ?? []).join(' ')}`);
+      const picks = scored
+        .map(({ e, t }) => ({ ref: e.ref, n: mockOverlap(rt, t) }))
+        .filter((x) => x.n > 1)
+        .sort((a, b) => b.n - a.n)
+        .slice(0, 2);
+      return {
+        order: i + 1,
+        requirement: q.requirement,
+        score: s,
+        matchStrength: matchStrengthForScore(s),
+        keyStrengths: null,
+        gaps: picks.length ? null : 'Mock run: no word-overlap evidence found for this requirement.',
+        evidenceRefs: picks.map((p) => p.ref),
+        evidenceNote: picks.length ? `Mock link on shared terms: ${[...rt].slice(0, 3).join(', ')}.` : null,
+      };
     }),
     summary: 'Mock scoring derived from seeded skill ratings and requirement strengths.',
   };

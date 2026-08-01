@@ -22,7 +22,7 @@
 import './_env';
 import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '../lib/db';
-import { jobLeads, jobRequirements, pipelineRuns, llmCalls } from '../lib/db/schema';
+import { jobLeads, jobRequirements, requirementEvidence, pipelineRuns, llmCalls } from '../lib/db/schema';
 import { runScoring } from '../lib/pipeline/screening';
 import { isLiveLlm, env } from '../lib/env';
 
@@ -57,6 +57,7 @@ async function cleanup() {
   if (ids.length) {
     await db.delete(pipelineRuns).where(inArray(pipelineRuns.jobLeadId, ids));
     await db.delete(llmCalls).where(inArray(llmCalls.jobLeadId, ids));
+    await db.delete(requirementEvidence).where(inArray(requirementEvidence.jobLeadId, ids));
     await db.delete(jobRequirements).where(inArray(jobRequirements.jobLeadId, ids));
   }
   await db.delete(jobLeads).where(eq(jobLeads.ownerId, OWNER));

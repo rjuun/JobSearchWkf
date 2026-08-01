@@ -1,6 +1,15 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { getCvSkeleton, getLead, getPipelineRuns, getRequirements, getTailoring, tipsForLead } from '@/lib/queries';
+import {
+  getCredentialSkeleton,
+  getCvSkeleton,
+  getInitialEvidence,
+  getLead,
+  getPipelineRuns,
+  getRequirements,
+  getTailoring,
+  tipsForLead,
+} from '@/lib/queries';
 import { exists } from '@/lib/storage';
 import { journeyState } from '@/lib/journey';
 import { recommendationFor } from '@/lib/scoring';
@@ -8,7 +17,7 @@ import { hasOpenScreeningGap } from '@/lib/coaching-queue';
 import { currentOwnerId } from '@/lib/auth';
 import { env } from '@/lib/env';
 import { RpShell } from '@/components/roleproof/rp-shell';
-import { RpWorkspace, type RpLead, type RpReq, type RpRow } from '@/components/roleproof/workspace';
+import { RpWorkspace, type RpEvidence, type RpLead, type RpReq, type RpRow } from '@/components/roleproof/workspace';
 import { normalizeCvPosition } from '@/lib/cv-slots';
 
 export const dynamic = 'force-dynamic';
@@ -29,10 +38,13 @@ export default async function RoleProofWorkspacePage({
   if (!lead) notFound();
 
   const owner = await currentOwnerId();
-  const [requirements, jd, tailoring, cvReady, leadTips, runTrace, coachBridge, cvSkeleton] = await Promise.all([
+  const [requirements, jd, tailoring, initialEvidence, cvReady, leadTips, runTrace, coachBridge, cvSkeleton, credentials] = await Promise.all([
     getRequirements(lead.id),
     Promise.resolve(lead.jdText ?? null),
     getTailoring(lead.id),
+    // B6's evidence links. Loaded alongside the C2 rows rather than instead of
+    // them: the Map shows B6's until C2 supersedes them (see workspace.tsx).
+    getInitialEvidence(lead.id),
     exists(`cv-output/${lead.id}/tailored.docx`),
     tipsForLead(lead.id),
     getPipelineRuns(lead.id),
@@ -40,6 +52,9 @@ export default async function RoleProofWorkspacePage({
     // The Map's left column. Loaded unconditionally, including for a lead nothing
     // has run on yet — the skeleton is what makes the frame final at capture (§2.4).
     getCvSkeleton(owner),
+    // Education / Executive Education / Languages. Loaded unconditionally for the
+    // same reason as the positions: the frame must be final at capture (§2.4).
+    getCredentialSkeleton(owner),
   ]);
 
   const cleanedJd = cleanJd(jd);
@@ -111,6 +126,21 @@ export default async function RoleProofWorkspacePage({
     requirementSkills: t.requirementSkills ?? [],
   }));
 
+  const initialEvidenceRp: RpEvidence[] = initialEvidence.map((e) => ({
+    id: e.id,
+    requirementId: e.requirementId,
+    evidenceRef: e.evidenceRef,
+    evidenceText: e.evidenceText,
+    // Two lane vocabularies, picked by kind. A bullet is placed by its CV slot,
+    // normalized here for the same reason the tailoring rows are — the Map keys its
+    // lanes on canonical CV_SLOTS labels and a raw "B1" never matches one. Education
+    // and languages have no cv_position and never will, so they are placed by the
+    // ref code B6 cited them with, which is what `getCredentialSkeleton` keys their
+    // lanes on. Without this they resolved to null and vanished from the Map.
+    slot: e.evidenceKind === 'Bullet' ? normalizeCvPosition(e.cvPosition) : e.evidenceRef,
+    note: e.note,
+  }));
+
   const dims = [
     { label: 'Relevance', value: lead.scoreRelevance },
     { label: 'Seniority', value: lead.scoreSeniority },
@@ -135,7 +165,9 @@ export default async function RoleProofWorkspacePage({
         lead={rpLead}
         requirements={requirementsRp}
         tailoring={tailoringRp}
+        initialEvidence={initialEvidenceRp}
         cvSkeleton={cvSkeleton}
+        credentials={credentials}
         jd={cleanedJd}
         journey={journey}
         recommendation={recommendation}

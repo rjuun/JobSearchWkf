@@ -24,6 +24,13 @@ import { cn } from './kit';
 
 export type MapLane = { heading: string; slot: string | null; starRef: string | null };
 export type MapPosition = { refCode: string | null; title: string | null; company: string | null; lanes: MapLane[] };
+/**
+ * The CV's non-position sections — Education, Executive Education, Languages.
+ * Same lane machinery as a position, no company/refCode: B6 cites `EDU-*`/`LANG-*`
+ * (its note §B.1.2 tells it to), and until these existed those citations had no
+ * lane to land in and silently vanished from the Map. See `getCredentialSkeleton`.
+ */
+export type MapCredentialSection = { heading: string; lanes: MapLane[] };
 export type MapRequirement = {
   id: string;
   order: number | null;
@@ -35,12 +42,26 @@ export type MapRequirement = {
   initialScore: number | null;
   initialMatchStrength: string | null;
 };
+/**
+ * One evidence item as it appears in a lane.
+ *
+ * `requirementIds` is a LIST, and that is the whole many-to-many claim this
+ * component was built to make. It used to be a single `requirementId`, which meant
+ * a bullet supporting five requirements had to arrive as five separate rows — so
+ * the lane rendered the same sentence five times, and clicking any one of them lit
+ * up exactly one requirement. The file's own header promised the opposite ("click
+ * an item to see every requirement it serves"); this is what makes that true.
+ */
 export type MapEvidence = {
   id: string;
-  requirementId: string | null;
+  requirementIds: string[];
   slot: string | null;
   text: string | null;
   approvalStatus: string;
+  /** B6's reason(s) for the link (`requirement_evidence.note`). Absent on C2 rows. */
+  note?: string | null;
+  /** Stable identity of the underlying evidence (its ref code) — what duplicate rows are collapsed on. */
+  groupKey?: string | null;
 };
 /** Roadblocks that name a requirement (§2.5). Unmapped ones never reach here — they live in Key Patterns. */
 export type MapBlock = { requirementId: string; detail: string; dimension: string };
@@ -80,7 +101,12 @@ const ASSESSMENT: Record<string, { dot: string; text: string }> = {
 };
 
 /** approval_status → chip colour. Reuses the existing enum rather than inventing a
- *  parallel vocabulary for the same three states (§2.4). */
+ *  parallel vocabulary for the same three states (§2.4).
+ *
+ *  `initial` is not an approval_status — it is B6's machine-proposed evidence, which
+ *  has no human verdict yet and must not borrow the vocabulary of one. It falls
+ *  through to the neutral fallback below, so the lanes read as populated-but-
+ *  unjudged until C2's rows replace them. */
 const EVIDENCE_TONE: Record<string, string> = {
   green: 'border-proof-ring bg-proof-soft text-proof-deep',
   yellow: 'border-caution-ring bg-caution-soft text-caution-deep',
@@ -90,6 +116,7 @@ const EVIDENCE_FALLBACK = 'border-hairline bg-raised text-ink-muted';
 
 export function PipelineMap({
   positions,
+  credentials,
   requirements,
   evidence,
   blocks,
@@ -97,6 +124,7 @@ export function PipelineMap({
   company,
 }: {
   positions: MapPosition[];
+  credentials: MapCredentialSection[];
   requirements: MapRequirement[];
   evidence: MapEvidence[];
   blocks: MapBlock[];
@@ -111,8 +139,45 @@ export function PipelineMap({
   const boardRef = useRef<HTMLDivElement>(null);
 
   const blockByReq = new Map(blocks.map((b) => [b.requirementId, b]));
-  const evidenceBySlot = new Map<string, MapEvidence[]>();
+
+  // Collapse the same evidence item appearing many times in one lane into a single
+  // chip that carries every requirement it serves. B6 emits one row per
+  // (requirement, bullet) pair, so on a real lead one project lane arrived with 13
+  // rows covering 3 distinct bullets — the same sentence stacked four deep. Merging
+  // here rather than at the query keeps the DB honest (the pairs ARE the mapping)
+  // while the Map shows the evidence once, which is how a reader thinks about it.
+  const items: MapEvidence[] = [];
+  const byLaneKey = new Map<string, MapEvidence>();
+  const notesByKey = new Map<string, string[]>();
   for (const e of evidence) {
+    // `approvalStatus` is part of the key on purpose. C2 writes one row per
+    // requirement, so two requirements can pick the same bullet and then be triaged
+    // differently — Keep for one, Drop for the other. Those are two different
+    // statements about the same sentence and must stay two chips; collapsing them
+    // would silently show one verdict and hide the other. B6's rows are all
+    // `initial`, so this never blocks the merge it exists for.
+    const key = `${e.slot ?? ''}|${e.groupKey ?? e.id}|${e.approvalStatus}`;
+    const hit = byLaneKey.get(key);
+    if (hit) {
+      for (const r of e.requirementIds) if (!hit.requirementIds.includes(r)) hit.requirementIds.push(r);
+    } else {
+      const copy = { ...e, requirementIds: [...e.requirementIds] };
+      byLaneKey.set(key, copy);
+      items.push(copy);
+    }
+    // Each pair carried its own reason; keep them all, one per line in the tooltip,
+    // rather than arbitrarily surfacing whichever row happened to be first.
+    if (e.note) {
+      const list = notesByKey.get(key);
+      if (list) {
+        if (!list.includes(e.note)) list.push(e.note);
+      } else notesByKey.set(key, [e.note]);
+    }
+  }
+  for (const [key, merged] of byLaneKey) merged.note = notesByKey.get(key)?.join('\n') ?? null;
+
+  const evidenceBySlot = new Map<string, MapEvidence[]>();
+  for (const e of items) {
     if (!e.slot) continue;
     const list = evidenceBySlot.get(e.slot);
     if (list) list.push(e);
@@ -122,18 +187,23 @@ export function PipelineMap({
   const activeReqIds = new Set<string>();
   const activeEvIds = new Set<string>();
   if (active) {
-    const asEvidence = evidence.find((e) => e.id === active);
+    const asEvidence = items.find((e) => e.id === active);
     if (asEvidence) {
       activeEvIds.add(asEvidence.id);
-      if (asEvidence.requirementId) activeReqIds.add(asEvidence.requirementId);
+      for (const r of asEvidence.requirementIds) activeReqIds.add(r);
     } else {
       activeReqIds.add(active);
-      for (const e of evidence) if (e.requirementId === active) activeEvIds.add(e.id);
+      for (const e of items) if (e.requirementIds.includes(active)) activeEvIds.add(e.id);
     }
   }
 
   const hasRequirements = requirements.length > 0;
-  const hasEvidence = evidence.length > 0;
+  const hasEvidence = items.length > 0;
+  // B6 stamps every requirement it judged, so this is the honest test for "the
+  // scoring pass has run" — without it, a lead B6 legitimately found no evidence
+  // for is indistinguishable from one B6 has not reached, and both read as
+  // "lanes fill at B6". That ambiguity is what opened this CI.
+  const scored = requirements.some((r) => r.initialMatchStrength);
 
   return (
     <div className="mt-5 overflow-hidden rounded-card border border-hairline bg-surface shadow-card">
@@ -143,7 +213,9 @@ export function PipelineMap({
           {!hasRequirements
             ? 'the frame is final — requirements arrive at B2, evidence at B6'
             : !hasEvidence
-              ? 'requirements in — evidence lanes fill at B6'
+              ? scored
+                ? 'B6 scored these against the Master Bullet Bank and placed nothing — read each row’s assessment for why'
+                : 'requirements in — evidence lanes fill at B6'
               : 'click any requirement or evidence item to trace the link'}
         </span>
         {active && (
@@ -160,48 +232,44 @@ export function PipelineMap({
       <div ref={boardRef} className="relative grid grid-cols-1 lg:grid-cols-[1.5fr_1fr]">
         <TraceLines boardRef={boardRef} activeReqIds={activeReqIds} activeEvIds={activeEvIds} />
 
-        {/* LEFT + MIDDLE · the CV skeleton, with evidence placed into its lanes */}
+        {/* LEFT + MIDDLE · the CV skeleton, with evidence placed into its lanes.
+            Sectioned the way the real CV prints — Professional Experience, then
+            Education / Executive Education / Languages — rather than positions
+            alone, so that every kind of evidence B6 is told to cite has somewhere
+            to land. The technical provenance caption stays, demoted: it explains
+            where the lanes come from, it is not the reader's heading. */}
         <div className="relative z-[1] border-hairline lg:border-r">
-          <ColHead title="From positions" sub="cv_position → cv_heading" />
+          <ColHead title="From your career graph" sub="from positions · cv_position → cv_heading" />
+          <SectionHead>Professional Experience</SectionHead>
           {positions.map((p, i) => (
             <div key={p.refCode ?? i} className={cn('border-t border-hairline/60', i === 0 && 'border-t-0')}>
               <div className="px-3 pb-1 pt-2 text-[12px] font-semibold text-ink">
                 {p.title ?? p.refCode ?? 'Position'}
                 {p.company && <span className="font-normal text-ink-subtle"> · {p.company}</span>}
               </div>
-              {p.lanes.map((lane) => {
-                const items = lane.slot ? evidenceBySlot.get(lane.slot) ?? [] : [];
-                return (
-                  <div key={`${lane.slot ?? 'noslot'}-${lane.heading}`} className="flex border-t border-dashed border-hairline/50">
-                    <div className="flex w-[118px] shrink-0 items-center border-r border-dashed border-hairline/50 py-[7px] pl-3 pr-1.5 text-[10px] leading-tight text-ink-muted">
-                      {lane.heading}
-                    </div>
-                    <div className="flex min-h-[34px] flex-1 flex-col gap-1.5 px-2 py-1.5">
-                      {items.length === 0 ? (
-                        <span className="pt-1 text-[9.5px] text-ink-subtle/60">
-                          {lane.slot ? 'no evidence placed' : 'not on the 2-page CV'}
-                        </span>
-                      ) : (
-                        items.map((e) => (
-                          <button
-                            key={e.id}
-                            type="button"
-                            data-map-ev={e.id}
-                            onClick={() => setActive((cur) => (cur === e.id ? null : e.id))}
-                            className={cn(
-                              'w-full rounded-[4px] border px-2 py-1.5 text-left text-[10.5px] leading-[1.4] transition',
-                              EVIDENCE_TONE[e.approvalStatus] ?? EVIDENCE_FALLBACK,
-                              activeEvIds.has(e.id) && 'ring-[1.5px] ring-inset ring-proof-deep'
-                            )}
-                          >
-                            {e.text ?? '—'}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+              {p.lanes.map((lane) => (
+                <Lane
+                  key={`${lane.slot ?? 'noslot'}-${lane.heading}`}
+                  lane={lane}
+                  items={lane.slot ? evidenceBySlot.get(lane.slot) ?? [] : []}
+                  activeEvIds={activeEvIds}
+                  onPick={(id) => setActive((cur) => (cur === id ? null : id))}
+                />
+              ))}
+            </div>
+          ))}
+          {credentials.map((section) => (
+            <div key={section.heading}>
+              <SectionHead>{section.heading}</SectionHead>
+              {section.lanes.map((lane) => (
+                <Lane
+                  key={`${lane.slot ?? 'noslot'}-${lane.heading}`}
+                  lane={lane}
+                  items={lane.slot ? evidenceBySlot.get(lane.slot) ?? [] : []}
+                  activeEvIds={activeEvIds}
+                  onPick={(id) => setActive((cur) => (cur === id ? null : id))}
+                />
+              ))}
             </div>
           ))}
         </div>
@@ -262,6 +330,74 @@ function ColHead({ title, sub }: { title: string; sub: string }) {
     <div className="border-b border-hairline bg-raised px-3 py-[7px]">
       <div className="text-[9.5px] font-bold uppercase tracking-[0.05em] text-ink-subtle">{title}</div>
       <div className="mt-0.5 text-[9.5px] text-ink-subtle/80">{sub}</div>
+    </div>
+  );
+}
+
+/**
+ * A CV section heading — Professional Experience, Education, Languages.
+ *
+ * Deliberately heavier than the position titles nested under it and lighter than
+ * the column head above it, so the left column reads in the same three levels the
+ * printed CV does: section → role → lane. It also does the C-phase's groundwork:
+ * once C2 widens evidence to the whole Career Graph, the sections it fills are
+ * already drawn here.
+ */
+function SectionHead({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="border-t border-hairline bg-raised/70 px-3 py-[5px] text-[10px] font-bold uppercase tracking-[0.06em] text-ink first:border-t-0">
+      {children}
+    </div>
+  );
+}
+
+/**
+ * One lane and whatever evidence sits in it. Extracted when the credential
+ * sections arrived so positions and credentials cannot drift apart — the empty
+ * copy, the chip tone and the `data-map-ev` hook the trace curves measure from all
+ * have to stay identical, or a curve silently stops being drawable for half the
+ * column.
+ */
+function Lane({
+  lane,
+  items,
+  activeEvIds,
+  onPick,
+}: {
+  lane: MapLane;
+  items: MapEvidence[];
+  activeEvIds: Set<string>;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <div className="flex border-t border-dashed border-hairline/50">
+      <div className="flex w-[118px] shrink-0 items-center border-r border-dashed border-hairline/50 py-[7px] pl-3 pr-1.5 text-[10px] leading-tight text-ink-muted">
+        {lane.heading}
+      </div>
+      <div className="flex min-h-[34px] flex-1 flex-col gap-1.5 px-2 py-1.5">
+        {items.length === 0 ? (
+          <span className="pt-1 text-[9.5px] text-ink-subtle/60">
+            {lane.slot ? 'no evidence placed' : 'not on the 2-page CV'}
+          </span>
+        ) : (
+          items.map((e) => (
+            <button
+              key={e.id}
+              type="button"
+              data-map-ev={e.id}
+              title={e.note ?? undefined}
+              onClick={() => onPick(e.id)}
+              className={cn(
+                'w-full rounded-[4px] border px-2 py-1.5 text-left text-[10.5px] leading-[1.4] transition',
+                EVIDENCE_TONE[e.approvalStatus] ?? EVIDENCE_FALLBACK,
+                activeEvIds.has(e.id) && 'ring-[1.5px] ring-inset ring-proof-deep'
+              )}
+            >
+              {e.text ?? '—'}
+            </button>
+          ))
+        )}
+      </div>
     </div>
   );
 }

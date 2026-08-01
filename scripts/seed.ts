@@ -171,7 +171,7 @@ function mapStatus(s: string | null, hasScore: boolean): LeadStatus {
 const DOMAIN_TABLES = [
   'profiles', 'positions', 'stars', 'star_actions', 'star_results', 'star_competences',
   'star_attributes', 'responsibilities', 'education', 'languages', 'bullet_bank', 'skills_master',
-  'companies', 'offices', 'jd_groups', 'job_leads', 'job_requirements', 'requirement_tailoring',
+  'companies', 'offices', 'jd_groups', 'job_leads', 'job_requirements', 'requirement_evidence', 'requirement_tailoring',
   'cv_variants', 'applications', 'pipeline_runs', 'llm_calls', 'ci_initiatives', 'accuracy_tips',
   'coaching_prompts', 'coaching_answers', 'graph_strength_snapshots', 'activation_events',
 ] as const;
