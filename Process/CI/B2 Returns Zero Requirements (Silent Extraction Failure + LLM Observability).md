@@ -1,18 +1,18 @@
 ---
 ci-area: Screening / B-Phase — B2 extraction reliability
 ci-title: B2 Returns Zero Requirements — silent extraction failure, stop_reason observability, stale step procedure
-ci-status: 2 - Testing
+ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-01
 ci-estimated-time: 4
-ci-time-spent: 0
+ci-time-spent: 6
 pr-source: "[[B2. Extract Requirements from Job Description]]"
 pr-target:
 ---
 
 ---
 ```simple-time-tracker
-{"entries":[{"name":"Troubleshoot","startTime":"2026-07-31T15:18:05.000Z","endTime":"2026-07-31T18:18:23.000Z"},{"name":"Troubleshoot","startTime":"2026-07-31T21:34:22.000Z","endTime":"2026-07-31T23:34:27.000Z"},{"name":"Troubleshoot","startTime":"2026-08-01T09:44:39.000Z","endTime":null}]}
+{"entries":[{"name":"Troubleshoot","startTime":"2026-07-31T15:18:05.000Z","endTime":"2026-07-31T18:18:23.000Z"},{"name":"Troubleshoot","startTime":"2026-07-31T21:34:22.000Z","endTime":"2026-07-31T23:34:27.000Z"},{"name":"Troubleshoot","startTime":"2026-08-01T09:44:39.000Z","endTime":"2026-08-01T10:53:37.276Z"}]}
 ```
 ---
 
@@ -154,9 +154,8 @@ The retired path is kept as a marked historic note so the CI trail stays legible
       "Root cause"); `max_tokens` still raised 8000 → 16000 to close the separate truncation mode
 - [x] Confirm the Map populates for a lead that previously returned zero — 21 requirements written,
       `source_text` on 21/21, `group_rank` correct per group (Core 1-8, Important 1-9, Nice-to-Have 1-4)
-- [ ] Re-run the back catalogue — `job_requirements` held **0 rows across all 157 leads**, so every
-      lead's Map is empty and every stored fit score was computed without requirements
-- [ ] Fix the same incomplete-`required` defect on the other ten strict schemas (§4, follow-up)
+- [x] Rescoped out — the back-catalogue re-run and the other ten strict schemas moved to
+      `[[Complete Required Lists on the Remaining Strict Tool Schemas]]` (see §4, 2026-08-01 "Closed")
 
 ---
 
@@ -410,3 +409,30 @@ its own before/after run rather than being assumed.
 `92f80cc` also raises `max_tokens` 8000 → 16000 and converts §2.1's floor from throw-on-first-miss to
 **three bounded re-asks before throwing** — `runStructured`'s own retry can never fire here, because a thin
 extraction is schema-valid and there is nothing for zod to reject.
+
+### 2026-08-01 · Closed — scope split, status → 3 - Delivered
+
+B2's own scope is complete and live-verified (Vestas, 10:40 UTC: 21 requirements, `source_text` 21/21,
+`group_rank` correct per group, `attempts=1`). Moving to `3 - Delivered`.
+
+Two items that were sitting unchecked in §2.5 are **not** B2 defects and have been rescoped out to
+`[[Complete Required Lists on the Remaining Strict Tool Schemas]]`, per
+`[[++ Continuous Improvement Procedure]]` §"Splitting large CIs" — each is its own deliverable needing its
+own before/after measurement, and neither belongs in a note whose subject is now fixed:
+
+1. **The same incomplete-`required` defect on the other ten strict schemas.** Confirmed by static audit to
+   exist; behavioural impact measured only for B2.
+2. **Re-running the back catalogue** — 157 leads, 0 requirement rows, every stored fit score computed
+   without requirements. Recorded in the new CI with an explicit sequencing constraint: **do not re-run
+   until the schema work lands**, or the whole catalogue gets re-screened through still-degraded B3–B6.
+
+A third follow-up — retiring the `requirement_group` duplicate — is listed as out-of-scope in the new note
+and still needs a CI of its own.
+
+**Observed while verifying, not a defect:** the requirement→evidence Map shows requirements on the right
+but "no evidence placed" on the left. Evidence lanes are populated by C2, and this lead scored 3.6
+("Below the bar", Tailor locked), so C2 never ran. The gate working as designed. Worth re-checking the
+evidence side on a lead that scores above the threshold.
+
+**Open for Reggie:** `ci-time-spent` is still `0` and the tracker's last entry has no `endTime`. Close the
+entry and fill the total — the Procedure's estimating guidance depends on these being real.
