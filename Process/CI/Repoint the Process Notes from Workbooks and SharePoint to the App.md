@@ -2,18 +2,18 @@
 ci-title: Repoint the Process notes from workbooks and SharePoint to the app
 ci-area: Process notes / prompt hygiene
 ci-roadmap:
-ci-status: 0 - Idea
+ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-01
 ci-estimated-time: 5
-ci-time-spent: 0
+ci-time-spent: 3
 pr-source:
 pr-target:
 ---
 
 ---
 ```simple-time-tracker
-{"entries":[]}
+{"entries":[{"name":"Development","startTime":"2026-08-01T20:18:55.000Z","endTime":"2026-08-01T22:35:01.000Z"},{"name":"Development","startTime":"2026-08-02T10:48:04.000Z","endTime":"2026-08-02T11:30:43.849Z"}]}
 ```
 ---
 

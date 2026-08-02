@@ -2,7 +2,7 @@
 ci-area: Screening / B-Phase + Lead Page UX
 ci-roadmap:
 ci-title: Lead Page as Pipeline Canvas — B-phase reorder + requirement-evidence Map
-ci-status: 1 - Development
+ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-07-30
 ci-estimated-time: 12
