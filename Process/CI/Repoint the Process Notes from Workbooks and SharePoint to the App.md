@@ -2,7 +2,7 @@
 ci-title: Repoint the Process notes from workbooks and SharePoint to the app
 ci-area: Process notes / prompt hygiene
 ci-roadmap:
-ci-status: 2 - In Progress
+ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-01
 ci-estimated-time: 5
@@ -175,9 +175,11 @@ the literal value `placeholder` — a template in the prompt is a thing the mode
 - [x] No template/example tables with placeholder cells remain in any loaded note — bracket-placeholder
       count across the six edited notes fell 39 → 11, the remainder being prose examples, not table cells
 - [x] Retired paths kept as marked historic notes, not deleted
-- [ ] **Dev server restarted** — `lib/prompts.ts` `noteCache` never invalidates
-- [ ] One live B-phase run per edited step; `cache[w=… r=0]` on the `[llm]` line confirms the new bytes
-      loaded, and output quality is unchanged or better
+- [x] **Dev server restarted** — run from the worktree so the edited notes were the ones on disk
+      (`noteCache` never invalidates, so this had to be a cold start)
+- [x] One live B-phase run per edited step; `cache[w=… r=0]` on the `[llm]` line confirms the new bytes
+      loaded, and output quality is unchanged or better — see §4, 2026-08-02 live run. **C2/C3/C5 were
+      not exercised live** (they need a lead promoted to tailoring); they rest on the backtest alone
 - [x] `npx tsc --noEmit` clean; `npx vitest run` passing (171/171, 15 files); `verify-b6-evidence.ts`
       13/13 — **necessary but not sufficient, and not evidence about the notes at all**: no test reads a
       step note's body (see §4, step 0)
@@ -420,3 +422,48 @@ permissive direction is worse than no gate:
    baseline still showed clean means.
 
 `npx tsc --noEmit` clean · `npx vitest run` 171/171 (15 files) · `verify-b6-evidence.ts` 13/13.
+
+### 2026-08-02 · Live run in the app — criteria closed, and a defect found in passing
+
+Dev server cold-started **from the worktree** (`npm run dev`, `https://localhost:3000`), so the notes on
+disk were the edited ones — confirmed by the fresh `certificates/` directory Next.js wrote into the
+worktree, and by the B6 note reading 11,375 bytes there against 9,705 on `main`. Reggie ran screening on
+several leads, old and new, through the real UI.
+
+**The cache criterion is met.** First call to every step shows a write with a zero read; every later call
+reads the same prefix back:
+
+```
+B2 cache[w=3575 r=0]   B3 cache[w=4070 r=0]   B4 cache[w=2897 r=0]
+B5 cache[w=4708 r=0]   B6 cache[w=8977 r=0]   A1 cache[w=1519 r=0]
+```
+
+Output quality unchanged; no `[B6] dropped …` citation warnings.
+
+**Then the run surfaced the real shape of the B6 collapse — and it is worse than "sometimes returns
+fewer requirements".** Two of the four B6 calls were 4.0s/256 tokens and 7.5s/430 tokens against 47.1s
+and 32.4s for the healthy ones. Checking those leads in the database:
+
+| Lead | reqs | scored **exactly 6.0** | keyStrengths | evidence links | overall |
+| --- | --- | --- | --- | --- | --- |
+| Chief Operating Officer (COO) | 18 | **17** | 1 | 6 | 6.6 |
+| Head of Cost Management Green Industry | 11 | **10** | 0 | 4 | 6.3 |
+| Senior Manager, Advisory | 18 | **16** | 2 | 4 | 6.8 |
+| *Chief Consultant, Group COO Office* (healthy) | 14 | 0 | 14 | 53 | 8.2 |
+| *Associate Director, Strategy* (healthy) | 17 | 5 | 17 | 58 | 7.5 |
+
+**`screening.ts` writes `j?.score ?? 6` for any requirement B6 did not judge.** So a collapse does not
+produce a visible gap: it produces a full set of requirements, every one scored, every one "Good", and a
+plausible overall in the Proceed/Borderline band. Reggie went looking for missing requirements and
+correctly found none — **the count is never what breaks.** Three of the last eight scored leads carry
+fabricated scores, one of them from 08-01, before any of this work.
+
+The reliable tells are `initial_key_strengths` (14/14 or 17/17 healthy, 0–2 collapsed) and the evidence
+link count (53–58 healthy, 4–6 collapsed).
+
+Out of scope here and **not** caused by this CI — the same rate appears on the unedited notes in §2.6's
+no-op A/B. Raised as its own CI; the note edits ship on their own evidence.
+
+**Also observed:** two B2 calls failed with `Anthropic 400 — credit balance is too low`. Both threw
+before any write, so no lead was left half-scored. Worth noting that §2.6's backtest spends ~102 live
+calls, 42 of them Opus, per full run.
