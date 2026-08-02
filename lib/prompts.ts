@@ -61,8 +61,30 @@ export async function loadStepNote(step: string): Promise<string> {
  */
 export type SystemPrompt = { cacheable: string; dynamic: string };
 
+/**
+ * The cacheable half, as a pure function of the step and its note text.
+ *
+ * Separate from `systemPromptFor` so a caller holding note text from somewhere
+ * other than `Process/` — `scripts/backtest-notes.ts` reads the baseline via
+ * `git show main:…` — composes the prompt through the SAME code the pipeline uses.
+ * A backtest that assembled its own prompt would be measuring a prompt production
+ * never sends, which is worse than not measuring at all.
+ */
+export function composeSystemPrompt(step: string, note: string): string {
+  return note ? `${NON_NEGOTIABLES}\n\n--- STEP PROCEDURE (${step}) ---\n${note}` : NON_NEGOTIABLES;
+}
+
 export async function systemPromptFor(step: string, ownerId?: string | null): Promise<SystemPrompt> {
   const [note, guidance] = await Promise.all([loadStepNote(step), ciGuidanceFor(step, ownerId)]);
-  const cacheable = note ? `${NON_NEGOTIABLES}\n\n--- STEP PROCEDURE (${step}) ---\n${note}` : NON_NEGOTIABLES;
-  return { cacheable, dynamic: guidance };
+  return { cacheable: composeSystemPrompt(step, note), dynamic: guidance };
+}
+
+/** The note filename backing a step, for tooling that needs to read it off disk or out of git. */
+export function stepNoteFile(step: string): string | undefined {
+  return STEP_NOTE[step];
+}
+
+/** The steps whose notes are loaded as system prompts — what this CI's audit and backtest cover. */
+export function loadedSteps(): string[] {
+  return Object.keys(STEP_NOTE);
 }
