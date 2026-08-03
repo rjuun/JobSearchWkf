@@ -363,6 +363,18 @@ rather than waved past.
 
 ### 2026-08-02 · Verification — §2.6 backtest, 102 paired live calls · **PASS**
 
+> [!WARNING] The **B6** rows below are a historic record, not a reusable baseline
+> Superseded on 2026-08-02 by the B6 collapse guard (`[[B6 Scores Requirements It Never Judged]]`,
+> merged as PR #3). That change added a `Return exactly N entries in "requirements"` instruction to
+> `b6UserMessage` in `lib/pipeline/screening.ts` — and `scripts/backtest-notes.ts` calls that same
+> builder, precisely so the harness sends what production sends. So the message B6 receives today is
+> **not** the message these numbers were measured against, and comparing a fresh B6 run to them would
+> attribute the difference to the wrong change.
+>
+> Re-measure B6 before using it as a baseline again. The B2/B3/B4/B5/C2 rows are unaffected — their
+> builders did not change. Worth doing on its own merits: that instruction may have moved the collapse
+> rate by itself, which would be useful to know separately from the guard.
+
 `npx tsx scripts/backtest-notes.ts --apply`. Read-only throughout: every step was called directly
 rather than through `runScoring`/`runEvidenceMapping`, so no lead's score, requirements, evidence links
 or tailoring rows were written. Cohort: the 7 most recently scored leads carrying both a JD and
