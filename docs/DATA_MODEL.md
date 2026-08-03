@@ -1,12 +1,55 @@
 # Data Model
 
-The system's data is **already cleanly relational** — it lives in two Excel workbooks that map
-to Postgres almost 1:1. This document defines the schema; it is implemented with **Drizzle**
-migrations in [`drizzle/`](../drizzle/).
+**The data lives in Postgres.** It originated in two Excel workbooks that mapped to it almost 1:1,
+and it is now read and written exclusively through the app. This document defines the schema; it is
+implemented with **Drizzle** migrations in [`drizzle/`](../drizzle/).
 
-## Sources (gitignored — become seed data)
+## Naming — where the workbook and SharePoint vocabulary went
 
-| Workbook | Role | Becomes |
+The `Process/*.md` step notes were written against the Microsoft 365 era and, in places, still speak
+its vocabulary. **This table is the single source of truth for that translation**; the notes point
+here rather than each inventing its own wording. (CI · *Repoint the Process Notes from Workbooks and
+SharePoint to the App* §2.2, re-verified against the schema 2026-08-01.)
+
+| The old name | The table today |
+| --- | --- |
+| `Profile_Reference_Workbook.xlsx` | the Career Graph tables — everything under *Evidence side* below |
+| `tbl_Bullet_Bank` | `bullet_bank` |
+| `tbl_Skills_Master` | `skills_master` |
+| `tbl_Education` | `education` |
+| `tbl_Languages` / `tbl_Language` | `languages` |
+| `tbl_STAR_Actions` | `star_actions` (with `stars`, `star_results`, `star_competences`, `star_attributes`) |
+| `tbl_Responsibilities` | `responsibilities` |
+| `Job Hunting Lists.xlsx` / the SharePoint lists | `job_leads`, `job_requirements`, `requirement_tailoring`, `cv_variants` |
+| "Job Requirements List" | `job_requirements` |
+| "Requirements Tailoring List" | `requirement_tailoring` |
+| *(no predecessor — it postdates both)* | `requirement_evidence` — B6's requirement→evidence map |
+
+Field-level, for `job_requirements` — **two rows here are counter-intuitive and are the reason this
+table exists**:
+
+| The old field | Column | Note |
+| --- | --- | --- |
+| `Lead: ID` | `job_lead_id` | |
+| `Requirement_Order` | `requirement_order` | the global counter across all groups |
+| `Rank` | `group_rank` | the within-group counter — **not** `rank` |
+| `Requirement_Group` | `rank` | ⚠️ **inverted**: `rank` holds the group name (`Core` / `Important` / `Nice-to-Have`). The column literally named `requirement_group` is a dead duplicate — ~25 call sites read `rank` as the group, so repossessing it would break every reader |
+| `Requirement` | `requirement` | |
+| `Requirement_Description` | `description` | a faithful close paraphrase — **not** the verbatim source |
+| `Source Text` | `source_text` | the verbatim JD sentence; null on leads screened before it shipped |
+| `Skills` | `skills` (jsonb) | JD-facing only — what the role asks for, not a profile lookup |
+| `Initial_Match_Strength` | `initial_match_strength` | written by B6 |
+| `Initial_Key_Strengths` | `initial_key_strengths` | written by B6; blanks normalized to null |
+| `Initial_Missing_Weak` | `initial_missing_weak` | written by B6; blanks normalized to null |
+| `Initial_Score` | `initial_score` | written by B6 |
+| `Requirement_Line` | — | computed for display, never stored |
+
+## Sources (gitignored — the original seed data)
+
+The workbooks below were the **one-time import source**. They are not a live input: no step reads
+them, and nothing in the app has a filesystem to reach them with.
+
+| Workbook | Role | Seeded |
 | --- | --- | --- |
 | `Profile/Profile_Reference_Workbook.xlsx` | The **evidence store** ("Master Bullet Bank"): 10–12 ID-linked tables | `positions`, `stars`, `star_*`, `responsibilities`, `education`, `languages`, `bullet_bank`, `skills_master` |
 | `Job Hunting Lists.xlsx` | The **operational tracker**: 6 sheets | `companies`, `offices`, `jd_groups`, `job_leads`, `job_requirements`, `requirement_tailoring` |
@@ -48,8 +91,9 @@ migrations in [`drizzle/`](../drizzle/).
 | `offices` | city, country, preference_rank | ~19 location prefs |
 | `jd_groups` | code, name | 6 fixed rows: SCD, CSEO, OSS, CFPA, TPM, POESG |
 | `job_leads` | external_id, title, company_id→, office_id→, source_url, posted_days, applicant_count, **status**, roadblocks jsonb, misalignments jsonb, jd_group_primary, jd_group_secondary, `skill_ratings jsonb` (17 A–Q), ats_system, **b6 dimension scores + overall + recommendation**, bullet_bank_version | ~140 leads — the hub |
-| `job_requirements` | job_lead_id→, requirement_order, **rank**, requirement_group, requirement, description, skills[], **initial_match_strength**, initial_key_strengths, initial_missing_weak, **initial_score** | ~209 rows |
-| `requirement_tailoring` | requirement_id→, evidence_ref (the `ref_code`), original_text, **cv_position**, cv_bullet, cv_placement, my_skills[] (candidate's own vocabulary, renamed from actual_skills), requirement_skills[] (JD-language skills this row demonstrates), **approval_status** | ~27 rows — the C2 bridge / human-in-the-loop |
+| `job_requirements` | job_lead_id→, requirement_order, **rank** (= the group name), group_rank, requirement_group (dead duplicate), requirement, description, source_text, skills[], **initial_match_strength**, initial_key_strengths, initial_missing_weak, **initial_score** | ~209 rows. The four `initial_*` columns are all written by B6 |
+| `requirement_evidence` | job_lead_id→, requirement_id→, evidence_ref, evidence_kind, evidence_text, cv_position, note | **B6's** requirement→evidence map, written at scoring. Many-to-many by design — one requirement is routinely carried by several bullets — and replaced wholesale on each re-score. Deliberately *not* `requirement_tailoring`: that table's row count is what the app reads as "a human has triaged this" |
+| `requirement_tailoring` | requirement_id→, evidence_ref (the `ref_code`), original_text, **cv_position**, cv_bullet, cv_placement, my_skills[] (candidate's own vocabulary, renamed from actual_skills), requirement_skills[] (JD-language skills this row demonstrates), **approval_status** | ~27 rows — the **C2** bridge / human-in-the-loop |
 | `cv_variants` | name, focus_jd_groups[], storage_path | 6 archetypes (SCD-TPM, CFPA-OSS, POESG, CSEO, TPM-SCD, ATS_Safe) |
 | `applications` | job_lead_id→, cv_variant_id→, applied_at, status, outcome_notes | post-application (phase D) |
 
@@ -81,7 +125,8 @@ profiles 1─┬─< positions 1─< stars 1─< star_actions / star_results / s
            │
            └─< job_leads >─ companies, offices, jd_groups (primary/secondary)
                   │
-                  1─< job_requirements 1─< requirement_tailoring >─ (evidence_ref → star_actions/responsibilities/…)
+                  1─< job_requirements ─┬─< requirement_evidence  (B6, machine-proposed, many-to-many)
+                  │                     └─< requirement_tailoring >─ (evidence_ref → star_actions/responsibilities/…)
                   │                                                     │ approval_status gates → C3 bullets
                   1─< applications >─ cv_variants
 ```

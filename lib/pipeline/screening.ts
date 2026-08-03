@@ -48,7 +48,7 @@ import { normalizeCvPosition } from '../cv-slots';
 
 export type { StepReport } from './runs';
 import { systemPromptFor } from '../prompts';
-import { runStructured } from '../llm/client';
+import { runStructured, type UserContentBlock } from '../llm/client';
 import { B2, B3, B4, B5, B6 } from '../llm/schemas';
 import {
   freshnessBand,
@@ -83,6 +83,83 @@ const nullIfBlank = (s: string | null | undefined): string | null => (s && s.tri
  */
 export function gateStatusFor(roadblockCount: number, misalignmentCount: number): 'selected' | 'scoring_queue' {
   return roadblockCount === 0 && misalignmentCount === 0 ? 'selected' : 'scoring_queue';
+}
+
+/**
+ * ── The user messages, as pure builders ─────────────────────────────────────
+ *
+ * Extracted so `scripts/backtest-notes.ts` sends each step the message this file
+ * sends, byte for byte. That harness is the ONLY gate on a Process-note edit —
+ * `tsc` and `vitest` never read a note's body — so a harness that reconstructed
+ * these strings by hand would drift silently and then certify a prompt production
+ * does not use. Same reasoning as `composeSystemPrompt` in lib/prompts.ts.
+ *
+ * Pure and DB-free on purpose: they take the rows, they do not fetch them.
+ */
+export type PromptRequirement = { rank: string | null; requirement: string; description?: string | null };
+
+/** How every step numbers requirements for the model — B3's roadblock mapping and B6's `order` key both depend on this being identical. */
+const numberedRequirements = (rows: PromptRequirement[], withDescription = false) =>
+  rows
+    .map((q, i) => `${i + 1}. [${q.rank}] ${q.requirement}${withDescription && q.description ? ` — ${q.description}` : ''}`)
+    .join('\n');
+
+/** B2 · the JD is the complete and only source (its note §A). */
+export function b2UserMessage(jd: string, leadTitle: string): string {
+  return `JOB DESCRIPTION:\n${jd || leadTitle}`;
+}
+
+export function b3UserMessage(jd: string, leadTitle: string, requirements: PromptRequirement[]): string {
+  const reqList = requirements.length
+    ? `\n\nREQUIREMENTS:\n${numberedRequirements(requirements)}\n\nIf a roadblock blocks exactly one of the requirements above, set its "requirementOrder" to that number. Set it to 0 when the roadblock is implied across the posting as a whole — do not force a mapping.`
+    : '';
+  return `JOB DESCRIPTION:\n${jd || leadTitle}${reqList}`;
+}
+
+export function b4UserMessage(jd: string, leadTitle: string, city: string | null, valuesSummary: string): string {
+  return (
+    `JOB DESCRIPTION:\n${jd || leadTitle}\nCITY: ${city ?? 'unknown'}` +
+    (valuesSummary ? `\n\nCANDIDATE VALUES & MOTIVES:\n${valuesSummary}` : '')
+  );
+}
+
+export function b5UserMessage(jd: string, leadTitle: string, requirements: PromptRequirement[]): string {
+  const reqList = requirements.length ? `\n\nREQUIREMENTS (extracted at B2):\n${numberedRequirements(requirements, true)}` : '';
+  return `JOB DESCRIPTION:\n${jd || leadTitle}${reqList}`;
+}
+
+/**
+ * B6 · two blocks, and the split is load-bearing: the evidence listing is
+ * owner-wide and lead-independent — byte-identical across every lead in a scoring
+ * batch — so it carries its own 1h cache breakpoint and is read from cache for
+ * every lead after the first. The per-lead JD and requirements follow as the
+ * varying suffix. Same shape C2 uses (lib/pipeline/tailoring.ts).
+ */
+export function b6UserMessage(
+  evidence: B6Evidence[],
+  jd: string,
+  leadTitle: string,
+  requirements: PromptRequirement[]
+): UserContentBlock[] {
+  return [
+    { type: 'text', text: renderB6Evidence(evidence), cache_control: { type: 'ephemeral', ttl: '1h' } },
+    {
+      type: 'text',
+      text:
+        `JOB DESCRIPTION:\n${jd || leadTitle}\n\nREQUIREMENTS:\n${numberedRequirements(requirements)}\n\n` +
+        // The expected count is stated as a number because the failure being guarded
+        // against (see runScoring's B6 block) is the model judging one or two and
+        // stopping. Naming it gives the generation something to check itself against
+        // mid-stream, where "for each requirement" alone gives it nothing to notice.
+        `Return exactly ${requirements.length} entr${requirements.length === 1 ? 'y' : 'ies'} in "requirements" — ` +
+        `one for every requirement listed above, none omitted and none merged. An answer missing any of ` +
+        `them is discarded in full, so a partial reply is worse than a slow complete one. ` +
+        `For each requirement, set "order" to its number above and list in "evidenceRefs" every ref code ` +
+        `from CANDIDATE EVIDENCE that genuinely supports it — several where several apply, none where none do. ` +
+        `Cite only codes that appear in that list. Where nothing supports the requirement, use "No Match", ` +
+        `leave "evidenceRefs" empty, and state in "gaps" what is missing.`,
+    },
+  ];
 }
 
 /**
@@ -167,6 +244,31 @@ export function renderB6Evidence(items: B6Evidence[]): string {
     items
       .map((e) => `[${e.ref}] (${e.kind})${e.tags.length ? ` [${e.tags.join(', ')}]` : ''} ${e.text}`)
       .join('\n')
+  );
+}
+
+/** One per-requirement judgment, exactly as B6's validated tool call carries it. */
+type B6Judgment = ReturnType<typeof B6.zod.parse>['requirements'][number];
+
+/**
+ * Seat B6's judgments onto the requirement rows: by the stable `order` key (robust
+ * if the model reorders), falling back to matching text, then to position.
+ *
+ * Returns one slot per row, `null` where no judgment reached that row at all. That
+ * null is the point of extracting this. The write path used to inline this lookup
+ * and then read `j?.score ?? 6`, so a requirement the model never judged was stored
+ * as a middling 6 / "Good" — indistinguishable from a real judgment, and counted as
+ * one by `requirementAlignment`. Making "no judgment" representable is what lets the
+ * caller refuse to write it.
+ */
+export function matchB6Judgments<TJ extends { order?: number; requirement: string }>(
+  judgments: TJ[],
+  rows: { requirement: string }[]
+): (TJ | null)[] {
+  const byOrder = new Map<number, TJ>();
+  for (const j of judgments) if (j.order != null) byOrder.set(j.order, j);
+  return rows.map(
+    (q, i) => byOrder.get(i + 1) ?? judgments.find((x) => x.requirement === q.requirement) ?? judgments[i] ?? null
   );
 }
 
@@ -311,7 +413,7 @@ export async function runInitialChecks(leadId: string, ownerId?: string | null):
           step: 'B2',
           model: 'sonnet',
           system: await systemPromptFor('B2', effectiveOwnerId),
-          user: `JOB DESCRIPTION:\n${jd || lead.title}`,
+          user: b2UserMessage(jd, lead.title),
           tool: B2.tool,
           zod: B2.zod,
           mock: () => mockRequirements(jd),
@@ -370,16 +472,11 @@ export async function runInitialChecks(leadId: string, ownerId?: string | null):
   {
     // Requirements are numbered for the model exactly the way B6 numbers them, so
     // it can return `requirementOrder` to attach a roadblock to one specific row.
-    const reqList = requirements.length
-      ? `\n\nREQUIREMENTS:\n${requirements
-          .map((q, i) => `${i + 1}. [${q.rank}] ${q.requirement}`)
-          .join('\n')}\n\nIf a roadblock blocks exactly one of the requirements above, set its "requirementOrder" to that number. Set it to 0 when the roadblock is implied across the posting as a whole — do not force a mapping.`
-      : '';
     const r = await runStructured({
       step: 'B3',
       model: 'sonnet',
       system: await systemPromptFor('B3', effectiveOwnerId),
-      user: `JOB DESCRIPTION:\n${jd || lead.title}${reqList}`,
+      user: b3UserMessage(jd, lead.title, requirements),
       tool: B3.tool,
       zod: B3.zod,
       mock: () => mockRoadblocks(jd, lead.roadblocks ?? []),
@@ -414,9 +511,7 @@ export async function runInitialChecks(leadId: string, ownerId?: string | null):
       step: 'B4',
       model: 'sonnet',
       system: await systemPromptFor('B4', effectiveOwnerId),
-      user:
-        `JOB DESCRIPTION:\n${jd || lead.title}\nCITY: ${lead.city ?? 'unknown'}` +
-        (valuesSummary ? `\n\nCANDIDATE VALUES & MOTIVES:\n${valuesSummary}` : ''),
+      user: b4UserMessage(jd, lead.title, lead.city, valuesSummary),
       tool: B4.tool,
       zod: B4.zod,
       mock: () => mockMisalignments(jd, lead.city, lead.misalignments ?? []),
@@ -488,16 +583,11 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
       .select()
       .from(jobRequirements)
       .where(and(eq(jobRequirements.jobLeadId, leadId), eq(jobRequirements.ownerId, effectiveOwnerId)));
-    const reqList = requirementRows.length
-      ? `\n\nREQUIREMENTS (extracted at B2):\n${requirementRows
-          .map((q, i) => `${i + 1}. [${q.rank}] ${q.requirement}${q.description ? ` — ${q.description}` : ''}`)
-          .join('\n')}`
-      : '';
     const r = await runStructured({
       step: 'B5',
       model: 'sonnet',
       system: await systemPromptFor('B5', effectiveOwnerId),
-      user: `JOB DESCRIPTION:\n${jd || lead.title}${reqList}`,
+      user: b5UserMessage(jd, lead.title, requirementRows),
       tool: B5.tool,
       zod: B5.zod,
       mock: () => mockSkillMapping(lead),
@@ -509,21 +599,22 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
       .update(jobLeads)
       .set({
         skillRatings: ratings,
-        // `||`, not `??`, on all three: these are required in the strict schema
-        // now, so "no answer" arrives as "" rather than absent — `??` would
-        // overwrite a stored value with an empty string.
-        jdGroupPrimary: r.data.jdGroupPrimary || lead.jdGroupPrimary,
-        jdGroupSecondary: r.data.jdGroupSecondary || lead.jdGroupSecondary,
+        // `nullIfBlank(...) ?? stored`, not a bare `??`: these three are required
+        // in the strict schema now, so "nothing to say" arrives as "" rather than
+        // absent, and a bare `??` would overwrite a stored value with an empty
+        // string. Same helper B6's per-requirement prose uses below.
+        jdGroupPrimary: nullIfBlank(r.data.jdGroupPrimary) ?? lead.jdGroupPrimary,
+        jdGroupSecondary: nullIfBlank(r.data.jdGroupSecondary) ?? lead.jdGroupSecondary,
         // "Key Patterns & CV Tailoring Notes" — B5's process note has always
         // asked the model for this (§B step 3) and the tool schema has always
         // returned it, but the write path dropped it, so key_patterns stayed
-        // empty on every lead captured since launch. `|| lead.keyPatterns`
-        // preserves a legacy SharePoint-imported value if this call returns nothing.
-        keyPatterns: r.data.notes || lead.keyPatterns,
+        // empty on every lead captured since launch. The fallback preserves a
+        // legacy SharePoint-imported value if this call returns nothing.
+        keyPatterns: nullIfBlank(r.data.notes) ?? lead.keyPatterns,
       })
       .where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, effectiveOwnerId)));
     await recordRun(leadId, 'B5', r.model, r.data, r.ms, effectiveOwnerId);
-    reports.push({ step: 'B5', label: 'Skills · JD group', status: 'done', model: r.model, ms: r.ms, summary: `${r.data.skills.length} rated · ${r.data.jdGroupPrimary ?? '—'}` });
+    reports.push({ step: 'B5', label: 'Skills · JD group', status: 'done', model: r.model, ms: r.ms, summary: `${r.data.skills.length} rated · ${nullIfBlank(r.data.jdGroupPrimary) ?? '—'}` });
   }
 
   // Requirements are read, not extracted: B2 already produced them at capture.
@@ -542,50 +633,79 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
     const { items: evidence, bankVersion } = await gatherB6Evidence(effectiveOwnerId);
     const byRef = new Map(evidence.map((e) => [e.ref, e]));
 
-    const r = await runStructured({
-      step: 'B6',
-      model: 'opus',
-      system: await systemPromptFor('B6', effectiveOwnerId),
-      // Two blocks, and the split matters: the evidence listing is owner-wide and
-      // lead-independent — byte-identical across every lead in a scoring batch —
-      // so it carries its own 1h cache breakpoint and is read from cache for every
-      // lead after the first. The per-lead JD and requirements follow as the
-      // varying suffix. Same shape C2 already uses (lib/pipeline/tailoring.ts).
-      user: [
-        { type: 'text' as const, text: renderB6Evidence(evidence), cache_control: { type: 'ephemeral' as const, ttl: '1h' as const } },
-        {
-          type: 'text' as const,
-          text:
-            `JOB DESCRIPTION:\n${jd || lead.title}\n\nREQUIREMENTS:\n${requirements
-              .map((q, i) => `${i + 1}. [${q.rank}] ${q.requirement}`)
-              .join('\n')}\n\n` +
-            `For each requirement, set "order" to its number above and list in "evidenceRefs" every ref code ` +
-            `from CANDIDATE EVIDENCE that genuinely supports it — several where several apply, none where none do. ` +
-            `Cite only codes that appear in that list. Where nothing supports the requirement, use "No Match", ` +
-            `leave "evidenceRefs" empty, and state in "gaps" what is missing.`,
-        },
-      ],
-      tool: B6.tool,
-      zod: B6.zod,
-      mock: () => mockRoleFit(lead.skillRatings ?? {}, lead.atsSystem, requirements, evidence),
-      leadId,
-      ownerId: effectiveOwnerId,
-    });
+    // ── The collapse guard (2026-08-02) ──────────────────────────────────────
+    // Roughly 1 B6 call in 5 comes back degraded: it judges one or two requirements
+    // and stops. Measured over 42 paired calls in a no-op A/B, and visible in the
+    // shape of the generation — a collapsed run is ~4-8s and 256-430 output tokens
+    // against ~30-47s and 2300-3700 for a healthy one — and it frequently emits the
+    // literal string `placeholder` as the root `summary`, or, on one stored run,
+    // "...OK let me redo this cleanly." as an evidenceRef.
+    //
+    // Nothing rejects it. `requirements: z.array(...).default([])` has no floor, so a
+    // near-empty array is schema-valid, runStructured logs "ok" and its retry never
+    // fires. Note this is NOT the incomplete-`required` cause the B2 CI addresses —
+    // B6's `required` lists have been complete since that CI. A complete `required`
+    // list guarantees the KEY is present; it can never guarantee the VALUE is
+    // meaningful, which is exactly what `summary: "placeholder"` demonstrates.
+    //
+    // The silent half is the one that mattered. Every row the model skipped used to
+    // take `score ?? 6` → "Good", so a collapse did not surface as missing
+    // requirements: it produced a FULL set, every one scored, every one "Good", and a
+    // plausible overall in the Borderline band. Looking for reduced requirement counts
+    // in the app finds nothing, because the count is never what breaks. Fabricating a
+    // middling rating for a requirement nobody judged is precisely what NON_NEGOTIABLES
+    // forbids, arrived at by a default rather than by a claim.
+    //
+    // So the floor is exact rather than proportional like B2's: B6 is handed a known,
+    // finite list and the note tells it to judge every row, so anything short of full
+    // coverage is a misfire, not a judgement call. Re-asking is the enforcement, since
+    // runStructured cannot reject what zod accepts; at a ~1-in-5 per-call collapse rate
+    // three independent attempts put a run failure near 1-in-125. The throw is the
+    // backstop: nothing is written on the way out, the lead stays `screening`, and
+    // Ready-to-score's stale-run affordance already offers the retry.
+    const ATTEMPTS = 3;
+    const judge = async () =>
+      runStructured({
+        step: 'B6',
+        model: 'opus',
+        system: await systemPromptFor('B6', effectiveOwnerId),
+        user: b6UserMessage(evidence, jd, lead.title, requirements),
+        tool: B6.tool,
+        zod: B6.zod,
+        mock: () => mockRoleFit(lead.skillRatings ?? {}, lead.atsSystem, requirements, evidence),
+        leadId,
+        ownerId: effectiveOwnerId,
+      });
 
-    // Map per-requirement judgments back to rows by the stable `order` key
-    // (robust if the LLM reorders), falling back to text then index.
-    const byOrder = new Map<number, (typeof r.data.requirements)[number]>();
-    for (const j of r.data.requirements) if (j.order != null) byOrder.set(j.order, j);
+    // Re-asks are cheaper than the first call rather than 3× the price: the evidence
+    // listing is the cached block and the JD suffix is small, so a retry re-pays only
+    // the varying tail. A collapsed generation is also the cheap one to throw away —
+    // it is the ~300-token reply, not the ~3000-token one.
+    const unjudged = (m: (B6Judgment | null)[]) => m.filter((j) => j == null).length;
+    let r = await judge();
+    let matched = matchB6Judgments(r.data.requirements, requirements);
+    let attempts = 1;
+    for (let attempt = 2; attempt <= ATTEMPTS && unjudged(matched) > 0; attempt++) {
+      r = await judge();
+      matched = matchB6Judgments(r.data.requirements, requirements);
+      attempts = attempt;
+    }
+    if (unjudged(matched) > 0) {
+      throw new Error(
+        `B6 judged only ${requirements.length - unjudged(matched)} of ${requirements.length} requirement(s) ` +
+          `after ${ATTEMPTS} attempts — the model call degraded rather than the lead genuinely being unscorable. ` +
+          'Nothing was written; re-run scoring to retry.'
+      );
+    }
+
     const perReq = requirements.map((q, i) => {
-      const j =
-        byOrder.get(i + 1) ??
-        r.data.requirements.find((x) => x.requirement === q.requirement) ??
-        r.data.requirements[i];
-      const score = j?.score ?? 6;
+      // Non-null by the guard above — every row got a real judgment or we threw.
+      const j = matched[i]!;
+      const score = j.score;
       return {
         row: q,
         score,
-        matchStrength: j?.matchStrength ?? matchStrengthForScore(score),
+        matchStrength: j.matchStrength || matchStrengthForScore(score),
         // §B.1.2 asks for both, and both columns have existed on job_requirements
         // since 0000 — the write path simply never filled them. `keyStrengths` is
         // what the evidence covers, `gaps` is B6's own Initial_Missing_Weak.
@@ -594,10 +714,10 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
         // always emits the KEY, so "nothing to say here" arrives as "" rather than
         // as an absent field, and storing that would make every `IS NOT NULL` read
         // downstream lie about what B6 actually said.
-        keyStrengths: nullIfBlank(j?.keyStrengths),
-        gaps: nullIfBlank(j?.gaps),
-        refs: j?.evidenceRefs ?? [],
-        note: nullIfBlank(j?.evidenceNote),
+        keyStrengths: nullIfBlank(j.keyStrengths),
+        gaps: nullIfBlank(j.gaps),
+        refs: j.evidenceRefs ?? [],
+        note: nullIfBlank(j.evidenceNote),
       };
     });
     for (const p of perReq) {
@@ -668,7 +788,23 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
       leadId,
       'B6',
       r.model,
-      { ...dims, overall, recommendation, evidenceSent: evidence.length, evidenceLinks: links.length, bankVersion, unknownRefs },
+      {
+        ...dims,
+        overall,
+        recommendation,
+        evidenceSent: evidence.length,
+        evidenceLinks: links.length,
+        bankVersion,
+        unknownRefs,
+        // Coverage is recorded outright, and so is the re-ask count. Auditing the
+        // back catalogue for the collapse above meant inferring which rows were
+        // never judged from the `6`/"Good"/no-prose fingerprint they were stored
+        // with; with these two the same question is a direct read, and a rising
+        // `attempts` is the early warning that the note or model has drifted.
+        requirementsOnFile: requirements.length,
+        requirementsJudged: requirements.length - unjudged(matched),
+        attempts,
+      },
       r.ms,
       effectiveOwnerId
     );

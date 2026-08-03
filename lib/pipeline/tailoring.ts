@@ -30,12 +30,12 @@ import { recordStep, type StepReport } from './runs';
 import { writeBuffer } from '../storage';
 import { buildCv, type CvModel } from '../docx/cv';
 import { systemPromptFor } from '../prompts';
-import { runStructured } from '../llm/client';
+import { runStructured, type UserContentBlock } from '../llm/client';
 import { C2, C3, C5, C7 } from '../llm/schemas';
 import { CV_SLOTS, normalizeCvPosition, slotCode, templateExists, buildCvFromTemplate } from '../docx/template';
 import { recordGapTips } from '../ci';
 
-const CORE_AND_IMPORTANT: string[] = ['Core', 'Important'];
+export const CORE_AND_IMPORTANT: string[] = ['Core', 'Important'];
 
 const tokens = (s: string): Set<string> => new Set((s || '').toLowerCase().match(/[a-z]{4,}/g) ?? []);
 const overlap = (a: Set<string>, b: Set<string>): number => {
@@ -50,7 +50,41 @@ function headshotDecision(city: string | null): string {
 }
 
 /** One evidence candidate the LLM may cite, keyed by its stable ref code. */
-type Evidence = { ref: string; kind: string; text: string; skills: string[]; cvPosition: string | null; source: string | null };
+export type Evidence = { ref: string; kind: string; text: string; skills: string[]; cvPosition: string | null; source: string | null };
+
+/**
+ * C2's user message, as a pure builder — same reasoning as the B-step builders in
+ * `screening.ts`: `scripts/backtest-notes.ts` must send what production sends, or
+ * it certifies a prompt that is never used.
+ *
+ * Two blocks: the evidence graph is owner-wide and lead-independent — identical
+ * for every lead tailored in the same sitting — so it gets its own 1h cache
+ * breakpoint; the per-lead role and requirements follow as the varying suffix.
+ */
+export function c2UserMessage(
+  evidence: Evidence[],
+  leadTitle: string,
+  company: string | null,
+  numberedReqs: [number, { rank: string | null; requirement: string }][]
+): UserContentBlock[] {
+  return [
+    {
+      type: 'text',
+      text: `CANDIDATE EVIDENCE (cite by exact ref code):\n` + evidence.map((e) => `[${e.ref}] (${e.kind}) ${e.text}`).join('\n'),
+      cache_control: { type: 'ephemeral', ttl: '1h' },
+    },
+    {
+      type: 'text',
+      text:
+        `ROLE: ${leadTitle}${company ? ` · ${company}` : ''}\n\n` +
+        `REQUIREMENTS (map each by its number):\n` +
+        numberedReqs.map(([n, q]) => `${n}. [${q.rank}] ${q.requirement}`).join('\n') +
+        `\n\nCV POSITION SLOTS — set each link's cvPosition to the best-matching label:\n` +
+        CV_SLOTS.map((s) => `- ${s}`).join('\n') +
+        `\n\nFor each requirement pick the single strongest evidence ref and assign its cvPosition slot. If none honestly fits, list it under gaps.`,
+    },
+  ];
+}
 
 /** Map an evidence node's source to the tailoring row's provenance label (M7 proof trail). */
 function provFromSource(source: string | null | undefined): string {
@@ -58,7 +92,7 @@ function provFromSource(source: string | null | undefined): string {
 }
 
 /** Gather the owner's whole evidence graph (not just the bullet bank) for C2 to map against. */
-async function gatherEvidence(ownerId: string): Promise<Evidence[]> {
+export async function gatherEvidence(ownerId: string): Promise<Evidence[]> {
   const [acts, resps, bullets, edu, langs] = await Promise.all([
     db.select().from(starActions).where(eq(starActions.ownerId, ownerId)),
     db.select().from(responsibilities).where(eq(responsibilities.ownerId, ownerId)),
@@ -167,28 +201,7 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
       // Truthfulness-critical (Master Instructions §6.1) → Opus tier.
       model: 'opus',
       system: await systemPromptFor('C2', effectiveOwnerId),
-      // The evidence graph is owner-wide and lead-independent — identical for
-      // every lead tailored in the same sitting — so it gets its own 1h cache
-      // breakpoint; the per-lead role/requirements follow as the varying suffix.
-      user: [
-        {
-          type: 'text',
-          text:
-            `CANDIDATE EVIDENCE (cite by exact ref code):\n` +
-            evidence.map((e) => `[${e.ref}] (${e.kind}) ${e.text}`).join('\n'),
-          cache_control: { type: 'ephemeral', ttl: '1h' },
-        },
-        {
-          type: 'text',
-          text:
-            `ROLE: ${lead.title}${lead.company ? ` · ${lead.company}` : ''}\n\n` +
-            `REQUIREMENTS (map each by its number):\n` +
-            [...reqByOrder.entries()].map(([n, q]) => `${n}. [${q.rank}] ${q.requirement}`).join('\n') +
-            `\n\nCV POSITION SLOTS — set each link's cvPosition to the best-matching label:\n` +
-            CV_SLOTS.map((s) => `- ${s}`).join('\n') +
-            `\n\nFor each requirement pick the single strongest evidence ref and assign its cvPosition slot. If none honestly fits, list it under gaps.`,
-        },
-      ],
+      user: c2UserMessage(evidence, lead.title, lead.company ?? null, [...reqByOrder.entries()]),
       tool: C2.tool,
       zod: C2.zod,
       mock: () => mockEvidenceMap([...reqByOrder.entries()], evidence),
