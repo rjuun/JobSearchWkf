@@ -303,7 +303,12 @@ function logLine(l: {
       ? ` cache[w=${l.cacheCreationTokens ?? 0} r=${l.cacheReadTokens ?? 0}]`
       : '';
   const note = l.note ? ` — ${l.note}` : '';
-  const line = `[llm] ${tag} ${step} ${l.model}  ${l.mode}  ${l.ms}ms${tok}${cache}${note}`;
+  // Wall-clock timestamp (not just duration) so overlapping captures/screening
+  // runs in the terminal can be traced in order — durations alone don't say
+  // when a call started, which matters once two POSTs interleave their B-step
+  // logs (as they do, since Next dev logs concurrent requests as they finish).
+  const ts = new Date().toISOString().slice(11, 23);
+  const line = `[llm] ${ts} ${tag} ${step} ${l.model}  ${l.mode}  ${l.ms}ms${tok}${cache}${note}`;
   if (l.status === 'error') console.error(line);
   else console.log(line);
 }
