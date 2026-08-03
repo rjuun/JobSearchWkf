@@ -147,6 +147,13 @@ export function b6UserMessage(
       type: 'text',
       text:
         `JOB DESCRIPTION:\n${jd || leadTitle}\n\nREQUIREMENTS:\n${numberedRequirements(requirements)}\n\n` +
+        // The expected count is stated as a number because the failure being guarded
+        // against (see runScoring's B6 block) is the model judging one or two and
+        // stopping. Naming it gives the generation something to check itself against
+        // mid-stream, where "for each requirement" alone gives it nothing to notice.
+        `Return exactly ${requirements.length} entr${requirements.length === 1 ? 'y' : 'ies'} in "requirements" — ` +
+        `one for every requirement listed above, none omitted and none merged. An answer missing any of ` +
+        `them is discarded in full, so a partial reply is worse than a slow complete one. ` +
         `For each requirement, set "order" to its number above and list in "evidenceRefs" every ref code ` +
         `from CANDIDATE EVIDENCE that genuinely supports it — several where several apply, none where none do. ` +
         `Cite only codes that appear in that list. Where nothing supports the requirement, use "No Match", ` +
@@ -237,6 +244,31 @@ export function renderB6Evidence(items: B6Evidence[]): string {
     items
       .map((e) => `[${e.ref}] (${e.kind})${e.tags.length ? ` [${e.tags.join(', ')}]` : ''} ${e.text}`)
       .join('\n')
+  );
+}
+
+/** One per-requirement judgment, exactly as B6's validated tool call carries it. */
+type B6Judgment = ReturnType<typeof B6.zod.parse>['requirements'][number];
+
+/**
+ * Seat B6's judgments onto the requirement rows: by the stable `order` key (robust
+ * if the model reorders), falling back to matching text, then to position.
+ *
+ * Returns one slot per row, `null` where no judgment reached that row at all. That
+ * null is the point of extracting this. The write path used to inline this lookup
+ * and then read `j?.score ?? 6`, so a requirement the model never judged was stored
+ * as a middling 6 / "Good" — indistinguishable from a real judgment, and counted as
+ * one by `requirementAlignment`. Making "no judgment" representable is what lets the
+ * caller refuse to write it.
+ */
+export function matchB6Judgments<TJ extends { order?: number; requirement: string }>(
+  judgments: TJ[],
+  rows: { requirement: string }[]
+): (TJ | null)[] {
+  const byOrder = new Map<number, TJ>();
+  for (const j of judgments) if (j.order != null) byOrder.set(j.order, j);
+  return rows.map(
+    (q, i) => byOrder.get(i + 1) ?? judgments.find((x) => x.requirement === q.requirement) ?? judgments[i] ?? null
   );
 }
 
@@ -594,32 +626,79 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
     const { items: evidence, bankVersion } = await gatherB6Evidence(effectiveOwnerId);
     const byRef = new Map(evidence.map((e) => [e.ref, e]));
 
-    const r = await runStructured({
-      step: 'B6',
-      model: 'opus',
-      system: await systemPromptFor('B6', effectiveOwnerId),
-      user: b6UserMessage(evidence, jd, lead.title, requirements),
-      tool: B6.tool,
-      zod: B6.zod,
-      mock: () => mockRoleFit(lead.skillRatings ?? {}, lead.atsSystem, requirements, evidence),
-      leadId,
-      ownerId: effectiveOwnerId,
-    });
+    // ── The collapse guard (2026-08-02) ──────────────────────────────────────
+    // Roughly 1 B6 call in 5 comes back degraded: it judges one or two requirements
+    // and stops. Measured over 42 paired calls in a no-op A/B, and visible in the
+    // shape of the generation — a collapsed run is ~4-8s and 256-430 output tokens
+    // against ~30-47s and 2300-3700 for a healthy one — and it frequently emits the
+    // literal string `placeholder` as the root `summary`, or, on one stored run,
+    // "...OK let me redo this cleanly." as an evidenceRef.
+    //
+    // Nothing rejects it. `requirements: z.array(...).default([])` has no floor, so a
+    // near-empty array is schema-valid, runStructured logs "ok" and its retry never
+    // fires. Note this is NOT the incomplete-`required` cause the B2 CI addresses —
+    // B6's `required` lists have been complete since that CI. A complete `required`
+    // list guarantees the KEY is present; it can never guarantee the VALUE is
+    // meaningful, which is exactly what `summary: "placeholder"` demonstrates.
+    //
+    // The silent half is the one that mattered. Every row the model skipped used to
+    // take `score ?? 6` → "Good", so a collapse did not surface as missing
+    // requirements: it produced a FULL set, every one scored, every one "Good", and a
+    // plausible overall in the Borderline band. Looking for reduced requirement counts
+    // in the app finds nothing, because the count is never what breaks. Fabricating a
+    // middling rating for a requirement nobody judged is precisely what NON_NEGOTIABLES
+    // forbids, arrived at by a default rather than by a claim.
+    //
+    // So the floor is exact rather than proportional like B2's: B6 is handed a known,
+    // finite list and the note tells it to judge every row, so anything short of full
+    // coverage is a misfire, not a judgement call. Re-asking is the enforcement, since
+    // runStructured cannot reject what zod accepts; at a ~1-in-5 per-call collapse rate
+    // three independent attempts put a run failure near 1-in-125. The throw is the
+    // backstop: nothing is written on the way out, the lead stays `screening`, and
+    // Ready-to-score's stale-run affordance already offers the retry.
+    const ATTEMPTS = 3;
+    const judge = async () =>
+      runStructured({
+        step: 'B6',
+        model: 'opus',
+        system: await systemPromptFor('B6', effectiveOwnerId),
+        user: b6UserMessage(evidence, jd, lead.title, requirements),
+        tool: B6.tool,
+        zod: B6.zod,
+        mock: () => mockRoleFit(lead.skillRatings ?? {}, lead.atsSystem, requirements, evidence),
+        leadId,
+        ownerId: effectiveOwnerId,
+      });
 
-    // Map per-requirement judgments back to rows by the stable `order` key
-    // (robust if the LLM reorders), falling back to text then index.
-    const byOrder = new Map<number, (typeof r.data.requirements)[number]>();
-    for (const j of r.data.requirements) if (j.order != null) byOrder.set(j.order, j);
+    // Re-asks are cheaper than the first call rather than 3× the price: the evidence
+    // listing is the cached block and the JD suffix is small, so a retry re-pays only
+    // the varying tail. A collapsed generation is also the cheap one to throw away —
+    // it is the ~300-token reply, not the ~3000-token one.
+    const unjudged = (m: (B6Judgment | null)[]) => m.filter((j) => j == null).length;
+    let r = await judge();
+    let matched = matchB6Judgments(r.data.requirements, requirements);
+    let attempts = 1;
+    for (let attempt = 2; attempt <= ATTEMPTS && unjudged(matched) > 0; attempt++) {
+      r = await judge();
+      matched = matchB6Judgments(r.data.requirements, requirements);
+      attempts = attempt;
+    }
+    if (unjudged(matched) > 0) {
+      throw new Error(
+        `B6 judged only ${requirements.length - unjudged(matched)} of ${requirements.length} requirement(s) ` +
+          `after ${ATTEMPTS} attempts — the model call degraded rather than the lead genuinely being unscorable. ` +
+          'Nothing was written; re-run scoring to retry.'
+      );
+    }
+
     const perReq = requirements.map((q, i) => {
-      const j =
-        byOrder.get(i + 1) ??
-        r.data.requirements.find((x) => x.requirement === q.requirement) ??
-        r.data.requirements[i];
-      const score = j?.score ?? 6;
+      // Non-null by the guard above — every row got a real judgment or we threw.
+      const j = matched[i]!;
+      const score = j.score;
       return {
         row: q,
         score,
-        matchStrength: j?.matchStrength ?? matchStrengthForScore(score),
+        matchStrength: j.matchStrength || matchStrengthForScore(score),
         // §B.1.2 asks for both, and both columns have existed on job_requirements
         // since 0000 — the write path simply never filled them. `keyStrengths` is
         // what the evidence covers, `gaps` is B6's own Initial_Missing_Weak.
@@ -628,10 +707,10 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
         // always emits the KEY, so "nothing to say here" arrives as "" rather than
         // as an absent field, and storing that would make every `IS NOT NULL` read
         // downstream lie about what B6 actually said.
-        keyStrengths: nullIfBlank(j?.keyStrengths),
-        gaps: nullIfBlank(j?.gaps),
-        refs: j?.evidenceRefs ?? [],
-        note: nullIfBlank(j?.evidenceNote),
+        keyStrengths: nullIfBlank(j.keyStrengths),
+        gaps: nullIfBlank(j.gaps),
+        refs: j.evidenceRefs ?? [],
+        note: nullIfBlank(j.evidenceNote),
       };
     });
     for (const p of perReq) {
@@ -702,7 +781,23 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
       leadId,
       'B6',
       r.model,
-      { ...dims, overall, recommendation, evidenceSent: evidence.length, evidenceLinks: links.length, bankVersion, unknownRefs },
+      {
+        ...dims,
+        overall,
+        recommendation,
+        evidenceSent: evidence.length,
+        evidenceLinks: links.length,
+        bankVersion,
+        unknownRefs,
+        // Coverage is recorded outright, and so is the re-ask count. Auditing the
+        // back catalogue for the collapse above meant inferring which rows were
+        // never judged from the `6`/"Good"/no-prose fingerprint they were stored
+        // with; with these two the same question is a direct read, and a rising
+        // `attempts` is the early warning that the note or model has drifted.
+        requirementsOnFile: requirements.length,
+        requirementsJudged: requirements.length - unjudged(matched),
+        attempts,
+      },
       r.ms,
       effectiveOwnerId
     );
