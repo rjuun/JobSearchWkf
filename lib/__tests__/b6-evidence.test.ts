@@ -20,6 +20,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   bulletBankVersionOf,
+  matchB6Judgments,
   renderB6Evidence,
   resolveEvidenceLinks,
   type B6Evidence,
@@ -161,5 +162,62 @@ describe('resolveEvidenceLinks: never persist a citation the bank cannot back', 
     const { links, unknownRefs } = resolveEvidenceLinks([{ row: { id: 'req-1' }, refs: [], note: null }], byRef);
     expect(links).toHaveLength(0);
     expect(unknownRefs).toHaveLength(0);
+  });
+});
+
+/**
+ * The collapse guard (2026-08-02). B6 inherited B2's defect: `requirements` has no
+ * floor in the zod schema, so a degraded generation returning one or two judgments is
+ * schema-valid and runStructured's retry never fires. It stayed invisible because the
+ * seating step backfilled every skipped row with `score ?? 6` → "Good" — a fabricated
+ * middling rating that `requirementAlignment` then counted as a real one. An audit of
+ * the back catalogue found two leads already stored that way (2 of 26, and 2 of 18).
+ *
+ * These lock the seating step's contract: a row with no judgment must come back `null`
+ * so the caller can refuse to write it. The re-ask/throw around it lives in runScoring,
+ * which needs a DB and a model and so is out of this file's reach.
+ */
+describe('matchB6Judgments: an unjudged requirement is null, never a fabricated default', () => {
+  const rows = [{ requirement: 'A' }, { requirement: 'B' }, { requirement: 'C' }];
+  const j = (order: number | undefined, requirement: string) => ({ order, requirement });
+
+  it('seats a full answer by order', () => {
+    const out = matchB6Judgments([j(3, 'C'), j(1, 'A'), j(2, 'B')], rows);
+    expect(out.map((x) => x?.requirement)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('reports the collapse — two judgments for three requirements leaves a null', () => {
+    const out = matchB6Judgments([j(1, 'A'), j(2, 'B')], rows);
+    expect(out.map((x) => x?.requirement)).toEqual(['A', 'B', undefined]);
+    expect(out.filter((x) => x == null)).toHaveLength(1);
+  });
+
+  it('reports the severe collapse the audit found — one judgment, the rest null', () => {
+    const out = matchB6Judgments([j(1, 'A')], rows);
+    expect(out.filter((x) => x == null)).toHaveLength(2);
+  });
+
+  it('is all-null when the model returns an empty array, not silently scored', () => {
+    expect(matchB6Judgments([], rows).every((x) => x == null)).toBe(true);
+  });
+
+  it('falls back to matching text when the model omits order', () => {
+    const out = matchB6Judgments([j(undefined, 'C'), j(undefined, 'A'), j(undefined, 'B')], rows);
+    expect(out.map((x) => x?.requirement)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('falls back to position when order is absent and the text was reworded', () => {
+    const out = matchB6Judgments([j(undefined, 'A (reworded)'), j(undefined, 'B!'), j(undefined, 'C?')], rows);
+    expect(out.map((x) => x?.requirement)).toEqual(['A (reworded)', 'B!', 'C?']);
+  });
+
+  it('does not let one duplicated order swallow the other rows', () => {
+    // Same `order` twice collapses the map; text and position still seat the rest.
+    const out = matchB6Judgments([j(1, 'A'), j(1, 'B'), j(3, 'C')], rows);
+    expect(out.filter((x) => x == null)).toHaveLength(0);
+  });
+
+  it('has nothing to judge — and so nothing unjudged — when the lead has no requirements', () => {
+    expect(matchB6Judgments([j(1, 'A')], [])).toEqual([]);
   });
 });
