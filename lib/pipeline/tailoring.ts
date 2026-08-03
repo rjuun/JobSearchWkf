@@ -217,7 +217,10 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
         connectionToExpertise: `${link.matchStrength}${link.connection ? ` · ${link.connection}` : ''}`,
         evidenceRef: ev.ref,
         originalText: ev.text,
-        cvPosition: normalizeCvPosition(link.cvPosition ?? ev.cvPosition),
+        // `||`, not `??`: cvPosition is required in the strict schema now, so an
+        // unmatched slot arrives as "" rather than absent, and `??` would let
+        // that empty string beat the evidence node's own slot.
+        cvPosition: normalizeCvPosition(link.cvPosition || ev.cvPosition),
         // My Skills: the evidence's own vocabulary. Requirement Skills: the
         // matched requirement's JD-language skills (B5 output) — CI · Requirement
         // Skills vs My Skills. Never conflate either with B4's AoE codes (A–Q).

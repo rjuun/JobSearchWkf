@@ -39,7 +39,7 @@ export const A1 = {
     name: 'emit_capture_extraction',
     strict: true,
     description:
-      'Extract only what is explicitly present or unambiguously inferable from the job description: the hiring company, the primary work-location city, remote/hybrid/on-site status, verbatim quotes of any explicit application-format instructions, and the ATS if it is visibly evidenced on the page. Never guess — leave a field null/unspecified rather than invent a value. Extraction only, no judgment or scoring.',
+      'Extract only what is explicitly present or unambiguously inferable from the job description: the hiring company, the primary work-location city, remote/hybrid/on-site status, verbatim quotes of any explicit application-format instructions, and the ATS if it is visibly evidenced on the page. Never guess — leave a field empty (or "unspecified") rather than invent a value. Extraction only, no judgment or scoring.',
     input_schema: {
       type: 'object', additionalProperties: false,
       properties: {
@@ -57,7 +57,11 @@ export const A1 = {
             'The Applicant Tracking System this application actually runs through — ONLY if visibly evidenced on the page: the apply form host domain, an embedded apply iframe src, vendor branding in the form or footer ("Powered by Greenhouse"), or the apply button destination. NEVER infer it from job-description prose: a JD requiring SAP skills is not a SuccessFactors posting. Leave empty if nothing on the page evidences it.',
         },
       },
-      required: ['remote'],
+      // Every property is listed — see the B2 note below. `required` means "the
+      // key is present", not "the value is non-empty", so the never-guess rule is
+      // intact: an unevidenced company/city/atsSystem is emitted as "", which the
+      // capture write path already treats as "saw nothing" (it coalesces with `||`).
+      required: ['company', 'city', 'remote', 'formatSignals', 'atsSystem'],
     },
   } satisfies ToolDef,
 };
@@ -164,10 +168,15 @@ export const B3 = {
             requirementOrder: {
               type: 'integer',
               description:
-                'The number of the requirement from the REQUIREMENTS list that this roadblock blocks, if it maps cleanly onto exactly one of them (e.g. a native-German demand maps onto a German-language requirement). Omit it when the roadblock is implied across the posting as a whole rather than stated as one requirement — do not force a mapping.',
+                'The number of the requirement from the REQUIREMENTS list that this roadblock blocks, if it maps cleanly onto exactly one of them (e.g. a native-German demand maps onto a German-language requirement). Use 0 when the roadblock is implied across the posting as a whole rather than stated as one requirement — do not force a mapping.',
             },
           },
-          required: ['dimension', 'detail'],
+          // Every property is listed — see the B2 note above. This one needs the 0
+          // sentinel in its description: `required` on a STRING field is free
+          // (an unstated value is ""), but an integer has no empty form, so the
+          // "do not force a mapping" rule needs a value that means "none". The
+          // write path in screening.ts treats 0 as unmapped.
+          required: ['dimension', 'detail', 'requirementOrder'],
         }),
       },
       required: ['roadblocks'],
@@ -191,8 +200,16 @@ export const B4 = {
       properties: {
         misalignments: arr({
           type: 'object', additionalProperties: false,
-          properties: { dimension: str, detail: str, severity: str },
-          required: ['dimension', 'detail'],
+          properties: {
+            dimension: str,
+            detail: str,
+            severity: {
+              type: 'string',
+              description: 'How strongly this flag weighs against the role — one short phrase. Leave empty if the detail already carries it.',
+            },
+          },
+          // Every property is listed — see the B2 note above.
+          required: ['dimension', 'detail', 'severity'],
         }),
       },
       required: ['misalignments'],
@@ -232,7 +249,10 @@ export const B5 = {
         // belt-and-braces clarity, not a fix. Persisted to job_leads.key_patterns.
         notes: { type: 'string', description: '2–4 sentences: lead with the dominant CV theme, then name 2–3 specific tailoring priorities.' },
       },
-      required: ['skills'],
+      // Every property is listed — see the B2 note above. The write path in
+      // screening.ts coalesces these three with `||`, so an empty string keeps a
+      // previously stored jdGroup / keyPatterns instead of blanking it.
+      required: ['skills', 'jdGroupPrimary', 'jdGroupSecondary', 'notes'],
     },
   } satisfies ToolDef,
 };
@@ -403,20 +423,29 @@ export const IMPORT = {
     name: 'emit_career_graph',
     strict: true,
     description:
-      'Extract a DRAFT career graph from raw CV / LinkedIn / pasted text. Capture only what the text supports — never invent a company, a metric, or a skill. Leave a result metric null unless a number is explicitly present in the text.',
-    // Strict mode caps optional parameters at 24 per tool (grammar compilation
-    // limit) — this schema had 32. Fields the model can always emit are required
-    // (arrays may be empty; confidence is always a judgment); truly
-    // sometimes-absent facts (metric, dates, proficiency…) stay optional, which
-    // preserves the anti-fabrication rule: omit rather than invent.
+      'Extract a DRAFT career graph from raw CV / LinkedIn / pasted text. Capture only what the text supports — never invent a company, a metric, or a skill. Leave a result metric EMPTY unless a number is explicitly present in the text.',
+    // Every property on every object node is listed — see the B2 note above.
+    // This also resolves the earlier optional-parameter pressure: strict mode
+    // caps optional parameters at 24 per tool (grammar compilation limit) and
+    // this schema declared 32, which is why fields were being triaged into
+    // `required` one at a time. With the lists complete there are zero optional
+    // parameters, so the cap is moot.
+    //
+    // The anti-fabrication rule is unchanged: `required` means "the key is
+    // present", not "the value is non-empty". An absent metric or end date is
+    // emitted as "" and the draft-wrapping in onboarding.ts maps "" back to null.
     input_schema: {
       type: 'object', additionalProperties: false,
       properties: {
-        profile: { type: 'object', additionalProperties: false, properties: { name: str, headline: str, location: str } },
+        profile: {
+          type: 'object', additionalProperties: false,
+          properties: { name: str, headline: str, location: str },
+          required: ['name', 'headline', 'location'],
+        },
         positions: arr({
           type: 'object', additionalProperties: false,
           properties: { company: str, title: str, startDate: str, endDate: str, summary: str, confidence: { type: 'number' } },
-          required: ['confidence'],
+          required: ['company', 'title', 'startDate', 'endDate', 'summary', 'confidence'],
         }),
         stories: arr({
           type: 'object', additionalProperties: false,
@@ -425,15 +454,23 @@ export const IMPORT = {
             summary: str,
             confidence: { type: 'number' },
             actions: arr({ type: 'object', additionalProperties: false, properties: { text: str, skills: arr(str), confidence: { type: 'number' } }, required: ['text', 'skills', 'confidence'] }),
-            results: arr({ type: 'object', additionalProperties: false, properties: { text: str, metric: str, confidence: { type: 'number' } }, required: ['text', 'confidence'] }),
+            results: arr({
+              type: 'object', additionalProperties: false,
+              properties: {
+                text: str,
+                metric: { type: 'string', description: 'The quantified outcome, VERBATIM from the text. Leave empty unless a number is explicitly present — never infer or invent one.' },
+                confidence: { type: 'number' },
+              },
+              required: ['text', 'metric', 'confidence'],
+            }),
           },
-          required: ['title', 'confidence', 'actions', 'results'],
+          required: ['title', 'summary', 'confidence', 'actions', 'results'],
         }),
-        skills: arr({ type: 'object', additionalProperties: false, properties: { skill: str, proficiency: str, atsKeywordVariants: arr(str), confidence: { type: 'number' } }, required: ['skill', 'confidence'] }),
-        education: arr({ type: 'object', additionalProperties: false, properties: { institution: str, qualification: str, year: str, confidence: { type: 'number' } }, required: ['confidence'] }),
-        languages: arr({ type: 'object', additionalProperties: false, properties: { language: str, cefrLevel: str, confidence: { type: 'number' } }, required: ['language', 'confidence'] }),
+        skills: arr({ type: 'object', additionalProperties: false, properties: { skill: str, proficiency: str, atsKeywordVariants: arr(str), confidence: { type: 'number' } }, required: ['skill', 'proficiency', 'atsKeywordVariants', 'confidence'] }),
+        education: arr({ type: 'object', additionalProperties: false, properties: { institution: str, qualification: str, year: str, confidence: { type: 'number' } }, required: ['institution', 'qualification', 'year', 'confidence'] }),
+        languages: arr({ type: 'object', additionalProperties: false, properties: { language: str, cefrLevel: str, confidence: { type: 'number' } }, required: ['language', 'cefrLevel', 'confidence'] }),
       },
-      required: ['positions', 'stories', 'skills', 'education', 'languages'],
+      required: ['profile', 'positions', 'stories', 'skills', 'education', 'languages'],
     },
   } satisfies ToolDef,
 };
@@ -474,17 +511,33 @@ export const C2 = {
             evidenceRef: { type: 'string', description: 'Exact ref code of the chosen evidence (e.g. "5-3", "A-R3", "EDU-1").' },
             matchStrength: { type: 'string', enum: ['Very Strong', 'Strong', 'Moderate', 'Weak', 'No Match'] },
             connection: { type: 'string', description: 'One sentence: why this evidence supports the requirement.' },
-            cvPosition: { type: 'string', description: 'Best-matching CV slot label if one fits; otherwise leave blank.' },
+            cvPosition: {
+              type: 'string',
+              description:
+                'Best-matching CV slot label if one fits; otherwise leave empty. Emit ONLY a slot label — never the evidence text, which the app already resolves from evidenceRef.',
+            },
           },
-          required: ['order', 'evidenceRef', 'matchStrength'],
+          // Every property is listed — see the B2 note above. Measured on this
+          // step: with `connection` and `cvPosition` declared but not required,
+          // roughly one C2 run in three collapsed to a single repeated link and
+          // ~90 output tokens instead of 11-14 links and ~1500, and one run
+          // appended evidence prose into `cvPosition` — the two omitted fields
+          // were exactly the two that misbehaved.
+          required: ['order', 'evidenceRef', 'matchStrength', 'connection', 'cvPosition'],
         }),
         gaps: arr({
           type: 'object', additionalProperties: false,
-          properties: { order: { type: 'integer' }, requirement: str, note: { type: 'string', description: 'Honest statement of what is missing.' } },
-          required: ['note'],
+          properties: {
+            // 0 means "not one of the numbered requirements" — an integer has no
+            // empty form, so it needs a sentinel where a string would just be "".
+            order: { type: 'integer', description: 'The requirement number from the list, or 0 if this gap is not one of them.' },
+            requirement: str,
+            note: { type: 'string', description: 'Honest statement of what is missing.' },
+          },
+          required: ['order', 'requirement', 'note'],
         }),
       },
-      required: ['links'],
+      required: ['links', 'gaps'],
     },
   } satisfies ToolDef,
 };
@@ -514,7 +567,10 @@ export const C3 = {
               description: 'A Requirement Skill this bullet demonstrates, in Job-Lead language (not the candidate\'s own skill vocabulary).',
             }),
           },
-          required: ['ref', 'bullet'],
+          // Every property is listed — see the B2 note above. An array satisfies
+          // `required` while empty, so a bullet that proves no named Requirement
+          // Skill still emits `skills: []`.
+          required: ['ref', 'bullet', 'skills'],
         }),
       },
       required: ['bullets'],
@@ -573,11 +629,14 @@ export const C7 = {
             keyStrengths: str,
             gaps: str,
           },
-          required: ['requirement', 'score', 'matchStrength'],
+          // Every property is listed — see the B2 note above. Both omitted fields
+          // are columns the C7 note's own ATS Breakdown Table demands, so leaving
+          // them out of `required` risked collapsing the step that produces them.
+          required: ['requirement', 'score', 'matchStrength', 'keyStrengths', 'gaps'],
         }),
         summary: str,
       },
-      required: ['overall', 'requirements'],
+      required: ['overall', 'requirements', 'summary'],
     },
   } satisfies ToolDef,
 };
@@ -597,17 +656,20 @@ export const COACH_DRAFT = {
     name: 'emit_evidence_draft',
     strict: true,
     description:
-      "Turn the user's rough answer into one clean evidence node: a structured action sentence and, if they described an outcome, a result. HARD RULE: emit `metric` ONLY if a number is explicitly present in the user's answer — otherwise set metric=null, and set needsMetric=true when a result was described but no number was given. Never invent or infer a number. Prefer the user's own words; never flatter or exaggerate.",
+      "Turn the user's rough answer into one clean evidence node: a structured action sentence and, if they described an outcome, a result. HARD RULE: emit `metric` ONLY if a number is explicitly present in the user's answer — otherwise leave `metric` empty, and set needsMetric=true when a result was described but no number was given. Never invent or infer a number. Prefer the user's own words; never flatter or exaggerate.",
     input_schema: {
       type: 'object', additionalProperties: false,
       properties: {
         action: str,
-        result: str,
-        metric: str,
+        result: { type: 'string', description: 'The outcome, if they described one. Leave empty if they did not.' },
+        metric: { type: 'string', description: 'The number, VERBATIM from their answer. Leave empty unless a number is explicitly present.' },
         needsMetric: { type: 'boolean' },
         confidence: { type: 'number', description: 'Confidence, 0–1.' },
       },
-      required: ['action'],
+      // Every property is listed — see the B2 note above. `groundDraft` in
+      // coaching-draft.ts already treats an empty metric as no metric, so the
+      // anti-fabrication guard is unaffected by the key always being present.
+      required: ['action', 'result', 'metric', 'needsMetric', 'confidence'],
     },
   } satisfies ToolDef,
 };

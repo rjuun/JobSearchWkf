@@ -373,7 +373,7 @@ export async function runInitialChecks(leadId: string, ownerId?: string | null):
     const reqList = requirements.length
       ? `\n\nREQUIREMENTS:\n${requirements
           .map((q, i) => `${i + 1}. [${q.rank}] ${q.requirement}`)
-          .join('\n')}\n\nIf a roadblock blocks exactly one of the requirements above, set its "requirementOrder" to that number. Omit it when the roadblock is implied across the posting as a whole — do not force a mapping.`
+          .join('\n')}\n\nIf a roadblock blocks exactly one of the requirements above, set its "requirementOrder" to that number. Set it to 0 when the roadblock is implied across the posting as a whole — do not force a mapping.`
       : '';
     const r = await runStructured({
       step: 'B3',
@@ -389,8 +389,11 @@ export async function runInitialChecks(leadId: string, ownerId?: string | null):
     // Resolve `order` → row id before persisting: the stored Roadblock carries a
     // real `requirementId` (§2.5), because the order numbers are per-run prompt
     // positions and would silently mean something else on a re-extraction.
+    // `> 0`, not `!= null`: requirementOrder is required in the strict schema
+    // now, and an integer has no empty form, so 0 is the agreed "blocks the
+    // posting as a whole" sentinel (see the schema's own description).
     const roadblocks = r.data.roadblocks.map(({ dimension, detail, requirementOrder }) => {
-      const row = requirementOrder != null ? requirements[requirementOrder - 1] : undefined;
+      const row = requirementOrder != null && requirementOrder > 0 ? requirements[requirementOrder - 1] : undefined;
       return { dimension, detail, ...(row ? { requirementId: row.id } : {}) };
     });
     await db
@@ -506,14 +509,17 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
       .update(jobLeads)
       .set({
         skillRatings: ratings,
-        jdGroupPrimary: r.data.jdGroupPrimary ?? lead.jdGroupPrimary,
-        jdGroupSecondary: r.data.jdGroupSecondary ?? lead.jdGroupSecondary,
+        // `||`, not `??`, on all three: these are required in the strict schema
+        // now, so "no answer" arrives as "" rather than absent — `??` would
+        // overwrite a stored value with an empty string.
+        jdGroupPrimary: r.data.jdGroupPrimary || lead.jdGroupPrimary,
+        jdGroupSecondary: r.data.jdGroupSecondary || lead.jdGroupSecondary,
         // "Key Patterns & CV Tailoring Notes" — B5's process note has always
         // asked the model for this (§B step 3) and the tool schema has always
         // returned it, but the write path dropped it, so key_patterns stayed
-        // empty on every lead captured since launch. `?? lead.keyPatterns`
-        // preserves a legacy SharePoint-imported value if this call returns null.
-        keyPatterns: r.data.notes ?? lead.keyPatterns,
+        // empty on every lead captured since launch. `|| lead.keyPatterns`
+        // preserves a legacy SharePoint-imported value if this call returns nothing.
+        keyPatterns: r.data.notes || lead.keyPatterns,
       })
       .where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, effectiveOwnerId)));
     await recordRun(leadId, 'B5', r.model, r.data, r.ms, effectiveOwnerId);
