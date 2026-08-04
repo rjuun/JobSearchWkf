@@ -128,9 +128,10 @@ Already tracked, just needs finishing: `Lead Page as Pipeline Canvas` (in Develo
 - [[+ Continuous Improvement Dashboard]] — where the CI items in §2.4 will surface once opened.
 - [[++ Continuous Improvement Procedure]] — CI lifecycle rules this note follows.
 
-![[Pasted image 20260703113423.png]]
-![[Pasted image 20260703114648.png]]
-![[Pasted image 20260703121052.png]]
+
+
+
+
 ![[Pasted image 20260703121229.png]]
 
 ## 4. Notes / Progress log

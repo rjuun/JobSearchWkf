@@ -2,6 +2,7 @@
 
 Refer to [[++ Continuous Improvement Procedure]] and [[CI - Continuous Improvement]]
 
+
 ```dataviewjs
 // Fixed order, not incidental — groupBy on date-sorted pages previously put
 // sections wherever the first page of that status happened to fall, so a
