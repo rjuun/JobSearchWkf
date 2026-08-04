@@ -186,10 +186,21 @@ Four properties to preserve:
 
 **Where it goes.** `lib/pipeline/tailoring.ts` → `runEvidenceMapping`, the block commented
 `// C2 — map every Core/Important requirement to its strongest evidence` (~line 238). The existing write
-path already builds `reqByOrder`, so the set of orders sent to the model is in hand. Place the floor
-**before** the `db.delete(requirementTailoring)` / `db.insert(...)` — the current code deletes the previous
-map before it knows whether the new one is any good, so a collapse today also destroys the prior good map.
-**Fixing that ordering is part of this CI.**
+path already builds `reqByOrder`, so the set of orders sent to the model is in hand.
+
+> [!WARNING] Sequencing — read before starting
+> An earlier draft of this note also carried a "compute in memory, validate, *then* delete+insert" item,
+> because the current code deletes the previous map before knowing whether the new one is any good.
+> **That item is superseded by `[[Make C2 Build on B6 Instead of Re-Deriving the Map]]`**, which removes
+> the wholesale delete entirely in favour of a merge. Do that CI first. Two consequences:
+>
+> - **Most of this CI's urgency goes away with it.** Under a merge, a collapse is no longer destructive —
+>   you keep the prior map and your approvals, you simply gain nothing that run. The floor's job drops from
+>   *prevent data loss* to *report honestly whether the deep pass actually ran*. Still worth having, no
+>   longer urgent.
+> - **The floor's shape may change.** Once C2 is targeted at only the `Weak` / `Good` requirements, the
+>   denominator is no longer "every Core/Important requirement" — it is the tiered subset actually sent.
+>   Re-derive §2.1 against the post-merge code rather than assuming it carries over.
 
 Note the existing write path (~line 264) drops links whose `order` is unknown or whose `evidenceRef` does
 not resolve, and dedups by `seen`. Do the floor against the model's own claims *before* that filtering, or
@@ -244,8 +255,8 @@ lead blocks tailoring on good work, which is worse than today's behaviour. Measu
 - [ ] Unit tests covering: the measured collapse payload; an honest all-gaps reply passing; blank
       `note`/`evidenceRef` not counting; `order: 0` not satisfying any row; duplicate orders counted once;
       accumulation across re-asks
-- [ ] Guard placed **before** the `requirementTailoring` delete/insert, so a collapse no longer destroys the
-      previous good map
+- [ ] §2.1's floor re-derived against the post-merge code — the denominator is the tiered subset C2 was
+      actually asked to dig on, not every Core/Important requirement (see the §2.2 warning)
 - [ ] Live before/after per §2.4, results recorded in §4 with per-run numbers, not just means
 - [ ] `npx tsc --noEmit` clean
 - [ ] `npx vitest run` — all passing (195 at the time of writing)
@@ -312,3 +323,15 @@ falsify or confirm before any code is written**.
 **Interim mitigation in force:** after running *Map requirements → evidence*, compare the link count in the
 step summary against the lead's Core/Important requirement count before approving rows. A handful where a
 dozen-plus is expected means the call collapsed — re-run the mapping rather than approving it.
+
+### 2026-08-04 · Deprioritised behind the incrementality work
+
+The "delete-after-validate" item was split out into
+`[[Make C2 Build on B6 Instead of Re-Deriving the Map]]` and superseded there: a merge never
+wholesale-deletes, so there is no ordering left to fix. That CI also removes most of the damage this one
+was written to contain — under a merge a collapse costs nothing rather than destroying the map and the
+user's approvals.
+
+This note stays open and worth doing, but **after** the merge work, and §2.1 must be re-derived first: a
+C2 targeted at only the `Weak` / `Good` tiers is no longer expected to account for every Core/Important
+requirement, so the floor's denominator changes.
