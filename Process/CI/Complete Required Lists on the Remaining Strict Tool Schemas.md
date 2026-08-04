@@ -13,7 +13,7 @@ pr-target:
 
 ---
 ```simple-time-tracker
-{"entries":[]}
+{"entries":[{"name":"Development","startTime":"2026-08-01T23:32:05.000Z","endTime":"2026-08-02T00:49:41.000Z"},{"name":"Development","startTime":"2026-08-03T09:49:41.000Z","endTime":"2026-08-03T10:21:21.000Z"},{"name":"Development","startTime":"2026-08-04T16:31:23.000Z","endTime":"2026-08-04T16:53:18.000Z"}]}
 ```
 ---
 
@@ -304,6 +304,52 @@ this run: `backtest-notes.ts` computes coverage as `unique link orders / coreImp
 entirely** (line 391), so its 59–100% spread on healthy runs understates true accounting and cannot tell a
 legitimate gap from a skipped requirement. Teaching the harness to record the union is the prerequisite, and that
 plus the guard is its own CI.
+
+### 2026-08-04 · Live-operation evidence for the B phase (21 leads, 137 calls)
+
+§2.3 asked for a controlled before/after per schema. For the B phase that is no longer obtainable — the
+pre-fix schemas are gone from the code, and reconstructing them would cost money the re-screen needs. What
+replaced it is stronger for the question that actually matters (*do the completed lists work in
+production?*) and it was free: two days of real ingestion and screening through the UI.
+
+`scripts/audit-llm-call-shape.ts` (new, read-only, no API calls) reads `llm_calls` and reports the
+output-token distribution per step. Every collapse this project has found shares one fingerprint — a reply
+an order of magnitude below the step's healthy output that is still schema-valid, still `status='ok'`,
+still `attempts=1`. Counting rows never finds it; counting tokens does.
+
+`npx tsx scripts/audit-llm-call-shape.ts --days 7` — 137 live production calls across 21 leads
+(mock, backtest and measurement traffic excluded):
+
+| Step | n | median out | min | max | short (<median/5) | errors | non-`tool_use` stop |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| A1 | 1 | 67 | 67 | 67 | 0 | 0 | 0 |
+| B2 | 30 | 2131 | 0 | 8000 | 9 | 2 | 0 |
+| B3 | 26 | 37 | 0 | 177 | 1 | 1 | 0 |
+| B4 | 25 | 121 | 36 | 272 | 0 | 0 | 0 |
+| B5 | 25 | 608 | 561 | 727 | 0 | 0 | 0 |
+| B6 | 27 | 3145 | 256 | 5875 | 8 | 0 | 0 |
+| C3 | 1 | 1548 | 1548 | 1548 | 0 | 0 | 0 |
+| C5 | 1 | 250 | 250 | 250 | 0 | 0 | 0 |
+| C7 | 1 | 1836 | 1836 | 1836 | 0 | 0 | 0 |
+
+**The 18 short calls are the finding, and they are good news.** A re-ask guard calls `runStructured`
+again, and each attempt is its own `llm_calls` row — so a guard that fires *leaves the collapsed attempt
+behind on purpose*. What decided each lead is the **last** call for that lead+step:
+
+- **17 of 18 were followed by a healthy call** for the same lead+step. B2's `tooThin` and B6's `unjudged`
+  fired and recovered. Nothing degraded reached the database.
+- **1 was final**: B2, 35 output tokens, 2026-07-31, lead `b921f73d` — *Senior Finance Business Partner ·
+  COWI*, 3,550-char JD, **0 requirements on file**. That is the original B2 defect, one of the three leads
+  in the parent CI's own proof table, from before the guard shipped. The lead is now `not_pursued`.
+
+So across the leads screened after the fixes: **zero collapses reached the database**, and the guards are
+demonstrably firing rather than merely present. `B4` and `B5` show no short calls at all and a tight
+spread — `B5` ranges 561–727 tokens over 25 calls, a step behaving deterministically.
+
+**Verdict per schema.** `A1`, `B3`, `B4`, `B5` are accepted as **verified by live operation** rather than
+by §2.3's controlled A/B. `C3`, `C5` and `C7` have a single call each here, so the C phase closes on a
+dedicated live tailoring run, not on this table. `IMPORT` and `COACH_DRAFT` are **explicitly deferred** —
+neither is in the CV path, and coaching is parked until CV creation is proven.
 
 ### 2026-08-03 · C3's silent substitution — guarded (scope addition)
 

@@ -164,14 +164,50 @@ new ids. It does **not** delete `requirementTailoring`. Today that orphaning is 
 the table at the start of its next run. Remove the wipe and the orphans become permanent — rows pointing at
 requirement ids that no longer exist.
 
-Two candidate fixes; pick one and state why:
+**But the deeper question is why re-extraction can reach a tailoring lead at all**, and the answer is a
+missing guard rather than a missing cascade. The owner's framing: *"considering the work of each procedure
+was properly executed, why should we have a re-screening/re-scoring at all? Why should we allow the
+deletion of job requirements and/or requirement tailoring during the B-phase?"*
+
+**The codebase already agrees with him.** `refreshFreshnessAction`'s own doc comment in
+`app/actions/pipeline.ts` states the design:
+
+> *B1 only. The re-screen affordance for a lead that has been sitting in the queue — elapsed time is the
+> only B1 input that changes, and B2–B6 are judgments over static JD text, so re-running them would just
+> re-spend LLM calls for the same answer.*
+
+That is exactly right, and it is what B1's `refreshFreshness` exists for. The problem is that the *other*
+entry points are not gated to match:
+
+- `runInitialChecksAction` documents itself as an error-recovery path — "the manual path for a lead that
+  landed at `captured` because the capture-time call failed, and the 'Screen anyway' override for a lead
+  the B1 gate held". Recovery, not routine.
+- `runScreeningAction` is the back-compat all-six wrapper.
+- Both call `requireScreenableLead`, which checks **only** that the lead exists and that `jdText` is at
+  least 80 characters. **There is no status guard.** Nothing stops either action running on a lead that is
+  already `promoted` and carrying human-approved tailoring rows.
+
+And B2's re-extraction is itself a **back-catalogue repair mechanism**, not steady-state behaviour: the
+`tooThin` branch exists to clear thin extractions left by the pre-guard era. Once every lead has a healthy
+extraction it never fires again. It is currently living permanently in the capture path.
+
+So there are three candidate fixes, and the third is the one the owner's question points at:
 
 1. Have B2's re-extraction branch delete `requirementTailoring` alongside `requirementEvidence` — it
    already accepts that stranding rows is wrong, and this is the same argument.
 2. Have C2's merge drop rows whose `requirementId` no longer resolves.
+3. **Gate the B-phase re-run actions on lead status** so re-extraction cannot reach a lead that has
+   progressed to tailoring. A lead past `promoted` should expose the B1-only refresh, and re-screening it
+   should require a deliberate, warned action that states what will be discarded.
 
-(1) is more honest — the destruction happens where the cause is. It also means a weekend re-screen that
-re-extracts a lead correctly clears its tailoring, rather than leaving C2 to clean up later.
+**(3) is the right primary fix** — it removes the cause instead of cascading the damage, and it matches the
+design already written into `refreshFreshnessAction`. (1) is a sensible belt-and-braces for the case where
+a re-screen *is* deliberately confirmed. (2) is the weakest: it leaves the deletion in place and makes C2
+responsible for cleaning up after a step that should not have run.
+
+Worth checking while implementing: whether `runScoringAction` (B5/B6) has the same exposure. Its doc
+comment says it is "safe to re-invoke from the top on a stuck lead (B4/B6 overwrite, B5 skips
+re-extraction)" — so it is likely benign, but confirm rather than assume.
 
 ### 2.5 The one remaining risk
 
