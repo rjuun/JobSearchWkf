@@ -190,8 +190,10 @@ Realistic model behaviour, so you know what a fixed schema looks like: B2 went f
       — **C2 only so far** (12 live runs, §4). The other nine are code-complete but unmeasured.
 - [x] Each step's `Process/*.md` note checked for a field the schema cannot express (the B2 `groupRank`
       class of defect); any addition justified in §4 — none needed, see §4
+- [x] C3's silent `originalText` substitution replaced with a count-and-re-ask floor; the three
+      downstream .docx fallbacks reviewed and dispositioned (§4, scope addition)
 - [x] `npm run typecheck` clean
-- [x] `npx vitest run` — all passing (179)
+- [x] `npx vitest run` — all passing (195)
 - [x] Mock mode still works — the zod schemas were not touched, only the JSON Schema `required` arrays,
       so every existing `mock: () => …` fixture still validates; covered by the suite above
 - [ ] One live end-to-end screening run, and one live tailoring run, verified in the UI
@@ -302,3 +304,45 @@ this run: `backtest-notes.ts` computes coverage as `unique link orders / coreImp
 entirely** (line 391), so its 59–100% spread on healthy runs understates true accounting and cannot tell a
 legitimate gap from a skipped requirement. Teaching the harness to record the union is the prerequisite, and that
 plus the guard is its own CI.
+
+### 2026-08-03 · C3's silent substitution — guarded (scope addition)
+
+Raised while this CI was open, and taken in the same pass because it is the *other half* of the same defect: an
+incomplete `required` list causes the degraded reply, and a silent fallback is what hides it. Completing the lists
+without this would have left the C phase failing the way B6 failed before PR #3 — believably.
+
+**The defect.** `generateCv` wrote `matched?.bullet || row.originalText || ''`. When C3 returned no bullet for a
+ref — degraded call, or a ref echoed in a form that doesn't match — `cv_bullet` was filled with the row's **raw,
+untailored evidence text**. Nothing errors, nothing is empty, the lead shows a full set of bullets and the .docx
+renders. The only symptom is a CV that says the candidate's generic evidence instead of anything tailored to the
+job, which is the single thing the C phase exists to produce. Structurally identical to B6's `j?.score ?? 6`: the
+count of rows written is never what breaks.
+
+**The fix**, mirroring B2's `tooThin` and B6's `unjudged` — the two existing precedents in `screening.ts`. The floor
+is **exact**, like B6's and unlike the one C2 needs: C3 is handed a finite list of Keep rows and told to rewrite each
+one, and there is no legitimate "I decline" outcome, because recording a gap is C2's job, not C3's. Re-ask up to
+`ATTEMPTS = 3`, accumulating across attempts so a partial reply still counts for the refs it did answer; if any
+ref-bearing Keep row is still without a bullet, **throw and write nothing**. Rows with no `evidenceRef` are excluded
+— C3 is keyed by ref and was never given a way to answer them, so counting them would make the floor unsatisfiable
+rather than strict. A **blank** bullet is not an answer either: `bullet` is required in the strict schema now, so a
+degraded call returns the key holding `""`, which is the `placeholder` failure measured on C2 one step over.
+
+`absorbC3Bullets` and `missingC3Refs` are exported pure functions for the same reason `matchB6Judgments` is —
+16 cases in `lib/__tests__/c3-bullet-floor.test.ts` prove the floor without Postgres or an API key. C3's step summary
+now reports the Keep items actually rewritten instead of `r.data.bullets.length`, which reported whatever the last
+reply happened to contain.
+
+**The other three instances, and why only one of them changed.** All three are in the .docx path and all three are
+*downstream* of the write above, so once C3 guarantees a real bullet per ref they stop being substitution paths and
+become unreachable backstops:
+
+| Site (`lib/pipeline/tailoring.ts`) | Verdict |
+| --- | --- |
+| `templateSlotData` — template slot fill | **Left as-is**, commented. Render path: throwing here blocks a CV that is otherwise complete. |
+| `keptBullets` → fed to **C5** | **Changed** — it was the only one missing `\|\| g.cvBullet`, so it could hand C5 raw evidence even when C3 *had* produced a bullet. An untailored bullet here doesn't degrade one line, it becomes the basis of the tailored profile. |
+| `bullets14` — programmatic CV builder | **Left as-is**, commented. Same render-path reasoning. |
+
+**Verification.** `tsc --noEmit` clean; 195/195 vitest (was 179 — the 16 new floor cases). Not run:
+`scripts/verify-tailoring.ts`, which is a live smoke test that promotes a real lead, overwrites its tailoring rows
+and marks four green — destructive against real data, and in mock mode it would overwrite genuine rows with mock
+bullets. The floor's behaviour is fully covered by the unit tests instead.
