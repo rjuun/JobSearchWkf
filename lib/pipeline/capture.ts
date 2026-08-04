@@ -143,8 +143,10 @@ export async function createLead(input: CaptureInput, ownerId: string): Promise<
 
   const resolvedCompany = input.company?.trim() || extraction?.company?.trim() || null;
   const resolvedCity = input.city?.trim() || extraction?.city?.trim() || null;
-  const resolvedRemote = hasRemote ? (input.remote ?? null) : extraction?.remote ?? null;
-  const resolvedFormatSignals = hasFormatSignals ? (input.formatSignals ?? null) : extraction?.formatSignals ?? null;
+  const resolvedRemote = hasRemote ? (input.remote ?? null) : extraction?.remote || null;
+  // `||` on the extraction side: formatSignals is required in the strict schema
+  // now, so "nothing explicit stated" arrives as "" rather than absent.
+  const resolvedFormatSignals = hasFormatSignals ? (input.formatSignals ?? null) : extraction?.formatSignals || null;
   // A1 §C · ATS precedence, code-first: the §B.2 hostname match already written at
   // insert wins outright. The page-evidenced value (agent-supplied, else the
   // extraction pass) only fills a null. This is the inverse of the fields above,

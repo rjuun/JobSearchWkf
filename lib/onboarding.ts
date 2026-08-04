@@ -56,47 +56,55 @@ export function draftCounts(d: DraftGraph) {
   };
 }
 
+// `|| null` rather than `?? null` throughout: every string property is now
+// listed in the strict schema's `required`, so a fact the source text doesn't
+// support arrives as "" rather than absent. Both spellings mean "the model had
+// no answer" and the draft review UI wants null for both.
 function wrapDraft(raw: ImportOut): DraftGraph {
+  const p = raw.profile;
+  const profile = p && (p.name || p.headline || p.location)
+    ? { name: p.name || null, headline: p.headline || null, location: p.location || null }
+    : null;
   return {
-    profile: raw.profile
-      ? { name: raw.profile.name ?? null, headline: raw.profile.headline ?? null, location: raw.profile.location ?? null }
-      : null,
+    profile,
     positions: (raw.positions ?? []).map((p, i) => ({
       id: `p${i}`,
       keep: true,
       confidence: p.confidence,
-      company: p.company ?? null,
-      title: p.title ?? null,
-      startDate: p.startDate ?? null,
-      endDate: p.endDate ?? null,
-      summary: p.summary ?? null,
+      company: p.company || null,
+      title: p.title || null,
+      startDate: p.startDate || null,
+      endDate: p.endDate || null,
+      summary: p.summary || null,
     })),
     stories: (raw.stories ?? []).map((s, i) => ({
       id: `s${i}`,
       keep: true,
       confidence: s.confidence,
       title: s.title,
-      summary: s.summary ?? null,
+      summary: s.summary || null,
       actions: (s.actions ?? []).map((a, j) => ({ id: `s${i}a${j}`, keep: true, confidence: a.confidence, text: a.text, skills: a.skills ?? [] })),
-      results: (s.results ?? []).map((r, j) => ({ id: `s${i}r${j}`, keep: true, confidence: r.confidence, text: r.text, metric: r.metric ?? null })),
+      // metric especially: the anti-fabrication rule says leave it empty when no
+      // number is stated, and "" must land as null, not as a blank metric.
+      results: (s.results ?? []).map((r, j) => ({ id: `s${i}r${j}`, keep: true, confidence: r.confidence, text: r.text, metric: r.metric || null })),
     })),
     skills: (raw.skills ?? []).map((s, i) => ({
       id: `k${i}`,
       keep: true,
       confidence: s.confidence,
       skill: s.skill,
-      proficiency: s.proficiency ?? null,
+      proficiency: s.proficiency || null,
       atsKeywordVariants: s.atsKeywordVariants ?? [],
     })),
     education: (raw.education ?? []).map((e, i) => ({
       id: `e${i}`,
       keep: true,
       confidence: e.confidence,
-      institution: e.institution ?? null,
-      qualification: e.qualification ?? null,
-      year: e.year ?? null,
+      institution: e.institution || null,
+      qualification: e.qualification || null,
+      year: e.year || null,
     })),
-    languages: (raw.languages ?? []).map((l, i) => ({ id: `l${i}`, keep: true, confidence: l.confidence, language: l.language, cefrLevel: l.cefrLevel ?? null })),
+    languages: (raw.languages ?? []).map((l, i) => ({ id: `l${i}`, keep: true, confidence: l.confidence, language: l.language, cefrLevel: l.cefrLevel || null })),
   };
 }
 

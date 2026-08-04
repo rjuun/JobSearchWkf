@@ -86,6 +86,49 @@ export function c2UserMessage(
   ];
 }
 
+/**
+ * ── C3's collapse floor, as pure functions ──────────────────────────────────
+ *
+ * Exported and separated from the DB write for the same reason `matchB6Judgments`
+ * is: the interesting behaviour is "what counts as an answer", and that has to be
+ * testable without Postgres or an API key.
+ */
+export type C3Bullet = { ref: string; bullet: string; skills?: string[] };
+
+/**
+ * Fold one C3 reply into the ref→bullet map, accumulating across re-asks so a
+ * second attempt only has to cover what the first missed.
+ *
+ * A blank `bullet` is deliberately NOT an answer. `bullet` is required in the
+ * strict schema, so a degraded call returns the key holding `""` — recording that
+ * would satisfy the floor with nothing in it, which is the `placeholder` failure
+ * this CI measured on C2 wearing a different hat.
+ */
+export function absorbC3Bullets(
+  into: Map<string, { bullet: string; skills: string[] }>,
+  bullets: C3Bullet[]
+): Map<string, { bullet: string; skills: string[] }> {
+  for (const b of bullets) {
+    if (b.ref && b.bullet && b.bullet.trim()) into.set(b.ref, { bullet: b.bullet.trim(), skills: b.skills ?? [] });
+  }
+  return into;
+}
+
+/**
+ * The Keep rows C3 owes a bullet for and hasn't delivered.
+ *
+ * Rows with no `evidenceRef` are excluded on purpose — C3 is keyed by ref, so it
+ * was never given a way to answer them, and counting them would make the floor
+ * unsatisfiable rather than strict. Duplicate refs collapse to one.
+ */
+export function missingC3Refs(
+  green: { evidenceRef: string | null }[],
+  have: Map<string, unknown>
+): string[] {
+  const wanted = new Set(green.map((g) => g.evidenceRef).filter((ref): ref is string => !!ref));
+  return [...wanted].filter((ref) => !have.has(ref));
+}
+
 /** Map an evidence node's source to the tailoring row's provenance label (M7 proof trail). */
 function provFromSource(source: string | null | undefined): string {
   return source === 'ai_coached' ? 'coached' : 'imported';
@@ -145,6 +188,11 @@ async function templateSlotData(
         const normalized = normalizeCvPosition(g.cvPosition);
         return normalized === slot || (normalized ? slotCode(normalized) === code : false);
       })
+      // The `|| g.originalText` tail stays a backstop here on purpose. This is a
+      // RENDER path, not a write path: C3's floor already guarantees a real
+      // bullet for every ref-bearing Keep row before anything reaches the .docx,
+      // and throwing at render time would block a CV that is otherwise complete.
+      // Same reasoning for `bullets14` in the programmatic builder below.
       .map((g) => (g.evidenceRef && bulletByRef.get(g.evidenceRef)?.bullet) || g.cvBullet || g.originalText || '')
       .filter(Boolean);
     if (lines.length === 0) {
@@ -230,7 +278,10 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
         connectionToExpertise: `${link.matchStrength}${link.connection ? ` · ${link.connection}` : ''}`,
         evidenceRef: ev.ref,
         originalText: ev.text,
-        cvPosition: normalizeCvPosition(link.cvPosition ?? ev.cvPosition),
+        // `||`, not `??`: cvPosition is required in the strict schema now, so an
+        // unmatched slot arrives as "" rather than absent, and `??` would let
+        // that empty string beat the evidence node's own slot.
+        cvPosition: normalizeCvPosition(link.cvPosition || ev.cvPosition),
         // My Skills: the evidence's own vocabulary. Requirement Skills: the
         // matched requirement's JD-language skills (B5 output) — CI · Requirement
         // Skills vs My Skills. Never conflate either with B4's AoE codes (A–Q).
@@ -298,37 +349,97 @@ export async function generateCv(
   // C3 — rewrite each Keep evidence item into a tailored CV bullet
   const bulletByRef = new Map<string, { bullet: string; skills: string[] }>();
   {
-    const r = await runStructured({
-      step: 'C3',
-      // Truthfulness-critical (Master Instructions §6.1) → Opus tier.
-      model: 'opus',
-      system: await systemPromptFor('C3', effectiveOwnerId),
-      user:
-        `ROLE: ${lead.title}${lead.jdGroupPrimary ? ` · ${lead.jdGroupPrimary}` : ''}` +
-        `${lead.atsSystem ? ` · ATS: ${lead.atsSystem}` : ''}\n\n` +
-        `Rewrite each Keep evidence item into one CV bullet. Keep every claim supportable by the original text.\n\n` +
-        green
-          .map((g) => `[${g.evidenceRef}] requirement: ${g.requirementLine}\n   original: ${g.originalText}\n   my skills: ${(g.mySkills ?? []).join(', ')}`)
-          .join('\n\n'),
-      tool: C3.tool,
-      zod: C3.zod,
-      mock: () => ({ bullets: green.map((g) => ({ ref: g.evidenceRef ?? '', bullet: g.originalText ?? '', skills: g.requirementSkills ?? g.mySkills ?? [] })) }),
-      leadId,
-      ownerId: effectiveOwnerId,
-    });
+    // ── The C3 collapse guard ────────────────────────────────────────────────
+    // This write path used to read `matched?.bullet || row.originalText || ''`,
+    // which is the same silent-substitution shape B6 had before its guard
+    // (`j?.score ?? 6`) and B2 had before its floor. When C3 returned no bullet
+    // for a ref — a degraded call, or a ref echoed back in a form that doesn't
+    // match — `cv_bullet` was filled with the row's RAW, untailored evidence
+    // text. Nothing errors, nothing is empty, the lead shows a complete set of
+    // bullets and the .docx renders. The only symptom is that the CV says the
+    // candidate's generic evidence rather than anything tailored to this job,
+    // which is the one thing the C phase exists to produce.
+    //
+    // Same lesson as the B6 CI, and as this CI's own C2 measurement: a complete
+    // `required` list fixes the generation, it cannot make the VALUE meaningful,
+    // and the count of rows written is never what breaks.
+    //
+    // The floor is exact rather than proportional, like B6's and unlike C2's:
+    // C3 is handed a known, finite list of Keep rows and told to rewrite each
+    // one. There is no legitimate "I decline to rewrite this one" outcome — C2
+    // is the step allowed to record a gap, not C3 — so anything short of one
+    // bullet per ref is a misfire. Rows with no `evidenceRef` at all are
+    // excluded: C3 was never given a key to answer them with.
+    const ATTEMPTS = 3;
+    const refsWanted = new Set(green.map((g) => g.evidenceRef).filter((ref): ref is string => !!ref));
+
+    const draft = async () =>
+      runStructured({
+        step: 'C3',
+        // Truthfulness-critical (Master Instructions §6.1) → Opus tier.
+        model: 'opus',
+        system: await systemPromptFor('C3', effectiveOwnerId),
+        user:
+          `ROLE: ${lead.title}${lead.jdGroupPrimary ? ` · ${lead.jdGroupPrimary}` : ''}` +
+          `${lead.atsSystem ? ` · ATS: ${lead.atsSystem}` : ''}\n\n` +
+          `Rewrite each Keep evidence item into one CV bullet. Keep every claim supportable by the original text.\n\n` +
+          green
+            .map((g) => `[${g.evidenceRef}] requirement: ${g.requirementLine}\n   original: ${g.originalText}\n   my skills: ${(g.mySkills ?? []).join(', ')}`)
+            .join('\n\n'),
+        tool: C3.tool,
+        zod: C3.zod,
+        // The mock stands in for a HEALTHY call, so it must clear the floor: a
+        // row whose `originalText` is null (legacy/seeded data) would otherwise
+        // yield a blank bullet and trip the guard with no model involved.
+        mock: () => ({
+          bullets: green.map((g) => ({
+            ref: g.evidenceRef ?? '',
+            bullet: g.originalText?.trim() || `Delivered work evidenced by ${g.evidenceRef ?? 'this item'}.`,
+            skills: g.requirementSkills ?? g.mySkills ?? [],
+          })),
+        }),
+        leadId,
+        ownerId: effectiveOwnerId,
+      });
+
     // r.data.bullets[].skills is C3's judgment of which Job-Lead-facing skills
     // this bullet demonstrates — i.e. Requirement Skills, not My Skills (the
     // bracketed tag per Process/C3...md §B.5). Persist it; previously discarded.
-    for (const b of r.data.bullets) if (b.ref) bulletByRef.set(b.ref, { bullet: b.bullet, skills: b.skills ?? [] });
+    //
+    // Re-asks accumulate into the same map, so a second attempt only has to
+    // cover what the first missed — a partial reply is still worth its refs.
+    let r = await draft();
+    absorbC3Bullets(bulletByRef, r.data.bullets);
+    for (let attempt = 2; attempt <= ATTEMPTS && missingC3Refs(green, bulletByRef).length > 0; attempt++) {
+      r = await draft();
+      absorbC3Bullets(bulletByRef, r.data.bullets);
+    }
+    const short = missingC3Refs(green, bulletByRef);
+    if (short.length > 0) {
+      throw new Error(
+        `C3 returned no bullet for ${short.length} of ${refsWanted.size} Keep evidence item(s) ` +
+          `after ${ATTEMPTS} attempts (${short.slice(0, 5).join(', ')}${short.length > 5 ? ', …' : ''}) — ` +
+          'the model call degraded rather than the evidence genuinely being unusable. Nothing was written; ' +
+          're-run Generate CV to retry. Falling back to the raw evidence text here would have produced a ' +
+          'complete-looking CV built from untailored bullets.'
+      );
+    }
+
     for (const row of green) {
       const matched = row.evidenceRef ? bulletByRef.get(row.evidenceRef) : undefined;
+      // `|| row.originalText` survives only for rows with no `evidenceRef`, which
+      // the floor above deliberately does not cover. For every ref-bearing row
+      // `matched` is now guaranteed non-blank, so this is a backstop, not a path.
       const rewritten = matched?.bullet || row.originalText || '';
       await db
         .update(requirementTailoring)
         .set({ cvBullet: rewritten, requirementSkills: matched?.skills ?? row.requirementSkills ?? [] })
         .where(and(eq(requirementTailoring.id, row.id), eq(requirementTailoring.ownerId, effectiveOwnerId)));
     }
-    reports.push(await recordStep(leadId, { step: 'C3', label: 'Draft CV bullets', model: r.model, summary: `${r.data.bullets.length} bullets rewritten from Keep evidence`, output: { count: r.data.bullets.length }, ms: r.ms }, effectiveOwnerId));
+    // Past the floor every ref-bearing Keep row has a real bullet, so this count
+    // is now a fact rather than `r.data.bullets.length`, which reported whatever
+    // the last reply happened to contain.
+    reports.push(await recordStep(leadId, { step: 'C3', label: 'Draft CV bullets', model: r.model, summary: `${refsWanted.size} Keep item(s) rewritten`, output: { count: refsWanted.size }, ms: r.ms }, effectiveOwnerId));
   }
 
   // C4 — skills section. CI · Requirement Skills vs My Skills: the primary
@@ -391,7 +502,15 @@ export async function generateCv(
   // C5 — tailored profile (4–7 lines, supportable by the evidence)
   let profileText = '';
   {
-    const keptBullets = green.map((g) => (g.evidenceRef && bulletByRef.get(g.evidenceRef)?.bullet) || g.originalText || '').filter(Boolean);
+    // `|| g.cvBullet` was missing here, which made this the one read path that
+    // could still feed C5 raw evidence text even when C3 had produced a real
+    // bullet for the row — and an untailored bullet here doesn't just degrade
+    // one line, it becomes the basis of the tailored profile. C3's floor above
+    // now guarantees a bullet for every ref-bearing row, so the `originalText`
+    // tail is a backstop for ref-less rows rather than a substitution path.
+    const keptBullets = green
+      .map((g) => (g.evidenceRef && bulletByRef.get(g.evidenceRef)?.bullet) || g.cvBullet || g.originalText || '')
+      .filter(Boolean);
     const r = await runStructured({
       step: 'C5',
       // Truthfulness-critical (Master Instructions §6.1) → Opus tier.

@@ -111,7 +111,7 @@ export function b2UserMessage(jd: string, leadTitle: string): string {
 
 export function b3UserMessage(jd: string, leadTitle: string, requirements: PromptRequirement[]): string {
   const reqList = requirements.length
-    ? `\n\nREQUIREMENTS:\n${numberedRequirements(requirements)}\n\nIf a roadblock blocks exactly one of the requirements above, set its "requirementOrder" to that number. Omit it when the roadblock is implied across the posting as a whole — do not force a mapping.`
+    ? `\n\nREQUIREMENTS:\n${numberedRequirements(requirements)}\n\nIf a roadblock blocks exactly one of the requirements above, set its "requirementOrder" to that number. Set it to 0 when the roadblock is implied across the posting as a whole — do not force a mapping.`
     : '';
   return `JOB DESCRIPTION:\n${jd || leadTitle}${reqList}`;
 }
@@ -486,8 +486,11 @@ export async function runInitialChecks(leadId: string, ownerId?: string | null):
     // Resolve `order` → row id before persisting: the stored Roadblock carries a
     // real `requirementId` (§2.5), because the order numbers are per-run prompt
     // positions and would silently mean something else on a re-extraction.
+    // `> 0`, not `!= null`: requirementOrder is required in the strict schema
+    // now, and an integer has no empty form, so 0 is the agreed "blocks the
+    // posting as a whole" sentinel (see the schema's own description).
     const roadblocks = r.data.roadblocks.map(({ dimension, detail, requirementOrder }) => {
-      const row = requirementOrder != null ? requirements[requirementOrder - 1] : undefined;
+      const row = requirementOrder != null && requirementOrder > 0 ? requirements[requirementOrder - 1] : undefined;
       return { dimension, detail, ...(row ? { requirementId: row.id } : {}) };
     });
     await db
@@ -596,18 +599,22 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
       .update(jobLeads)
       .set({
         skillRatings: ratings,
-        jdGroupPrimary: r.data.jdGroupPrimary ?? lead.jdGroupPrimary,
-        jdGroupSecondary: r.data.jdGroupSecondary ?? lead.jdGroupSecondary,
+        // `nullIfBlank(...) ?? stored`, not a bare `??`: these three are required
+        // in the strict schema now, so "nothing to say" arrives as "" rather than
+        // absent, and a bare `??` would overwrite a stored value with an empty
+        // string. Same helper B6's per-requirement prose uses below.
+        jdGroupPrimary: nullIfBlank(r.data.jdGroupPrimary) ?? lead.jdGroupPrimary,
+        jdGroupSecondary: nullIfBlank(r.data.jdGroupSecondary) ?? lead.jdGroupSecondary,
         // "Key Patterns & CV Tailoring Notes" — B5's process note has always
         // asked the model for this (§B step 3) and the tool schema has always
         // returned it, but the write path dropped it, so key_patterns stayed
-        // empty on every lead captured since launch. `?? lead.keyPatterns`
-        // preserves a legacy SharePoint-imported value if this call returns null.
-        keyPatterns: r.data.notes ?? lead.keyPatterns,
+        // empty on every lead captured since launch. The fallback preserves a
+        // legacy SharePoint-imported value if this call returns nothing.
+        keyPatterns: nullIfBlank(r.data.notes) ?? lead.keyPatterns,
       })
       .where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, effectiveOwnerId)));
     await recordRun(leadId, 'B5', r.model, r.data, r.ms, effectiveOwnerId);
-    reports.push({ step: 'B5', label: 'Skills · JD group', status: 'done', model: r.model, ms: r.ms, summary: `${r.data.skills.length} rated · ${r.data.jdGroupPrimary ?? '—'}` });
+    reports.push({ step: 'B5', label: 'Skills · JD group', status: 'done', model: r.model, ms: r.ms, summary: `${r.data.skills.length} rated · ${nullIfBlank(r.data.jdGroupPrimary) ?? '—'}` });
   }
 
   // Requirements are read, not extracted: B2 already produced them at capture.
