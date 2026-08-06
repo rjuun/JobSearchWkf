@@ -224,7 +224,6 @@ export async function buildDemoTenant(): Promise<void> {
     // mismatch the demo used to contradict itself with).
     email: DEMO_PERSONA_EMAIL,
     location: 'Vienna, Austria',
-    languagesSummary: 'English C1 · German C1 · Portuguese C2 (native) · Spanish B2',
   });
 
   // ── Profile Reference Workbook ────────────────────────────────────────────

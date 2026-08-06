@@ -235,7 +235,9 @@ export async function saveIdentity(formData: FormData) {
     email: txt(formData.get('email')),
     phone: txt(formData.get('phone')),
     location: txt(formData.get('location')),
-    languagesSummary: txt(formData.get('languagesSummary')),
+    citizenship: txt(formData.get('citizenship')),
+    relocation: txt(formData.get('relocation')),
+    travel: txt(formData.get('travel')),
   };
   const existing = await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.id, owner));
   if (existing.length) {

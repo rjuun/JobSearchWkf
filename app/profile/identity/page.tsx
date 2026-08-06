@@ -39,9 +39,17 @@ export default async function IdentityPage() {
               <Input id="phone" name="phone" defaultValue={p?.phone ?? ''} />
             </Field>
           </div>
-          <Field label="Languages summary" htmlFor="languagesSummary">
-            <Input id="languagesSummary" name="languagesSummary" defaultValue={p?.languagesSummary ?? ''} placeholder="German (C1) · English (C2) · Portuguese (native)" />
+          <Field label="Citizenship / work authorization" htmlFor="citizenship">
+            <Input id="citizenship" name="citizenship" defaultValue={p?.citizenship ?? ''} placeholder="Austrian citizen · EU work authorization" />
           </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Relocation" htmlFor="relocation">
+              <Input id="relocation" name="relocation" defaultValue={p?.relocation ?? ''} placeholder="Open to relocation within the EU" />
+            </Field>
+            <Field label="Travel" htmlFor="travel">
+              <Input id="travel" name="travel" defaultValue={p?.travel ?? ''} placeholder="Willing to travel up to 50%" />
+            </Field>
+          </div>
           <Button type="submit">Save identity</Button>
         </form>
       </Card>

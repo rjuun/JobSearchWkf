@@ -41,9 +41,9 @@
  */
 import { and, asc, eq } from 'drizzle-orm';
 import { db } from '../db';
-import { bulletBank, education, jobLeads, jobRequirements, languages, requirementEvidence } from '../db/schema';
+import { bulletBank, education, jobLeads, jobRequirements, languages, profiles, requirementEvidence, requirementTailoring } from '../db/schema';
 import { recordRun, type StepReport } from './runs';
-import { readValuesSummary } from '../profile-context';
+import { readValuesSummary, candidateFactsSummary } from '../profile-context';
 import { normalizeCvPosition } from '../cv-slots';
 
 export type { StepReport } from './runs';
@@ -139,13 +139,15 @@ export function b6UserMessage(
   evidence: B6Evidence[],
   jd: string,
   leadTitle: string,
-  requirements: PromptRequirement[]
+  requirements: PromptRequirement[],
+  candidateFacts?: string | null
 ): UserContentBlock[] {
   return [
     { type: 'text', text: renderB6Evidence(evidence), cache_control: { type: 'ephemeral', ttl: '1h' } },
     {
       type: 'text',
       text:
+        (candidateFacts ? `CANDIDATE FACTS (fixed, not skill evidence — weigh for eligibility-type requirements):\n${candidateFacts}\n\n` : '') +
         `JOB DESCRIPTION:\n${jd || leadTitle}\n\nREQUIREMENTS:\n${numberedRequirements(requirements)}\n\n` +
         // The expected count is stated as a number because the failure being guarded
         // against (see runScoring's B6 block) is the model judging one or two and
@@ -392,6 +394,16 @@ export async function runInitialChecks(leadId: string, ownerId?: string | null):
       await db
         .delete(requirementEvidence)
         .where(and(eq(requirementEvidence.jobLeadId, leadId), eq(requirementEvidence.ownerId, effectiveOwnerId)));
+      // CI · Make C2 Build on B6 §2.4 — C2 stopped wholesale-deleting
+      // `requirement_tailoring` on every run (it now merges into what's stored),
+      // which means a re-extraction here would otherwise leave those rows
+      // permanently orphaned on `requirement_id`s that no longer exist. This
+      // branch is a back-catalogue repair path for thin pre-guard extractions,
+      // not steady-state behaviour, so discarding any human review a stray
+      // re-extraction might strand is the smaller harm.
+      await db
+        .delete(requirementTailoring)
+        .where(and(eq(requirementTailoring.jobLeadId, leadId), eq(requirementTailoring.ownerId, effectiveOwnerId)));
       await db
         .delete(jobRequirements)
         .where(and(eq(jobRequirements.jobLeadId, leadId), eq(jobRequirements.ownerId, effectiveOwnerId)));
@@ -632,6 +644,8 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
     // and the two were indistinguishable in the output.
     const { items: evidence, bankVersion } = await gatherB6Evidence(effectiveOwnerId);
     const byRef = new Map(evidence.map((e) => [e.ref, e]));
+    const [profile] = await db.select().from(profiles).where(eq(profiles.ownerId, effectiveOwnerId)).limit(1);
+    const candidateFacts = candidateFactsSummary(profile);
 
     // ── The collapse guard (2026-08-02) ──────────────────────────────────────
     // Roughly 1 B6 call in 5 comes back degraded: it judges one or two requirements
@@ -669,7 +683,7 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
         step: 'B6',
         model: 'opus',
         system: await systemPromptFor('B6', effectiveOwnerId),
-        user: b6UserMessage(evidence, jd, lead.title, requirements),
+        user: b6UserMessage(evidence, jd, lead.title, requirements, candidateFacts),
         tool: B6.tool,
         zod: B6.zod,
         mock: () => mockRoleFit(lead.skillRatings ?? {}, lead.atsSystem, requirements, evidence),

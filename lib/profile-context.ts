@@ -38,6 +38,25 @@ function clean(md: string): string {
  * A condensed Values & Motives summary for B3, or '' when no notes are present
  * (keyless/empty installs degrade gracefully to the previous JD-only behaviour).
  */
+/**
+ * Fixed eligibility facts (citizenship/work authorization, relocation, travel)
+ * — free text, owner-maintained at /profile/identity. Fed into B6/C2 as context
+ * so a requirement that's really an eligibility check ("must have permission to
+ * work in the EU", "willing to relocate") can be matched honestly instead of
+ * either producing a fabricated CV bullet or a false "No Match"/roadblock.
+ * '' when none are set — degrades to the previous JD-only behaviour.
+ */
+export function candidateFactsSummary(
+  profile: { citizenship?: string | null; relocation?: string | null; travel?: string | null } | null | undefined
+): string {
+  if (!profile) return '';
+  const parts: string[] = [];
+  if (profile.citizenship) parts.push(`Citizenship / work authorization: ${profile.citizenship}`);
+  if (profile.relocation) parts.push(`Relocation: ${profile.relocation}`);
+  if (profile.travel) parts.push(`Travel: ${profile.travel}`);
+  return parts.join('\n');
+}
+
 export function readValuesSummary(): string {
   const parts: string[] = [];
   for (const file of VALUES_NOTES) {
