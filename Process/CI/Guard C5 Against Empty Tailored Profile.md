@@ -2,18 +2,18 @@
 ci-area: LLM tool schemas / pipeline reliability
 ci-roadmap:
 ci-title: Guard C5 against an empty tailored profile
-ci-status: 0 - Idea
+ci-status: 3 - Delivered
 ci-priority: medium
 ci-date: 2026-08-04
 ci-estimated-time: 1
-ci-time-spent: 0
+ci-time-spent: 1.1
 pr-source: "[[Complete Required Lists on the Remaining Strict Tool Schemas]]"
 pr-target:
 ---
 
 ---
 ```simple-time-tracker
-{"entries":[]}
+{"entries":[{"name":"Implement floor (worktree)","startTime":"2026-08-04T19:29:00.000Z","endTime":"2026-08-04T20:01:00.000Z"},{"name":"Testing","startTime":"2026-08-05T11:35:53.000Z","endTime":"2026-08-05T12:10:07.000Z"}]}
 ```
 ---
 
@@ -115,14 +115,23 @@ so the last attempt either clears the bar or it doesn't.
 
 ### 2.3 Acceptance criteria
 
-- [ ] `MIN_WORDS` chosen against real C5 outputs (query `llm_calls` for step `C5`), not guessed
-- [ ] Floor predicate exported and unit-tested: empty, whitespace-only, one-word, a realistic 70–110 word
-      profile passing, and a boundary case either side of `MIN_WORDS`
-- [ ] Re-asks up to 3 attempts, then throws; nothing written on the way out
-- [ ] Mock mode still clears the floor — check `mock:` for C5 in `generateCv` produces enough words
-- [ ] `npx tsc --noEmit` clean
-- [ ] `npx vitest run` — all passing (195 at the time of writing)
-- [ ] One live tailoring run where the C5 step summary shows a plausible word count
+- [x] `MIN_WORDS` chosen against real C5 outputs (query `llm_calls` for step `C5`), not guessed —
+      confirmed against `pipeline_runs.output.profile` (`llm_calls` only has token counts). One production
+      C5 row on record at the time: 94 words, squarely inside 70–110. `MIN_PROFILE_WORDS = 40` sits well
+      under it.
+- [x] Floor predicate exported and unit-tested: empty, whitespace-only, one-word, a realistic 70–110 word
+      profile passing, and a boundary case either side of `MIN_WORDS` — `lib/__tests__/c5-profile-floor.test.ts`
+      (9 cases, mirrors `c3-bullet-floor.test.ts`)
+- [x] Re-asks up to 3 attempts, then throws; nothing written on the way out — `lib/pipeline/tailoring.ts` C5 block
+- [x] Mock mode still clears the floor — static tail on the mock guarantees ~63 words even in the thinnest
+      case (no headline, no core themes)
+- [x] `npx tsc --noEmit` clean — verified in the implementation worktree 2026-08-04; the same diff was
+      ported by hand onto `main` 2026-08-06 (worktree never merged/pushed — see §4)
+- [x] `npx vitest run` — 201 passing in the worktree 2026-08-04 (3 unrelated pre-existing failures in
+      `capture-enrich.test.ts`, missing local fixtures, untouched by this change)
+- [x] One live tailoring run where the C5 step summary shows a plausible word count — confirmed 2026-08-06
+      on the Allianz Partners / Governance & Transformation Manager lead: downloaded .docx, Profile section
+      is 97 words, inside the 70–110 target
 
 ---
 
@@ -145,3 +154,37 @@ so the last attempt either clears the bar or it doesn't.
 
 Found while writing `[[Guard C2 Against Silent Evidence-Map Collapse]]` and scoped out of it as the
 cheapest independent piece. No dependency on the C2 work in either direction.
+
+### 2026-08-04 · Floor implemented (worktree)
+
+Built on the `claude/guard-c5-empty-profile-18798f` branch/worktree: `MIN_PROFILE_WORDS` / `isProfileTooShort`
+added to `lib/pipeline/tailoring.ts`, C5's `runStructured` call wrapped in the same re-ask-then-throw shape
+as C3's, mock's static tail strengthened to always clear the floor. Unit tests in
+`lib/__tests__/c5-profile-floor.test.ts`. `tsc --noEmit` clean, `vitest run` 201 passing. Confirmed
+`MIN_PROFILE_WORDS` against the one production C5 row on record (94 words) via `pipeline_runs.output.profile`.
+Left uncommitted in the worktree; never pushed to GitHub — the branch existed only locally.
+
+### 2026-08-06 · Ported to `main`, live-verified, delivered
+
+The worktree's diff was reviewed line-by-line and applied by hand onto `main`'s (already-modified,
+uncommitted) `lib/pipeline/tailoring.ts` — a straight `git merge` wasn't used because `main`'s working tree
+already carried unrelated uncommitted changes from the same session (candidate-facts fields, the `toRefresh`
+evidence-kind backfill) that a merge risked colliding with. Added the same `MIN_PROFILE_WORDS` /
+`isProfileTooShort` function and C5 retry-then-throw wrap at the current call site, and copied
+`lib/__tests__/c5-profile-floor.test.ts` in unchanged.
+
+Live-run check: opened the Allianz Partners / Governance & Transformation Manager lead
+(`b7e91408-666b-4bd3-9aa2-feb760fc1036`) in the running dev server, confirmed C5 ran `LIVE` on
+`claude-opus-4-8` in the run trace, then fetched the generated `.docx` via `/api/cv/[id]`, unzipped it
+client-side, and read the actual `PROFILE` paragraph: **97 words**, inside the 70–110 target — the last
+open acceptance box.
+
+Sandbox couldn't independently re-run `tsc`/`vitest` today (known environment limitation — `tsc --noEmit`
+timed out, `vitest` crashes on a native-binary mismatch on this box); the ported code is a mechanical,
+line-for-line copy of what the worktree already verified clean, so this is marked Delivered on that basis.
+Worth a quick `npx tsc --noEmit` / `npx vitest run` from your own machine to close the loop, though nothing
+about the port changed the guarded logic itself.
+
+**Time spent: 1.1h total** — tracked in the `simple-time-tracker` block above: 32 min implementing the
+floor in the worktree (2026-08-04, 19:29–20:01 UTC) + 34 min testing (2026-08-05, 11:35–12:10 UTC). Slightly
+over the 1-hour estimate once the testing pass is counted, not just the implementation.
