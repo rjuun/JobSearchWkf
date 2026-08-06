@@ -120,10 +120,11 @@ secondary zone. The flat dump is gone.
 ## 4. Accessibility
 
 - **Focus:** one quiet `:focus-visible` ring on every interactive element (global rule).
-- **ARIA:** `aria-current` on nav, `aria-pressed` + `aria-label` on the Keep/Maybe/Drop votes,
-  labelled dashboard inputs, `role="group"` on the approval control.
+- **ARIA:** `aria-current` on nav, labelled dashboard inputs, `role="group"` on the approval control
+  (per-row Keep/Maybe/Drop votes were retired in favour of a single "Approve entire map" action —
+  `aria-pressed` no longer applies since there's no per-row toggle state to track).
 - **Motion:** fully disabled under `prefers-reduced-motion`.
-- **Tooltips** explain the skill-rating legend and the vote actions.
+- **Tooltips** explain the skill-rating legend and the approval action.
 - **Responsive:** hero stacks, tables scroll, the rail stays legible down to 375px.
 
 ---

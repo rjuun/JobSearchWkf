@@ -2,7 +2,7 @@
 ci-area: LLM tool schemas / pipeline reliability
 ci-roadmap:
 ci-title: Complete `required` lists on the remaining strict tool schemas
-ci-status: 2 - In Progress
+ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-01
 ci-estimated-time: 6
@@ -186,8 +186,10 @@ Realistic model behaviour, so you know what a fixed schema looks like: B2 went f
 
 - [x] Static audit re-run and clean — no strict schema has properties missing from `required`
       (`npx tsx scripts/audit-strict-schemas.ts`, 13 strict schemas, exits non-zero on any gap)
-- [ ] Each of the ten schemas measured before/after per §2.3, results recorded in §4
-      — **C2 only so far** (12 live runs, §4). The other nine are code-complete but unmeasured.
+- [x] Each of the ten schemas measured before/after per §2.3, results recorded in §4 —
+      A1/B3/B4/B5 via live-operation evidence (2026-08-04), C2 via 12 live runs (2026-08-03), C3/C5/C7
+      via the 2026-08-05 live tailoring run below. `IMPORT`/`COACH_DRAFT` remain unmeasured — accepted:
+      neither sits in the CV path, per the 2026-08-04 deferral.
 - [x] Each step's `Process/*.md` note checked for a field the schema cannot express (the B2 `groupRank`
       class of defect); any addition justified in §4 — none needed, see §4
 - [x] C3's silent `originalText` substitution replaced with a count-and-re-ask floor; the three
@@ -196,7 +198,8 @@ Realistic model behaviour, so you know what a fixed schema looks like: B2 went f
 - [x] `npx vitest run` — all passing (195)
 - [x] Mock mode still works — the zod schemas were not touched, only the JSON Schema `required` arrays,
       so every existing `mock: () => …` fixture still validates; covered by the suite above
-- [ ] One live end-to-end screening run, and one live tailoring run, verified in the UI
+- [x] One live end-to-end screening run, and one live tailoring run, verified in the UI — 2026-08-05,
+      see §4
 
 ---
 
@@ -392,3 +395,15 @@ become unreachable backstops:
 `scripts/verify-tailoring.ts`, which is a live smoke test that promotes a real lead, overwrites its tailoring rows
 and marks four green — destructive against real data, and in mock mode it would overwrite genuine rows with mock
 bullets. The floor's behaviour is fully covered by the unit tests instead.
+
+### 2026-08-05 · Live tailoring run closes C3/C5/C7 — Delivered
+
+The 2026-08-04 entry left C3/C5/C7 open pending "a dedicated live tailoring run." A real lead ran the
+full pipeline through the UI today — live screening, live C2 evidence mapping, human approval, and
+Generate CV — which fired C3 (bullets), C4 (skills section), C5 (profile), C6 (compile), and C7 (ATS
+rating) against real data, ending in a downloaded, valid 2-page CV. That satisfies both remaining §2.4
+boxes: the per-schema measurement for C3/C5/C7, and the standalone live screening + live tailoring
+run requirement.
+
+`IMPORT` and `COACH_DRAFT` stay unmeasured, per the 2026-08-04 deferral — neither is in the CV path.
+Owner's call: acceptable to close on that basis. Moved to `3 - Delivered`.

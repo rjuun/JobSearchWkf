@@ -204,7 +204,9 @@ function computeNext(
       return { title: 'Map the evidence', detail: 'Link each requirement to your strongest profile evidence (C1–C2).', cta: 'map', tone: 'green', blocked: false };
     }
     if (keptCount === 0) {
-      return { title: 'Choose what belongs', detail: 'Mark evidence Keep / Maybe / Drop — only “Keep” reaches the CV.', cta: 'approve', tone: 'amber', blocked: false };
+      // CI-034 · bulk-approve retired the row-by-row Keep/Maybe/Drop triage —
+      // this used to send the person into that box; now it's one action.
+      return { title: 'Approve the map', detail: 'Approve the whole map in one action — only items with a CV slot are Kept.', cta: 'approve', tone: 'amber', blocked: false };
     }
     return { title: `Generate the CV`, detail: `${keptCount} item${keptCount === 1 ? '' : 's'} kept. Compile the 2-page CV (C3–C7).`, cta: 'generate', tone: 'green', blocked: false };
   }

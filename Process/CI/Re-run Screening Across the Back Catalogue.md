@@ -2,7 +2,7 @@
 ci-title: Re-run screening across the back catalogue
 ci-area: Screening / data reconciliation
 ci-roadmap:
-ci-status: 0 - Idea
+ci-status: 9 - LLM Run Required
 ci-priority: high
 ci-date: 2026-08-01
 ci-estimated-time: 3
@@ -124,3 +124,11 @@ first re-screened lead are both measured, not estimated. `ci-roadmap` left blank
 reconciliation rather than a build wave; assign one if the wave mapping later covers this kind of work.
 
 Nothing run. **Blocked** — see §2.1.
+
+### 2026-08-06 · Status set to `9 - LLM Run Required`
+
+The two sequencing gates this CI was blocked on — `[[Complete Required Lists on the Remaining Strict Tool
+Schemas]]` and `[[B6 Never Receives the Master Bullet Bank (Empty Evidence Lanes in the Map)]]` — are both
+now delivered/near-delivered. What's left is purely the live spend: re-screening 157 leads. Moved off
+`0 - Idea` since this isn't an unspec'd idea anymore, and onto the new status rather than `1`/`2` since
+there's no code to write or test here at all — see `[[++ Continuous Improvement Procedure]]`.

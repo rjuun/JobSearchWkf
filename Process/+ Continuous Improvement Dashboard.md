@@ -8,7 +8,7 @@ Refer to [[++ Continuous Improvement Procedure]] and [[CI - Continuous Improveme
 // sections wherever the first page of that status happened to fall, so a
 // group could drift depending on what else was in the folder. Canonical
 // values are documented in "++ Continuous Improvement Procedure.md".
-const STATUS_ORDER = ["0 - Idea", "1 - Development", "2 - Testing", "3 - Delivered", "4 - Abandoned", "5 - Superseded"];
+const STATUS_ORDER = ["0 - Idea", "1 - Development", "2 - Testing", "9 - LLM Run Required", "3 - Delivered", "4 - Abandoned", "5 - Superseded"];
 
 const dvPages = dv.pages('"Process/CI"');
 const pagesArr = dvPages.array();

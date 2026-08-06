@@ -49,10 +49,12 @@ export const RANK_WEIGHT: Record<string, number> = {
 };
 
 /**
- * Single source of truth for the human-gate vocabulary. The DB enum is still
- * `green/yellow/red` (see schema.ts); the UI says Keep/Maybe/Drop. New UI should
- * read from here so the eventual enum→keep/maybe/drop migration (ROADMAP P6) is a
- * one-line change, not a scavenger hunt.
+ * Legacy label map for the DB enum (`green/yellow/red`, see schema.ts). Nothing
+ * in the live UI currently reads this — the per-row Keep/Maybe/Drop triage that
+ * used to display these labels was retired for a single "approve entire map"
+ * action, which only ever sets `green`/`pending`. Kept as the one place these
+ * words are spelled out, in case a future surface needs to explain a legacy
+ * `yellow`/`red` row, or for the eventual enum cleanup (ROADMAP P6).
  */
 export type ApprovalStatus = 'pending' | 'green' | 'yellow' | 'red';
 export const APPROVAL_LABEL: Record<ApprovalStatus, string> = {

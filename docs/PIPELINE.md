@@ -30,9 +30,9 @@ flowchart TD
     G2 -- "Proceed / Caution" --> C1
 
     subgraph C["C · Tailoring (promoted leads only)"]
-        C1["C1 · Format & headshot check<br/><i>code</i>"] --> C2["C2 · Map requirements → evidence<br/><i>Opus 4.8</i>"]
-        C2 --> HITL{"Human review<br/>Keep / Maybe / Drop"}
-        HITL -- "Keep only" --> C3["C3 · Draft CV bullets<br/><i>Opus 4.8</i>"]
+        C1["C1 · Format & headshot check<br/><i>code</i>"] --> C2["C2 · Map requirements → evidence<br/>builds on B6, targets Good/Weak/No Match<br/><i>Opus 4.8</i>"]
+        C2 --> HITL{"Human review<br/>Approve the map"}
+        HITL -- "Approve" --> C3["C3 · Draft CV bullets<br/><i>Opus 4.8</i>"]
         C3 --> C4["C4 · Skills section<br/><i>code</i>"]
         C4 --> C5["C5 · CV profile<br/><i>Opus 4.8</i>"]
         C5 --> C6["C6 · Compile 2-page CV<br/><i>code · docxtemplater</i>"]
@@ -136,11 +136,16 @@ keeps scoring unbiased and reproducible.
 
 ## C — Tailor (only promoted leads)
 
+**"Promote" is a status flip, not a trigger.** `promoteLeadAction` (`app/actions/pipeline.ts`) only sets
+`job_leads.status = 'promoted'` — it does not call C1/C2. Both C1 and C2 run together, manually, from
+"Map"/"Match the evidence" (`mapEvidenceAction` → `runEvidenceMapping`). C1 has no UI of its own; its one
+output (the headshot decision) is folded into the same run trace as C2.
+
 | Step | Note | Model | Output |
 | --- | --- | --- | --- |
 | **C1** Format & compliance | `C1. Overall Application Content and Format Guidance.md` | **code** | CV format/length, cover-letter required?, **headshot decision** (country/DEI tree), HR contact |
-| **C2** Map requirements → evidence | `C2. Map JD Requirements to Supporting Evidence.md` | Opus 4.8 | `requirement_tailoring[]`: evidence `ref_code`, original_text, `cv_position` → **`approval_status=pending`** |
-| ⟶ **Human gate** | — | — | Each link marked **Keep / Maybe / Drop**. Only **Keep** proceeds. One evidence piece → one requirement (dedup by specificity). |
+| **C2** Map requirements → evidence | `C2. Map JD Requirements to Supporting Evidence.md` | Opus 4.8 | Builds on B6 rather than re-deriving (CI-034): B6's Excellent/Very Strong picks are carried forward untouched (no model call); the model is targeted only at requirements B6 rated Good/Weak/No Match, to add candidates on top. Merges into `requirement_tailoring[]` — several evidence rows per requirement are allowed (ranked), a stored row is replaced only when new evidence scores strictly higher, and an untouched row still `pending` from a prior run is pruned. → **`approval_status=pending`** |
+| ⟶ **Human gate** | — | — | **Approve the whole map in one action** — every row with a valid CV slot is Kept at once. No more per-row triage. |
 | **C3** Evidence → CV bullets | `C3. Transform Evidence into CV Bullets.md` | Opus 4.8 | `cv_bullet` per Keep row (7 principles: truthful, natural keywords, strong verbs, real metrics, skill tags, concise) + `requirement_skills` (Job-Lead-facing skills this bullet demonstrates — the bracketed tag) |
 | **C4** Skills section | `C4. Build and Manage the Skills Section.md` | **code** | 3–5 categories ×4–8 skills, built primarily from Keep rows' `my_skills` (consistency rule, uncapped) + a requirement-overlap top-up across Skills/STAR Competences/STAR Attributes |
 | **C5** CV profile | `C5. Drafting CV Profile (Per Job Lead).md` | Opus 4.8 | 4–7 line profile leading with seniority + core-requirement alignment |

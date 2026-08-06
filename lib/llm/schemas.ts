@@ -500,16 +500,19 @@ export const C2 = {
     name: 'emit_evidence_map',
     strict: true,
     description:
-      'For each requirement, pick the SINGLE strongest piece of evidence from the candidate list by its exact ref code, rate the match honestly, and note the connection. If no honest match exists, omit it from links and record it under gaps instead — never force a weak link or invent evidence.',
+      'For each requirement, list every genuinely strongest piece of evidence from the candidate list by its exact ref code — one entry per ref, ranked strongest first when several apply. Rate each match honestly and note the connection. If no honest match exists, omit the requirement from links and record it under gaps instead — never force a weak link or invent evidence.',
     input_schema: {
       type: 'object', additionalProperties: false,
       properties: {
         links: arr({
           type: 'object', additionalProperties: false,
           properties: {
-            order: { type: 'integer', description: 'The requirement number from the list.' },
+            order: { type: 'integer', description: 'The requirement number from the list. May repeat across several links when more than one piece of evidence genuinely supports it.' },
             evidenceRef: { type: 'string', description: 'Exact ref code of the chosen evidence (e.g. "5-3", "A-R3", "EDU-1").' },
-            matchStrength: { type: 'string', enum: ['Very Strong', 'Strong', 'Moderate', 'Weak', 'No Match'] },
+            // Same 5-band ordinal B6 uses (lib/scoring.ts matchStrengthForScore) —
+            // CI · Make C2 Build on B6 §2.2 requires one shared scale so a re-run's
+            // merge can compare a new pick against B6's or a stored C2 pick.
+            matchStrength: { type: 'string', enum: ['Excellent', 'Very Strong', 'Good', 'Weak', 'No Match'] },
             connection: { type: 'string', description: 'One sentence: why this evidence supports the requirement.' },
             cvPosition: {
               type: 'string',

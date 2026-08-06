@@ -2,7 +2,7 @@
 ci-area: Screening → Tailoring pipeline design
 ci-roadmap:
 ci-title: Make C2 build on B6 instead of re-deriving the map
-ci-status: 0 - Idea
+ci-status: 9 - LLM Run Required
 ci-priority: high
 ci-date: 2026-08-04
 ci-estimated-time: 6
@@ -309,3 +309,108 @@ when this work was first scoped — C2 seeing B6's findings is the mechanism, no
 
 Nothing implemented yet. Three decisions are open and should be settled before code: one-row-vs-many per
 requirement (§2.2), the stale-row owner (§2.4), and rejected-evidence suppression (§2.5).
+
+### 2026-08-05 · Implemented (plumbing + bulk-approve UI, unverified against live tsc/vitest)
+
+Triggered by a real observed regression: the owner compared B6's evidence lanes against a freshly-run C2
+map on a live lead and found C2's result strictly worse than B6's own screen — the exact failure mode this
+CI predicted. Implemented in the same pass as retiring the row-by-row Keep/Maybe/Drop triage UI (separate,
+unrelated ask, done together because both touch the same C2 → `requirement_tailoring` surface).
+
+**Decisions settled:**
+- **§2.2 one-row-vs-many:** **many, ranked.** `requirement_tailoring` now allows several rows per
+  requirement. B6's evidence is transposed unconditionally for EVERY tier (not just carry — see below),
+  so C2 can only ever ADD candidate rows, never substitute a worse one in place of B6's. `planMerge`
+  matches on `(requirementId, evidenceRef)` and replaces a stored row only when the new pick scores
+  strictly higher on `matchStrengthToScore`; ties/weaker proposals and unmentioned rows are left alone.
+- **§2.5 rejected-evidence suppression:** moot, not implemented. With bulk-approve replacing per-row
+  triage, there is no more UI path for a human to mark a single row Drop, so a `(requirement, evidence)`
+  pair can no longer be rejected and then re-proposed. Revisit if per-row Drop ever comes back.
+- **§2.4 stale-row rule:** only **option (1)** implemented (B2's re-extraction branch now also deletes
+  `requirement_tailoring` alongside `requirement_evidence`/`job_requirements`). **Option (3)** — gating
+  `runInitialChecksAction`/`runScreeningAction` on lead status so a promoted/tailored lead can't be
+  silently re-extracted at all — is NOT done. Still the right primary fix per the analysis above; left as
+  follow-up since it's a UX-gate change independent of the C2 plumbing.
+
+**Deviation from §2.1's literal tiering:** the doc's table implies Excellent/Very Strong SKIP the model
+entirely and Good/Weak/No Match go through it — implemented that way for which requirements reach the
+model (prompt still shrinks to only Good/Weak/No Match). But ALL tiers, including Excellent/Very Strong,
+now carry B6's evidence into `proposed` unconditionally, before the model call. This was necessary, not
+optional: a Good-tier requirement where C2's own fresh pick came back weaker than B6's original would
+otherwise have silently dropped B6's (stronger) pick, reproducing the exact regression this CI exists to
+fix. Carrying forward first and letting C2 only ADD is the safer reading of "attempt to improve."
+
+**Not done (needs a live key + the owner's judgement, can't be verified from here):**
+- The harness A/B variant flag, the ~$17 live measurement (§2.6), and the acceptance criteria that read
+  results (collapse count, requirement-level before/after) are all outstanding.
+- `npx tsc --noEmit` / `npx vitest run` were NOT run to completion — the dev sandbox this was written in
+  couldn't execute them (see below). **Run both before trusting this.**
+- The second-run-preserves-approvalStatus acceptance test (§2.6, free) was not executed, only reasoned
+  through statically via `planMerge`'s logic.
+- C2's tool `matchStrength` enum and the live system prompt (`Process/C2...md`) were updated to the
+  Excellent/Very Strong/Good/Weak/No Match scale to match B6's, since §2.2 requires one shared ordinal —
+  this touches what the LIVE model will emit henceforth, not just plumbing. Worth a first live run's
+  output being read closely.
+
+### 2026-08-05 · §2.3 addendum — prune untouched `pending` rows on re-run
+
+Real case surfaced immediately on the first lead this ran against: 16 pre-CI `requirement_tailoring`
+rows (delete-then-replace era, one row per requirement, searched the wrong evidence, never reviewed —
+0/16 kept) sat next to B6's 46-row `requirement_evidence` set. Because §2.2's merge only ever inserts/
+replaces, those 16 stale rows survived a re-run untouched (their `evidenceRef`s don't collide with
+anything B6 or C2 proposes), so the Map would have shown 62 rows instead of the 46 real ones, and
+"Approve entire map" would have Kept the 16 leftover guesses right alongside the real evidence.
+
+Owner's framing: *"Can we simply delete the 16 rows of initial evidence which simply was a result of
+poor execution?"* Checked first whether that's safe — grepped `lib/db/schema.ts` for any column
+referencing `requirement_tailoring.id`; there is none, and `activityEvents`/`activationEvents` are only
+written on a genuine status transition into `green`, which never happened for these rows (0/16 kept).
+No FK, no soft reference, no orphan risk.
+
+Rather than a one-off manual delete, built it into `planMerge` as a permanent rule: a stored row is
+pruned when it's still `pending` (nobody has decided anything about it — §2.3's "silence is not a
+verdict" protects a human VERDICT, not un-reviewed noise), its requirement is one this run actually
+covers, and no proposal this run named its exact `(requirementId, evidenceRef)` pair. A row carrying a
+real verdict (green/yellow/red) is never a pruning candidate under any circumstance. `planMerge` now
+takes a third argument, `coveredReqIds`, and returns `toDelete: string[]` alongside the existing three
+buckets; `runEvidenceMapping` deletes those ids after the insert/replace writes.
+
+Sanity-checked offline (pure-function reimplementation, synthetic data shaped like the real lead — 16
+requirements, 46 B6 rows, 16 stale untouched-pending rows with non-overlapping refs): confirms the merge
+now lands on exactly 46 rows post-prune (not 62), and separately confirms a `green` row with the same
+"untouched" shape is excluded from pruning. Not yet verified against the live lead / live DB — the next
+Match-the-evidence run on `b7e91408-666b-4bd3-9aa2-feb760fc1036` is the real test.
+
+**Environment note for whoever picks this up next:** verification tooling (`tsc`, `vitest`) could not be
+run in the environment this was authored in — filesystem operations on the mounted project (even a plain
+`find`) consistently timed out, and `vitest` additionally failed outright on a platform-mismatched native
+binding (`@rolldown/binding-linux-x64-gnu` missing — `node_modules` was installed on Windows, the shell was
+Linux). Changes were reviewed by hand instead. Run the full acceptance checklist locally before relying on
+this.
+
+### 2026-08-06 · Live-verified in the UI; moved to `9 - LLM Run Required`
+
+`tsc --noEmit` and `vitest run` (195/195) confirmed clean by the owner, live in their own environment.
+Bulk-approve, the evidence-kind gating fix, and the stale-row prune rule were all exercised live across
+multiple real leads over several sessions, including a full screen → map → approve → generate CV run
+end to end. `evidence_kind` backfill-on-refresh (a `planMerge` gap found during this live testing, not in
+the original design) also shipped and was verified.
+
+Everything on §2.7's checklist is now done except the harness A/B variant flag and the live measurement
+itself (§2.6) — the one criterion that answers the CI's actual question (does targeting produce better
+maps for less money), as opposed to proving the rebuild didn't break anything. Status set to
+`9 - LLM Run Required` rather than `2 - Testing` (undersells what's live-verified) or `3 - Delivered`
+(the original question is still open) — see `[[++ Continuous Improvement Procedure]]` for the new value.
+Also still open, unrelated to the LLM run: §2.4 option (3), gating B-phase re-screening actions on lead
+status — a Claude Code prompt for that was handed off separately.
+
+### 2026-08-06 · Commit-organization note — where the code actually lands
+
+For anyone tracing the `evidence_kind` backfill (`toRefresh` in `planMerge`/`runEvidenceMapping`,
+`lib/pipeline/tailoring.ts`) or the `matchStrength` scale widening (`lib/llm/schemas.ts`) from this note
+into git history: both ship in the **Career Graph Visualization & Your Story Restructure** commit, not a
+commit tied to this CI. That commit absorbed `lib/pipeline/tailoring.ts` and `lib/db/schema.ts` wholesale
+as part of an owner-approved simplification (several unrelated sessions had touched those two files, and
+splitting every hunk by feature wasn't worth the effort). The Education/Language Map-lane gating fix itself
+(the UI/action side — `workspace.tsx`, `cv-slots.ts`, `approveAllAction`) has its own note,
+`[[CV Tailoring — Evidence Mapping Issues]]`, and ships in that note's own commit.

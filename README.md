@@ -34,7 +34,7 @@ Seeding production (Supabase) uses the same scripts pointed at the cloud DB — 
 `npm run db:deploy` (migrate → seed → demo-login). See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 Demo path: **/roleproof** → **Capture a lead** (`/roleproof/capture`) → open a lead →
-**Screen** → **Promote** → **Map evidence** → **Keep / Maybe / Drop** → **Generate CV** →
+**Screen** → **Promote** → **Map evidence** → **Approve the map** → **Generate CV** →
 **Download**. Pipeline trace details are folded into the workspace panels.
 
 ---
@@ -47,7 +47,7 @@ A staged, gated pipeline takes a job posting from "saved link" to "tailored CV":
 | --- | --- | --- |
 | **A — Acquire** | Capture a job lead (LinkedIn → JD text) | — |
 | **B — Screen** | Freshness/saturation → roadblocks → misalignments → map to a 17-dimension skills framework + JD Group + ATS → extract & rank requirements → **Role Fit & Investment Worthiness Score** | Hold if posting ≥60 days; proceed only if fit score clears the threshold |
-| **C — Tailor** | (Prioritised leads only) format check → map each requirement to profile evidence → **human Keep / Maybe / Drop gate** → draft CV bullets → skills section → profile → compile 2-page CV → ATS rating | Only Keep evidence becomes CV content |
+| **C — Tailor** | (Prioritised leads only) format check → map each requirement to profile evidence, building on the B6 screen rather than re-deriving it → **human approves the whole map in one action** → draft CV bullets → skills section → profile → compile 2-page CV → ATS rating | Only Kept evidence becomes CV content |
 | **CI — Improve** | Every session can raise "Accuracy Improvement Tips"; a dashboard tracks ~10 improvement initiatives | — |
 | **D — Monitor** | (Early) track target companies and live applications | — |
 

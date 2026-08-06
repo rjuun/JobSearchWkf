@@ -90,9 +90,12 @@ Live-ops (deploy, seed, demo-login sync) are documented in [`DEPLOYMENT.md`](DEP
 
 ## Scheduled cleanup (P6, post-prototype)
 
-- **Rename the `approval_status` enum** `green/yellow/red` → `keep/maybe/drop` to match the UI vocabulary
-  (a Drizzle migration + a sweep of the `'green'` query literals). Until then the split is centralised in
-  `APPROVAL_LABEL` (`lib/db/types.ts`) so it doesn't ossify.
+- **Rename the `approval_status` enum** `green/yellow/red` → something that matches the current bulk-approve
+  UI (per-row Keep/Maybe/Drop was retired — the UI now approves the whole map in one action and only ever
+  sets `green`, so `yellow`/`red` are vestigial, kept for legacy data rather than a live vocabulary). Worth
+  revisiting whether the rename is even still the right cleanup, or whether `yellow`/`red` should just be
+  dropped. A Drizzle migration + a sweep of the `'green'` query literals either way. Until then the split is
+  centralised in `APPROVAL_LABEL` (`lib/db/types.ts`) so it doesn't ossify.
 - **Per-tenant CV templates / slots.** The real-template path (`lib/cv-slots.ts`) is keyed to the seed
   owner's 11 roles; other tenants fall back to the programmatic builder. Generalise to per-owner template +
   slot config so every tenant gets template fidelity.

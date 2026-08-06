@@ -32,7 +32,13 @@ Two more values close out a CI outside the `0→3` delivery pipeline, added 2026
 | `4 - Abandoned` | Decided not to pursue. No successor absorbs the work — it's just dropped. |
 | `5 - Superseded` | The scope (in whole or in part) got absorbed by another CI or by an unrelated product change. The note stays as history; link whatever now carries the work forward (`pr-target` or a `## 3. Resources` line). |
 
-Neither is a silent status flip — see **Rescoping** below. And a CI whose scope only partly overlaps with something else isn't automatically Superseded: if part of the original ask is still open and nobody else is doing it, the right move is usually to rewrite the note's scope in place and keep it moving through the normal pipeline, not to close it.
+One more, added 2026-08-06: a CI can be **code-complete and blocked on nothing but a live LLM spend** — everything short of the actual paid run is done, and the only thing left is a deliberate budget decision, not more engineering. `2 - Testing` doesn't fit (that implies verification is in progress); `3 - Delivered` is wrong (the question the CI set out to answer is still unanswered). This status exists so those notes are visibly parked on a decision rather than silently stalled:
+
+| Value | Meaning |
+| --- | --- |
+| `9 - LLM Run Required` | Everything but a live, paid LLM run is done — code-complete, plumbing-verified, blocked only on someone deciding to spend the budget (and, where relevant, actually running it). Not part of the `0→3` ladder; a CI moves here from `1`/`2` and moves back into the ladder once the run happens. |
+
+Neither of the two above is a silent status flip — see **Rescoping** below. And a CI whose scope only partly overlaps with something else isn't automatically Superseded: if part of the original ask is still open and nobody else is doing it, the right move is usually to rewrite the note's scope in place and keep it moving through the normal pipeline, not to close it.
 
 **CI Table View** A dynamically generated table that displays CI Items using Tags and Properties. Used for quick scanning, triage, and planning. Implemented today as the **CI Dashboard** — see **Artifacts** below.
 

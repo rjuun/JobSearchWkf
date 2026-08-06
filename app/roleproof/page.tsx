@@ -98,7 +98,7 @@ export default async function RoleProofBoard() {
     });
   for (const l of active)
     if (l.status === 'tailoring' || l.status === 'promoted')
-      add({ id: l.id, glyph: '1', tone: 'proof', title: `Approve evidence · ${l.title}`, sub: 'Decide what genuinely belongs — only “Keep” reaches the CV.', cta: 'Resume triage' });
+      add({ id: l.id, glyph: '1', tone: 'proof', title: `Approve evidence · ${l.title}`, sub: 'Approve the map in one action — only Kept evidence reaches the CV.', cta: 'Approve map' });
   for (const l of active)
     if (l.status === 'ready')
       add({ id: l.id, glyph: '↓', tone: 'proof', title: `Send · ${l.title}`, sub: 'CV is tailored and within the 2-page budget.', cta: 'Download' });

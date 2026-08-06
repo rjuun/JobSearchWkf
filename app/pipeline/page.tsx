@@ -31,7 +31,7 @@ const STAGES: Stage[] = [
     items: TAILOR_STEPS.map((s) => ({
       code: s.id,
       label: s.label,
-      gate: s.id === 'C2' ? 'Human Keep / Maybe / Drop' : undefined,
+      gate: s.id === 'C2' ? 'Human approves the map' : undefined,
     })),
   },
   { letter: 'CI', name: 'Improve', range: 'loop', items: [{ code: 'CI', label: 'Coaching + accuracy flags feed back into the graph & prompts' }] },

@@ -131,8 +131,10 @@ The review step is the onboarding twin of C2:
 - Editing a node before approving records it as `source:'authored'` (the user's voice) — a positive
   trust signal worth keeping.
 
-Reuse: the Keep/Maybe/Drop component pattern, `Badge` tones (add `imported`/`ai` tones), `EmptyState`,
-`Skeleton`, `Button`, `Field`.
+Reuse: `Badge` tones (add `imported`/`ai` tones), `EmptyState`, `Skeleton`, `Button`, `Field`. (C2's own
+per-row Keep/Maybe/Drop control was retired in favour of a single "Approve entire map" action — this
+review step's per-node Approve/Edit/Drop segmented control is a distinct, standalone pattern now, not a
+reuse of anything in C2.)
 
 ---
 

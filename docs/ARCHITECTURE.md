@@ -30,7 +30,7 @@ Browser (LinkedIn)                          Next.js on Vercel
                                      │ store raw md → Storage; insert JobLead(draft)
   React UI (App Router) ◀───────────┤
    lead board / pipeline console     │ Server Actions: runB1..B6, runC1..C7
-   C2 Keep/Maybe/Drop gate            │   each → llm.runStructured(stepId, {context, schema})
+   C2 approve-the-map gate            │   each → llm.runStructured(stepId, {context, schema})
    CV preview + download              │   → validate (Zod) → write entities → pipeline_runs
                                      ▼
        Supabase: Postgres (owner-scoped in app) + Storage bucket (jd-captures/, cv-output/)
@@ -161,8 +161,10 @@ Approach:
 5. B6 GATE  UI shows score + tier. Proceed/Caution → user promotes to Tailoring; Low/No → stop.
 6. C-TAILOR (promoted leads only)
    C1 format/compliance + headshot decision (country/DEI tree)
-   C2 evidence map[] (requirement → evidence ref + original_text + cv_position), status='pending'
-      → USER reviews each: Keep / Maybe / Drop
+   C2 evidence map[] — builds on B6's requirement_evidence rather than re-deriving (CI-034): carries
+      forward B6's Excellent/Very Strong picks untouched, targets the model only at Good/Weak/No Match,
+      merges into what's stored (several evidence rows per requirement allowed, ranked); status='pending'
+      → USER approves the whole map in one action (bulk Keep, gated on having a CV slot)
    C3 CV bullets — ONLY over Keep rows (7 principles)
    C4 skills section (≤4 cats); C5 profile (≤5 lines)
    C6 docxtemplater fills CV_Template → cv-output/{lead}/{variant}.docx (+ PDF preview)
@@ -183,7 +185,7 @@ Approach:
 | --- | --- |
 | **.docx 2-page fidelity** (highest risk) | `docxtemplater` fills the existing template; enforce 2 pages by content budget (C6 rules) in code, not by measuring. Re-tag template once; render-test on P3 day one. |
 | **Agent determinism & cost** | Tool-use with forced schema + Zod + one retry; all arithmetic in TS; persist results, never re-score on read; prompt-cache the long step notes; log every call. |
-| **Human-in-the-loop (C2)** | `approval_status` enum on `requirement_tailoring`; per-row review queue; only Keep flows to C3. Build this UI well — it's the demo centrepiece. |
+| **Human-in-the-loop (C2)** | `approval_status` enum on `requirement_tailoring`; the whole Requirement → evidence map is approved in one action (per-row Keep/Maybe/Drop was retired — reviewing each match individually was redundant once the full map is visible below it); only Kept (green) rows flow to C3. |
 | **Prompt management** | `Process/*.md` notes *are* the prompt templates, loaded at runtime. Refining a step = editing markdown, no code change. Keeps the CI "Accuracy Improvement Tips" loop meaningful. |
 | **Vercel function duration on batch B6** | Per-lead chunking already mitigates. **Implemented** by the Scoring Queue split (below): B1–B3 run one lead at a time at capture; B4–B6 run as N separate per-lead server-action calls driven sequentially from the client, so no single invocation ever spans the batch. A hard kill therefore costs one lead, not the run. For a full historical re-score, still run a manual local script against prod rather than building worker infra. |
 | **Drag-and-drop has no library** | The D-phase capture targets (CI · Scoring Phase Redesign Part 2) are the **first and only** drag-and-drop surface in this app, and they are deliberately native HTML5 — `onDragOver` + `preventDefault`, `onDrop` reading `event.dataTransfer` — with **no `dnd-kit`, no `react-dnd`, no new dependency**. There is nothing here to make draggable: the drag *source* is Outlook, outside the browser entirely, so a drag-and-drop library would add a bundle and solve none of it. Before reaching for one, check whether the need is actually in-page reordering. The real risk was never the mechanic but what lands in `dataTransfer` — client-dependent — so `classifyEmailDrop` (`lib/applications.ts`) branches file / text-link / neither and is unit-tested on all three. |
