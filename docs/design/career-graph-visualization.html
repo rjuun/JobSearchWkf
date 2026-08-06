@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Career Graph — RoleProof</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  :root{
+    --canvas:243 240 233; --surface:255 255 255; --raised:250 248 243; --hairline:230 225 215;
+    --ink:27 26 23; --ink-muted:106 100 90; --ink-subtle:154 147 135;
+    --proof:19 122 91; --proof-deep:14 97 73; --proof-light:61 190 139; --proof-soft:231 242 236; --proof-ring:201 226 212;
+    --caution:181 125 20; --caution-deep:138 93 8; --caution-soft:247 239 217; --caution-ring:234 217 168;
+    --drop:178 58 46;
+    /* Career Graph node palette — deliberately more saturated/distinctive than the
+       app's restrained proof/caution UI colors, so eight node types stay tellable
+       apart at a glance in a dense force graph. */
+    --nc-position:30 58 138;      --nc-position-deep:20 38 94;
+    --nc-star:13 148 136;
+    --nc-action:22 163 74;
+    --nc-result:234 88 12;
+    --nc-responsibility:100 116 139;
+    --nc-competence:124 58 237;
+    --nc-attribute:219 39 119;
+    --nc-skill:180 83 9;
+    --nc-bullet:190 18 60;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background-color:rgb(var(--canvas));
+    background-image:radial-gradient(1200px 520px at 50% -260px, rgb(19 122 91 / 0.06), transparent 70%);
+    background-attachment:fixed;
+    font-family:'Hanken Grotesk',ui-sans-serif,system-ui,sans-serif;
+    color:rgb(var(--ink));
+    -webkit-font-smoothing:antialiased;
+  }
+  .serif{font-family:'Instrument Serif',Georgia,serif;}
+  .eyebrow{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.14em;color:rgb(var(--ink-subtle));}
+  .wrap{max-width:1400px;margin:0 auto;padding:28px 28px 60px;}
+  .previewBadge{
+    display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;
+    color:rgb(var(--caution-deep));background:rgb(var(--caution-soft));border:1px solid rgb(var(--caution-ring));
+    padding:4px 10px;border-radius:999px;margin-bottom:14px;
+  }
+  header.hero{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;}
+  h1.title{margin:4px 0 0;font-size:40px;line-height:1;font-weight:400;color:rgb(var(--ink));}
+  .subtitle{margin:8px 0 0;max-width:62ch;font-size:14px;line-height:1.55;color:rgb(var(--ink-muted));}
+  .viewToggle{display:inline-flex;align-items:center;gap:4px;border-radius:999px;border:1px solid rgb(var(--hairline));background:rgb(var(--surface));padding:4px;}
+  .viewToggle span{border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;color:rgb(var(--ink-muted));}
+  .viewToggle span.active{background:rgb(var(--ink));color:rgb(var(--raised));}
+
+  .statRow{margin-top:18px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+  .statTile{border:1px solid rgb(var(--hairline));background:rgb(var(--raised));border-radius:9px;padding:14px 16px;}
+  .statTile .n{font-family:'Instrument Serif',Georgia,serif;font-size:30px;line-height:1;color:rgb(var(--ink));}
+  .statTile .n.accent{color:rgb(var(--proof));}
+  .statTile .l{margin-top:4px;font-size:11px;color:rgb(var(--ink-subtle));}
+
+  .board{
+    margin-top:18px;display:grid;grid-template-columns:1fr 340px;gap:18px;align-items:start;
+  }
+  @media (max-width:980px){ .board{grid-template-columns:1fr;} }
+
+  .panel{
+    border:1px solid rgb(var(--hairline));background:rgb(var(--surface));border-radius:12px;
+    box-shadow:0 1px 2px 0 rgb(16 24 40 / .05);
+  }
+  .graphPanel{padding:0;overflow:hidden;position:relative;}
+  .graphToolbar{
+    display:flex;flex-wrap:wrap;align-items:center;gap:10px;justify-content:space-between;
+    padding:14px 16px;border-bottom:1px solid rgb(var(--hairline));
+  }
+  .searchBox{
+    flex:1;min-width:180px;display:flex;align-items:center;gap:8px;background:rgb(var(--raised));
+    border:1px solid rgb(var(--hairline));border-radius:8px;padding:7px 12px;
+  }
+  .searchBox input{border:none;background:transparent;outline:none;font-size:13px;color:rgb(var(--ink));width:100%;font-family:inherit;}
+  .searchBox svg{flex-shrink:0;opacity:.5;}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;align-items:center;}
+  .legendItem{display:flex;align-items:center;gap:6px;font-size:11.5px;color:rgb(var(--ink-muted));cursor:pointer;user-select:none;}
+  .legendItem.off{opacity:.35;}
+  .legendDot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .legendDot.sq{border-radius:2px;}
+  .legendDot.rect{border-radius:3px;}
+  .legendItem.bulletToggle{font-weight:700;}
+  .legendCaption{padding:0 16px 12px;font-size:11px;color:rgb(var(--ink-subtle));border-bottom:1px solid rgb(var(--hairline));}
+  .btn{
+    font-size:12px;font-weight:600;color:rgb(var(--ink-muted));background:rgb(var(--surface));
+    border:1px solid rgb(var(--hairline));border-radius:999px;padding:6px 12px;cursor:pointer;transition:.15s;
+  }
+  .btn:hover{background:rgb(var(--raised));color:rgb(var(--ink));}
+
+  #graphSvg{display:block;width:100%;height:760px;cursor:grab;}
+  #graphSvg:active{cursor:grabbing;}
+  .node-position circle{fill:rgb(var(--nc-position));stroke:rgb(var(--nc-position-deep));stroke-width:1.5px;}
+  .node-star circle{fill:#fff;stroke:rgb(var(--nc-star));stroke-width:2.25px;}
+  .node-responsibility circle{fill:rgb(var(--nc-responsibility) / .18);stroke:rgb(var(--nc-responsibility));stroke-width:1.1px;}
+  .node-action circle{fill:rgb(var(--nc-action) / .18);stroke:rgb(var(--nc-action));stroke-width:1.1px;}
+  .node-result circle{fill:rgb(var(--nc-result) / .18);stroke:rgb(var(--nc-result));stroke-width:1.1px;}
+  .node-competence circle{fill:rgb(var(--nc-competence) / .18);stroke:rgb(var(--nc-competence));stroke-width:1.1px;}
+  .node-attribute circle{fill:rgb(var(--nc-attribute) / .18);stroke:rgb(var(--nc-attribute));stroke-width:1.1px;}
+  .node-skill circle{fill:rgb(var(--nc-skill) / .18);stroke:rgb(var(--nc-skill));stroke-width:1.25px;}
+  .node-bullet rect{fill:rgb(var(--nc-bullet) / .12);stroke:rgb(var(--nc-bullet));stroke-width:1.5px;}
+  .node.dimmed{opacity:.12;}
+  .nodeLabel{font-family:'Hanken Grotesk',sans-serif;font-size:9.5px;fill:rgb(var(--ink-muted));pointer-events:none;}
+  .nodeLabel.big{font-size:11.5px;font-weight:700;fill:rgb(var(--ink));}
+  .link{stroke:rgb(var(--hairline));stroke-width:1.1px;fill:none;}
+  .link.evidence{stroke:rgb(var(--nc-skill));stroke-width:1px;stroke-dasharray:2,2;opacity:.5;}
+  .link.bullet-slot{stroke:rgb(var(--nc-bullet) / .45);stroke-width:1px;stroke-dasharray:1,3;}
+  .link.bullet-source{stroke:rgb(var(--nc-bullet));stroke-width:1.5px;opacity:.8;}
+  .link.dim{opacity:.05;}
+  .link.hi{stroke:rgb(var(--nc-star));stroke-width:2px;opacity:.9;}
+  .link.hi.evidence{stroke:rgb(var(--nc-skill));stroke-width:1.6px;opacity:.95;}
+  .link.hi.bullet-source{stroke:rgb(var(--nc-bullet));stroke-width:2px;opacity:1;}
+
+  .graphTooltip{
+    position:absolute;top:0;left:0;z-index:30;max-width:270px;pointer-events:none;
+    background:rgb(27 26 23);color:rgb(250 248 243);border-radius:8px;padding:9px 12px;
+    box-shadow:0 10px 30px -8px rgb(16 24 40 / .35);
+    opacity:0;transform:translateY(2px);transition:opacity .1s ease-out, transform .1s ease-out;
+  }
+  .graphTooltip.show{opacity:1;transform:translateY(0);}
+  .graphTooltip .t{font-size:12.5px;font-weight:700;line-height:1.35;}
+  .graphTooltip .s{margin-top:2px;font-size:11px;line-height:1.4;color:rgb(169 163 181);}
+  .graphTooltip .s:empty{display:none;}
+
+  .side{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow:auto;}
+  .sideEmpty{padding:22px 20px;}
+  .sideEmpty .k{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgb(var(--proof-deep));}
+  .sideEmpty h3{margin:8px 0 0;font-family:'Instrument Serif',Georgia,serif;font-size:22px;font-weight:400;}
+  .sideEmpty p{margin:8px 0 0;font-size:13px;line-height:1.6;color:rgb(var(--ink-muted));}
+  .sideBody{padding:20px;}
+  .kicker{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;padding:3px 9px;border-radius:999px;}
+  .kicker.position{background:rgb(var(--nc-position) / .12);color:rgb(var(--nc-position));}
+  .kicker.star{background:rgb(var(--nc-star) / .14);color:rgb(var(--nc-star));}
+  .kicker.responsibility{background:rgb(var(--nc-responsibility) / .14);color:rgb(var(--nc-responsibility));}
+  .kicker.action{background:rgb(var(--nc-action) / .14);color:rgb(var(--nc-action));}
+  .kicker.result{background:rgb(var(--nc-result) / .14);color:rgb(var(--nc-result));}
+  .kicker.competence{background:rgb(var(--nc-competence) / .14);color:rgb(var(--nc-competence));}
+  .kicker.attribute{background:rgb(var(--nc-attribute) / .14);color:rgb(var(--nc-attribute));}
+  .kicker.skill{background:rgb(var(--nc-skill) / .14);color:rgb(var(--nc-skill));}
+  .kicker.bullet{background:rgb(var(--nc-bullet) / .12);color:rgb(var(--nc-bullet));}
+  .sideBody h2{margin:10px 0 2px;font-family:'Instrument Serif',Georgia,serif;font-weight:400;font-size:24px;line-height:1.15;}
+  .sideMeta{font-size:12.5px;color:rgb(var(--ink-subtle));margin-top:2px;}
+  .sideSection{margin-top:16px;padding-top:14px;border-top:1px solid rgb(var(--hairline));}
+  .sideSection .h{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgb(var(--ink-subtle));margin-bottom:8px;}
+  .sideSection p.body{font-size:13px;line-height:1.6;color:rgb(var(--ink-muted));margin:0 0 8px;}
+  ul.evidenceList{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px;}
+  ul.evidenceList li{font-size:13px;line-height:1.5;color:rgb(var(--ink));padding-left:16px;position:relative;}
+  ul.evidenceList li:before{content:"→";position:absolute;left:0;color:rgb(var(--proof));font-weight:700;}
+  ul.evidenceList li .badge{display:inline-block;margin-left:6px;font-size:10.5px;font-weight:700;color:rgb(var(--nc-result));background:rgb(var(--nc-result) / .12);border-radius:999px;padding:1px 7px;white-space:nowrap;}
+  ul.evidenceList li.clickable{cursor:pointer;transition:.15s;}
+  ul.evidenceList li.clickable:hover{color:rgb(var(--proof-deep));}
+  .microNote{margin-top:8px;font-size:11.5px;line-height:1.5;color:rgb(var(--ink-subtle));font-style:italic;}
+  .chipRow{display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{font-size:11.5px;font-weight:500;color:rgb(var(--ink-muted));background:rgb(var(--raised));border:1px solid rgb(var(--hairline));border-radius:999px;padding:3px 10px;cursor:default;}
+  .chip.clickable{cursor:pointer;}
+  .chip.clickable:hover{background:rgb(var(--proof-soft));color:rgb(var(--proof-deep));border-color:rgb(var(--proof-ring));}
+  .chip.amber{background:rgb(var(--nc-skill) / .12);color:rgb(var(--nc-skill));border-color:rgb(var(--nc-skill) / .3);}
+  .linkBtn{font-size:12px;font-weight:600;color:rgb(var(--proof-deep));cursor:pointer;text-decoration:none;}
+  .linkBtn:hover{text-decoration:underline;}
+  .footNote{margin-top:22px;padding-top:16px;border-top:1px solid rgb(var(--hairline));font-size:11.5px;line-height:1.6;color:rgb(var(--ink-subtle));}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="previewBadge">✦ Design preview — Career Graph concept for /profile?view=meter</div>
+
+  <header class="hero">
+    <div>
+      <div class="eyebrow">Your evidence</div>
+      <h1 class="title serif">Career Graph</h1>
+      <p class="subtitle">Every position, responsibility, STAR story, action, result, competence, attribute and skill in your graph — laid out as one connected map. Click a node to see the evidence behind it. Turn on <strong>CV Bullets</strong> in the legend to see the chips you've already written laid over the evidence they were built from.</p>
+    </div>
+    <div class="viewToggle">
+      <span>Assembled</span>
+      <span class="active">Meter</span>
+      <span>Graph <span style="opacity:.6;font-weight:500;">(new)</span></span>
+    </div>
+  </header>
+
+  <div class="statRow" id="statRow"></div>
+
+  <div class="board">
+    <div class="panel graphPanel">
+      <div class="graphToolbar">
+        <div class="searchBox">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="searchInput" type="text" placeholder="Search positions, stories, skills…">
+        </div>
+        <div class="legend" id="legend"></div>
+        <button class="btn" id="resetBtn">Reset view</button>
+      </div>
+      <div class="legendCaption">Dot size = evidence granularity, not color: Position → Responsibilities → Actions / Results → Competences · Attributes · Skills.</div>
+      <svg id="graphSvg"></svg>
+      <div id="graphTooltip" class="graphTooltip"><div class="t"></div><div class="s"></div></div>
+    </div>
+
+    <aside class="panel side" id="sidePanel">
+      <div class="sideEmpty">
+        <div class="k">Map the evidence</div>
+        <h3 class="serif">Select any node</h3>
+        <p>Positions are the big hubs. Stories, responsibilities, competences and attributes fan out around them. The dashed lines are skill evidence — what a story proves. Click through to see the full record.</p>
+      </div>
+    </aside>
+  </div>
+
+  <div class="footNote">Mock data source: your Profile Reference Workbook (positions F → A, STARs 1–7, actions, results, responsibilities, competences, attributes, skills master, bullet bank). Hierarchy follows Position→STAR, STAR→Action, STAR→Result and Position→Responsibility (all one-to-many, per your source data). Competences, attributes and skills are recorded at the STAR level in the workbook — not tagged to a specific action or result — so they stay attached to the story rather than being split across actions/results without real data to back that split. A competence or attribute that recurs under the same name across stories (e.g. "Innovativeness" on three separate STARs) is collapsed into one node with a connection to each story, the same pattern skills already use. Competences, attributes and skills also share one node size — CV tailoring treats them as one "skills" language even though the graph keeps them distinct here. <strong>CV Bullets</strong> (rectangular chips, hidden until toggled in the legend) always link to the CV slot they're placed in; 5 of the 28 bullets in the workbook also cite the specific action/result/responsibility/competence/attribute they were composed from in a free-text note, and those become real edges — e.g. bullet "L2" visibly draws from two competences and one responsibility at once. The other 23 only show their CV-slot link, because no finer source was recorded — nothing here is guessed. Layout is force-directed and settles on load — drag any node to rearrange, scroll to zoom. This is a static design preview — wiring it to the live Career Graph query is a follow-up.</div>
+</div>
+
+<script id="graph-data" type="application/json">{"positions": [{"Position_ID": "F", "Position_Title": "Trade Marketing Coordinator", "Company": "Unilever", "Location": "Sao Paulo, Brazil", "Start_Date": "2001", "End_Date": "2003", "Seniority_Level": "Individual Contributor", "Direct_Reports": "39 Promoters", "Notes": "Included for completeness; less relevant for current applications."}, {"Position_ID": "E", "Position_Title": "Project Analyst", "Company": "Banco do Brasil", "Location": "Tokyo, Japan", "Start_Date": "2003", "End_Date": "2006", "Seniority_Level": "Individual Contributor", "Direct_Reports": null, "Notes": "Regulatory compliance projects; FSA Japan."}, {"Position_ID": "D", "Position_Title": "Project Manager", "Company": "Banco do Brasil AG", "Location": "Lisbon, Portugal", "Start_Date": "2006", "End_Date": "2010", "Seniority_Level": "Manager", "Direct_Reports": null, "Notes": "Led Servicing Center establishment \u2014 STAR 1."}, {"Position_ID": "C", "Position_Title": "Senior Analyst to the Board", "Company": "Banco do Brasil AG", "Location": "Vienna, Austria", "Start_Date": "2010", "End_Date": "2013", "Seniority_Level": "Senior Individual Contributor", "Direct_Reports": null, "Notes": "Board-level strategic support \u2014 STAR 2."}, {"Position_ID": "B", "Position_Title": "Deputy Head of Controlling & IT", "Company": "Banco do Brasil AG", "Location": "Vienna, Austria", "Start_Date": "2013", "End_Date": "2018", "Seniority_Level": "Deputy Head", "Direct_Reports": "2 Sr. Analysts", "Notes": "Controlling transformation \u2014 STARs 3 & 4."}, {"Position_ID": "A", "Position_Title": "Head of Governance & Strategy", "Company": "Banco do Brasil AG", "Location": "Vienna, Austria", "Start_Date": "2018", "End_Date": "2024", "Seniority_Level": "Head of Department", "Direct_Reports": "1 Sr. Analyst and 3 Analysts", "Notes": "Most recent role \u2014 STARs 5, 6 & 7."}], "stars": [{"STAR_ID": "1", "Position_ID": "D", "STAR_Title": "Establishment of a Servicing Center in Portugal", "Situation_Summary": "European branches had fragmented back-office processes (6 different core banking setups), legal limitations as Third-Country Branches, and a siloed commercial structure with low cost-income ratio.", "Task_Summary": "Implement a Shared Services Centre in Portugal to centralise back-office processing for all European branches, freeing branches to focus on commercial activity.", "JD_Group_Relevance": "OSS, TPM", "Sequence_in_CV": "7"}, {"STAR_ID": "2", "Position_ID": "C", "STAR_Title": "Merger of BBSA Branches with its European Subsidiary (BBAG)", "Situation_Summary": "Despite a centralised back-office, branches remained legally classified as Third-Country Branches with split capital and limited product range, constraining commercial growth.", "Task_Summary": "Consolidate BBSA branches in Italy, France, Spain and Germany under Austrian subsidiary BBAG, enabling full Universal Banking License and expanded product range.", "JD_Group_Relevance": "TPM, SCD", "Sequence_in_CV": "6"}, {"STAR_ID": "3", "Position_ID": "B", "STAR_Title": "Construction of Accounting Correction Layer and Controlling Dashboards", "Situation_Summary": "EOM accounting sign-off took 20 days; departments used incompatible GL concepts generating irreconcilable reports and constant management confusion.", "Task_Summary": "Automate the EOM process, reduce sign-off time, and create a harmonised data layer with sufficient granularity for all departments to self-serve reporting.", "JD_Group_Relevance": "CFPA, TPM", "Sequence_in_CV": "5"}, {"STAR_ID": "4", "Position_ID": "B", "STAR_Title": "Transfer Pricing \u2014 Master File Implementation", "Situation_Summary": "Post-merger expansion transformed BBAG from a small branch into a 50-person Head Office, triggering tax authority scrutiny under OECD Transfer Pricing Guidelines.", "Task_Summary": "Develop the Transfer Pricing methodology and implement the Master and Local Files to satisfy Austrian and European tax regulators.", "JD_Group_Relevance": "CFPA, POESG", "Sequence_in_CV": "4"}, {"STAR_ID": "5", "Position_ID": "A", "STAR_Title": "Outsourcing Framework Development and Rollout", "Situation_Summary": "EBA introduced outsourcing regulatory requirements in 2018 requiring all financial institutions to formalise governance of outsourced functions by 2019.", "Task_Summary": "Design a compliant Outsourcing Framework covering all intra- and intergroup services, documented in Policies and Procedures, within the regulatory deadline.", "JD_Group_Relevance": "POESG, TPM, CSEO", "Sequence_in_CV": "3"}, {"STAR_ID": "6", "Position_ID": "A", "STAR_Title": "Transforming Governance Process", "Situation_Summary": "Governance was a secretarial function with paper-based approvals, unclear decision flows, and no searchable record of decisions \u2014 creating bottlenecks and overload.", "Task_Summary": "Appointed as Head of Department to implement a digital Governance System improving decision-making speed, transparency and compliance with EBA governance guidelines.", "JD_Group_Relevance": "CSEO, TPM", "Sequence_in_CV": "2"}, {"STAR_ID": "7", "Position_ID": "A", "STAR_Title": "Wind Down of BBAG", "Situation_Summary": "Shareholder instructed Management Board to wind down BBAG operations and return its Banking License, requiring a structured multi-year programme under regulatory and shareholder scrutiny.", "Task_Summary": "Procure the consulting partner, co-design the Wind Down Project Plan and Budget, and manage execution across 10 departments within tight shareholder deadlines.", "JD_Group_Relevance": "TPM, CSEO, SCD", "Sequence_in_CV": "1"}], "actions": [{"Action_ID": "1-1", "STAR_ID": "1", "Action_Sequence": "1", "Action_Description": "Created Operating Manuals for all 51 Products and Services to define and harmonize back-office processes across six European branches.", "Skills_Demonstrated": ["Organization Design", "Process Documentation", "Standardization"], "ATS_Keywords": "process standardization, operating manuals, back-office harmonization"}, {"Action_ID": "1-2", "STAR_ID": "1", "Action_Sequence": "2", "Action_Description": "Developed the Target Operating Model and negotiated the split of back-office processes between European branches and the newly created Shared Services Centre in Portugal.", "Skills_Demonstrated": ["Target Operating Model Design", "Stakeholder Negotiation", "Organizational Design"], "ATS_Keywords": "Target Operating Model, shared services, process split, TOM"}, {"Action_ID": "1-3", "STAR_ID": "1", "Action_Sequence": "3", "Action_Description": "Developed a Workflow Interface enabling branches to submit Service Requests to the SCE and exchange operational documentation.", "Skills_Demonstrated": ["Workflow Design", "Systems Thinking", "Process Automation"], "ATS_Keywords": "workflow automation, service requests, interface design"}, {"Action_ID": "1-4", "STAR_ID": "1", "Action_Sequence": "4", "Action_Description": "Drafted Service Level Agreements regulating cut-off times for branch request submission and SCE processing turnaround times.", "Skills_Demonstrated": ["Contract Drafting", "SLA Design", "Governance"], "ATS_Keywords": "SLA, service level agreement, cut-off times, governance"}, {"Action_ID": "1-5", "STAR_ID": "1", "Action_Sequence": "5", "Action_Description": "Implemented an Activity Based Cost Methodology to allocate SCE operating costs to benefiting branches in line with OECD Transfer Pricing requirements.", "Skills_Demonstrated": ["Activity Based Costing", "Transfer Pricing", "Financial Modelling"], "ATS_Keywords": "activity based costing, ABC, cost allocation, transfer pricing, OECD"}, {"Action_ID": "1-6", "STAR_ID": "1", "Action_Sequence": "6", "Action_Description": "Toured six European branches (Austria, France, Italy, Germany, Spain, UK) to migrate services and deliver hands-on training to local staff.", "Skills_Demonstrated": ["Change Management", "Cross-Cultural Leadership", "Training Delivery"], "ATS_Keywords": "branch migration, cross-cultural, training, change management, stakeholder management"}, {"Action_ID": "2-1", "STAR_ID": "2", "Action_Sequence": "1", "Action_Description": "Created a complex project schedule of over 600 tasks per branch, coordinating inputs from local managers, legal consultants across four countries, and the Brazilian parent company.", "Skills_Demonstrated": ["Project Management", "Multi-Stakeholder Coordination", "Scheduling"], "ATS_Keywords": "project management, project schedule, multi-country, stakeholder coordination"}, {"Action_ID": "2-2", "STAR_ID": "2", "Action_Sequence": "2", "Action_Description": "Managed all deliverables for the FMA regulatory application to transfer EUR 1.5 billion in assets from BBSA to BBAG.", "Skills_Demonstrated": ["Regulatory Compliance", "Project Delivery", "Asset Transfer"], "ATS_Keywords": "regulatory application, FMA, asset transfer, merger, EUR 1.5 billion"}, {"Action_ID": "2-3", "STAR_ID": "2", "Action_Sequence": "3", "Action_Description": "Created Business Plans for Banque de France, Banco de Espa\u00f1a and Banca d'Italia to obtain Welcome Letters for BBAG to establish branches under Banking License passporting.", "Skills_Demonstrated": ["Financial Analysis", "Business Planning", "Regulatory Strategy"], "ATS_Keywords": "business plan, central bank, passporting, banking license, regulatory approval"}, {"Action_ID": "2-4", "STAR_ID": "2", "Action_Sequence": "4", "Action_Description": "Supported preparation of the Contribution in Kind Contract with full supporting evidence package (Closing Balance Sheet, Assets Inventory, Credits, Customer Accounts, Employees, Patents).", "Skills_Demonstrated": ["Due Diligence", "Financial Documentation", "Legal Coordination"], "ATS_Keywords": "contribution in kind, due diligence, balance sheet, merger documentation"}, {"Action_ID": "2-5", "STAR_ID": "2", "Action_Sequence": "5", "Action_Description": "Procured valuation consultancy services for entity valuation under the Arms' Length Principle.", "Skills_Demonstrated": ["Procurement", "Transfer Pricing", "Vendor Management"], "ATS_Keywords": "arms length, entity valuation, procurement, transfer pricing"}, {"Action_ID": "2-6", "STAR_ID": "2", "Action_Sequence": "6", "Action_Description": "Submitted final Legal and Tax Due Diligence documentation packages for the intergroup asset transfer.", "Skills_Demonstrated": ["Due Diligence", "Tax Compliance", "Legal Documentation"], "ATS_Keywords": "due diligence, tax compliance, legal documentation, intergroup transfer"}, {"Action_ID": "2-7", "STAR_ID": "2", "Action_Sequence": "7", "Action_Description": "Coordinated Corporate Resolutions from both BBSA and BBAG for the Contribution in Kind contract, share issuance, branch closings and all merger formalities.", "Skills_Demonstrated": ["Corporate Governance", "Legal Coordination", "Board Resolutions"], "ATS_Keywords": "corporate resolutions, governance, share issuance, merger formalities"}, {"Action_ID": "3-1", "STAR_ID": "3", "Action_Sequence": "1", "Action_Description": "Jointly mapped the As-Is EOM accounting process in VISIO with the Accounting Team (three Controlling FTEs and two Accounting FTEs).", "Skills_Demonstrated": ["Process Mapping", "Cross-Functional Collaboration", "VISIO"], "ATS_Keywords": "process mapping, as-is analysis, EOM, end-of-month, VISIO"}, {"Action_ID": "3-2", "STAR_ID": "3", "Action_Sequence": "2", "Action_Description": "Created a segregated Postgres staging schema to preserve original accounting data before corrections.", "Skills_Demonstrated": ["Database Design", "Postgres", "Data Architecture"], "ATS_Keywords": "Postgres, staging, data architecture, database design, data integrity"}, {"Action_ID": "3-3", "STAR_ID": "3", "Action_Sequence": "3", "Action_Description": "Converted Accounting correction input files (CSV, Excel, Access) into linked tables within the correction workflow.", "Skills_Demonstrated": ["Data Engineering", "ETL", "Systems Integration"], "ATS_Keywords": "ETL, data transformation, linked tables, data engineering"}, {"Action_ID": "3-4", "STAR_ID": "3", "Action_Sequence": "4", "Action_Description": "Transferred manual corrections into a flow of sequenced SQL queries and functions, eliminating manual rework.", "Skills_Demonstrated": ["SQL", "Process Automation", "ERP Process Design"], "ATS_Keywords": "SQL, sequenced queries, automation, ERP process design, post-ERP stabilization"}, {"Action_ID": "3-5", "STAR_ID": "3", "Action_Sequence": "5", "Action_Description": "Ensured full traceability by logging all data modifications in dedicated change-tracking columns.", "Skills_Demonstrated": ["Data Governance", "Audit Trail", "Controls"], "ATS_Keywords": "data governance, audit trail, traceability, controls"}, {"Action_ID": "3-6", "STAR_ID": "3", "Action_Sequence": "6", "Action_Description": "Added transformation columns mapping Accounting GL concepts to Management and Regulatory reporting requirements (Commercial, Risk, Treasury).", "Skills_Demonstrated": ["Data Modelling", "Regulatory Reporting", "Controlling"], "ATS_Keywords": "data modelling, GL mapping, regulatory reporting, management reporting, controlling"}, {"Action_ID": "4-1", "STAR_ID": "4", "Action_Sequence": "1", "Action_Description": "Identified and catalogued all intragroup service and cost exchanges between BBAG and its European branches.", "Skills_Demonstrated": ["Transfer Pricing", "Financial Analysis", "Process Documentation"], "ATS_Keywords": "transfer pricing, intragroup services, cost allocation, catalogue"}, {"Action_ID": "4-2", "STAR_ID": "4", "Action_Sequence": "2", "Action_Description": "Reviewed, drafted and negotiated Master Agreements, Cooperation Agreements, Cost Sharing Agreements and SLAs to formalise all intergroup exchanges.", "Skills_Demonstrated": ["Contract Negotiation", "Legal Documentation", "Transfer Pricing"], "ATS_Keywords": "contract negotiation, cost sharing agreement, SLA, transfer pricing, intergroup"}, {"Action_ID": "4-3", "STAR_ID": "4", "Action_Sequence": "3", "Action_Description": "Built KPI databases and cost-measurement tools to monitor intragroup service charge splits.", "Skills_Demonstrated": ["KPI Design", "Financial Modelling", "Controlling"], "ATS_Keywords": "KPI, cost measurement, financial modelling, performance management"}, {"Action_ID": "4-4", "STAR_ID": "4", "Action_Sequence": "4", "Action_Description": "Formulated the Key Entrepreneurial Risk Taking Functional Analysis to determine Head Office profit allocation share.", "Skills_Demonstrated": ["Transfer Pricing Methodology", "Risk Analysis", "Financial Modelling"], "ATS_Keywords": "KERT, functional analysis, profit allocation, transfer pricing methodology"}, {"Action_ID": "4-5", "STAR_ID": "4", "Action_Sequence": "5", "Action_Description": "Modelled scenarios and bottom-line P&L impact of the Transfer Pricing methodology for both branches and Head Office.", "Skills_Demonstrated": ["Scenario Modelling", "Financial Analysis", "Stakeholder Communication"], "ATS_Keywords": "scenario modelling, P&L impact, financial analysis, tax efficiency"}, {"Action_ID": "4-6", "STAR_ID": "4", "Action_Sequence": "6", "Action_Description": "Drafted the 130-page BBAG Master File (BBSA Local File) in full compliance with OECD Transfer Pricing requirements.", "Skills_Demonstrated": ["Technical Writing", "Regulatory Documentation", "Transfer Pricing"], "ATS_Keywords": "master file, local file, OECD, transfer pricing documentation, tax compliance"}, {"Action_ID": "4-7", "STAR_ID": "4", "Action_Sequence": "7", "Action_Description": "Documented the full Transfer Pricing process in a published internal Procedure.", "Skills_Demonstrated": ["Process Documentation", "Knowledge Management"], "ATS_Keywords": "procedure, process documentation, knowledge management"}, {"Action_ID": "4-8", "STAR_ID": "4", "Action_Sequence": "8", "Action_Description": "Delivered Transfer Pricing knowledge transfer to Branch Managers and Accountants across Europe.", "Skills_Demonstrated": ["Training", "Stakeholder Engagement", "Change Management"], "ATS_Keywords": "training, knowledge transfer, change management, Transfer Pricing"}, {"Action_ID": "5-1", "STAR_ID": "5", "Action_Sequence": "1", "Action_Description": "Led the Administrative Team in an in-depth study of EBA Outsourcing Guidelines and translated regulatory requirements into an Implementation Project Plan.", "Skills_Demonstrated": ["Regulatory Analysis", "Project Planning", "Change Management"], "ATS_Keywords": "EBA guidelines, outsourcing regulation, implementation plan, regulatory compliance"}, {"Action_ID": "5-2", "STAR_ID": "5", "Action_Sequence": "2", "Action_Description": "Drafted the first Outsourcing Policy defining guiding principles, departmental responsibilities and governance framework.", "Skills_Demonstrated": ["Policy Drafting", "Governance", "Regulatory Compliance"], "ATS_Keywords": "outsourcing policy, governance framework, regulatory compliance, policy design"}, {"Action_ID": "5-3", "STAR_ID": "5", "Action_Sequence": "3", "Action_Description": "Catalogued and classified all bank contracts as Material Outsourcing, Non-Material Outsourcing, or Not Outsourcing.", "Skills_Demonstrated": ["Risk Assessment", "Contract Management", "Regulatory Classification"], "ATS_Keywords": "contract classification, material outsourcing, non-material outsourcing, risk assessment"}, {"Action_ID": "5-4", "STAR_ID": "5", "Action_Sequence": "4", "Action_Description": "Designed the Ideal Outsourcing Process as a complete Procurement, Outsourcing and Contract Management Lifecycle in Microsoft Visio.", "Skills_Demonstrated": ["Process Design", "Procurement", "Contract Lifecycle Management"], "ATS_Keywords": "process design, procurement lifecycle, contract management, outsourcing lifecycle, VISIO"}, {"Action_ID": "5-5", "STAR_ID": "5", "Action_Sequence": "5", "Action_Description": "Designed all Outsourcing Framework artifacts including Classification flows, Decision flows, Materiality Assessments, Risk Assessments, Performance Assessments and reports.", "Skills_Demonstrated": ["Artifact Design", "Risk Management", "Performance Management"], "ATS_Keywords": "decision flows, materiality assessment, risk assessment, performance assessment, governance artifacts"}, {"Action_ID": "5-6", "STAR_ID": "5", "Action_Sequence": "6", "Action_Description": "Conducted GAP analysis to identify missing contract clauses for Material and Non-Material Outsourcing classification compliance.", "Skills_Demonstrated": ["GAP Analysis", "Contract Review", "Regulatory Compliance"], "ATS_Keywords": "GAP analysis, contract compliance, regulatory gap, outsourcing compliance"}, {"Action_ID": "5-7", "STAR_ID": "5", "Action_Sequence": "7", "Action_Description": "Assigned contract ownership to Department Heads with documented responsibilities.", "Skills_Demonstrated": ["Governance", "Accountability Framework", "Change Management"], "ATS_Keywords": "contract ownership, accountability, levels of authority, governance"}, {"Action_ID": "5-8", "STAR_ID": "5", "Action_Sequence": "8", "Action_Description": "Trained and instructed Contract Owners to negotiate contract adjustments and monitored compliance within the Regulatory Transitional Period.", "Skills_Demonstrated": ["Training", "Vendor Management", "Contract Negotiation"], "ATS_Keywords": "contract negotiation, vendor management, training, regulatory deadline, contract owners"}, {"Action_ID": "5-9", "STAR_ID": "5", "Action_Sequence": "9", "Action_Description": "Centralised all Outsourcing and Transfer Pricing contract registration, control and reporting in iValua automated system.", "Skills_Demonstrated": ["Procurement Automation", "iValua", "Systems Implementation"], "ATS_Keywords": "iValua, contract management system, automation, centralisation, reporting"}, {"Action_ID": "5-10", "STAR_ID": "5", "Action_Sequence": "10", "Action_Description": "Unified Administrative Departments across Austria, Portugal, France and Italy to co-develop a single Procurement and Outsourcing Procedure.", "Skills_Demonstrated": ["Cross-Country Standardisation", "Process Harmonization", "Facilitation"], "ATS_Keywords": "process harmonization, standardization, cross-country, procurement procedure, outsourcing procedure"}, {"Action_ID": "6-1", "STAR_ID": "6", "Action_Sequence": "1", "Action_Description": "Evaluated Governance System providers through structured presentations to assess market solutions.", "Skills_Demonstrated": ["Market Analysis", "Requirements Management", "Vendor Assessment"], "ATS_Keywords": "vendor assessment, governance system, market analysis, requirements"}, {"Action_ID": "6-2", "STAR_ID": "6", "Action_Sequence": "2", "Action_Description": "Created a formal Specification Document and issued a Request for Proposal to a shortlisted set of providers.", "Skills_Demonstrated": ["System Requirements Specification", "RFP Design", "Procurement"], "ATS_Keywords": "RFP, system requirements specification, procurement, governance system"}, {"Action_ID": "6-3", "STAR_ID": "6", "Action_Sequence": "3", "Action_Description": "Developed an in-house Governance solution using Microsoft SharePoint and Power Automate workflows.", "Skills_Demonstrated": ["SharePoint Development", "Power Automate", "Digital Transformation"], "ATS_Keywords": "SharePoint, Power Automate, inhouse development, digital transformation, governance system"}, {"Action_ID": "6-4", "STAR_ID": "6", "Action_Sequence": "4", "Action_Description": "Led a collaborative in-depth review of the Levels of Authority involving Heads of Department and Management Board Members.", "Skills_Demonstrated": ["Governance Design", "Stakeholder Management", "Decision Rights"], "ATS_Keywords": "levels of authority, decision rights, governance, stakeholder management, Management Board"}, {"Action_ID": "6-5", "STAR_ID": "6", "Action_Sequence": "5", "Action_Description": "Simplified the resolution approval workflow by enabling editable-trackable document submission, allowing real-time Board amendments during meetings.", "Skills_Demonstrated": ["Process Improvement", "Workflow Design", "Board Governance"], "ATS_Keywords": "board governance, workflow simplification, resolution approval, process improvement"}, {"Action_ID": "6-6", "STAR_ID": "6", "Action_Sequence": "6", "Action_Description": "Introduced digital signatures (e-signatures) for formal approval of documents in compliance with EBA governance guidelines.", "Skills_Demonstrated": ["Digital Transformation", "Compliance", "EBA Guidelines"], "ATS_Keywords": "e-signature, digital signature, EBA guidelines, compliance, governance digitalization"}, {"Action_ID": "6-7", "STAR_ID": "6", "Action_Sequence": "7", "Action_Description": "Identified and eliminated redundant processes between Governance, Compliance and HR departments, creating shared SharePoint libraries and procedures.", "Skills_Demonstrated": ["Process Optimization", "Cross-Functional Collaboration", "Organizational Design"], "ATS_Keywords": "process elimination, redundancy, cross-functional, shared services, organizational design"}, {"Action_ID": "6-8", "STAR_ID": "6", "Action_Sequence": 8, "Action_Description": "Developed and delivered a comprehensive Governance Onboarding programme, including a full documentation package and an introductory executive session to walk newly appointed Supervisory Board members through the digital governance processes, decision flows, Levels of Authority and bank-specific rituals and protocols.", "Skills_Demonstrated": ["Governance Onboarding", "Executive Training", "Knowledge Transfer", "Stakeholder Engagement", "Documentation Management", "Process Adoption"], "ATS_Keywords": "governance onboarding, executive onboarding, board induction, governance training, knowledge transfer, documentation package, governance rituals, process walkthrough, digital governance adoption, EBA compliance, SharePoint governance"}, {"Action_ID": "7-1", "STAR_ID": "7", "Action_Sequence": "1", "Action_Description": "Led the procurement of a EUR 2 million, 2-year consulting engagement following strict regulatory compliance and transparency requirements under Shareholder, Supervisory Board and regulatory scrutiny.", "Skills_Demonstrated": ["Procurement", "Regulatory Compliance", "Stakeholder Management"], "ATS_Keywords": "procurement, consulting engagement, regulatory compliance, Supervisory Board, EUR 2 million"}, {"Action_ID": "7-2", "STAR_ID": "7", "Action_Sequence": "2", "Action_Description": "Actively participated in designing and compiling the Wind Down Project Plan and Budget with contributions from 10 Heads of Department covering regulatory notifications, decommissioning, HR impacts, contract terminations, legal and financial closure.", "Skills_Demonstrated": ["Program Management", "Cross-Functional Coordination", "Regulatory Compliance"], "ATS_Keywords": "wind down, project plan, budget, regulatory notification, decommissioning, HR impacts"}, {"Action_ID": "7-3", "STAR_ID": "7", "Action_Sequence": "3", "Action_Description": "Supported individual departments in designing their drill-down operational planners.", "Skills_Demonstrated": ["Project Management", "Coaching", "Planning"], "ATS_Keywords": "project planning, drill-down planners, departmental coordination"}, {"Action_ID": "7-4", "STAR_ID": "7", "Action_Sequence": "4", "Action_Description": "Designed the Success Metrics framework for project progress tracking.", "Skills_Demonstrated": ["KPI Design", "Performance Management", "Governance"], "ATS_Keywords": "success metrics, KPI, project tracking, performance management"}, {"Action_ID": "7-5", "STAR_ID": "7", "Action_Sequence": "5", "Action_Description": "Prepared and presented Supervisory Board resolutions approving the Wind Down Project Plan and Budget.", "Skills_Demonstrated": ["Board Reporting", "Executive Communication", "Governance"], "ATS_Keywords": "Supervisory Board, board resolution, executive communication, governance, board reporting"}, {"Action_ID": "7-6", "STAR_ID": "7", "Action_Sequence": "6", "Action_Description": "Monitored and reported project risks to the Management Board and Supervisory Board throughout execution.", "Skills_Demonstrated": ["Risk Management", "Reporting", "Executive Communication"], "ATS_Keywords": "risk management, risk reporting, Management Board, Supervisory Board"}, {"Action_ID": "7-7", "STAR_ID": "7", "Action_Sequence": "7", "Action_Description": "Prepared resolutions for the legal closure of the French Branch and coordinated Commercial Court deregistration formalities.", "Skills_Demonstrated": ["Legal Compliance", "Corporate Governance", "Cross-Border Coordination"], "ATS_Keywords": "branch closure, Commercial Court, legal closure, deregistration, French branch"}], "results": [{"Result_ID": "1-R1", "STAR_ID": "1", "Result_Sequence": "1", "Result_Description": "Delivered a fully operational Shared Services Centre within 1 year and 8 months from project kick-off, processing 15,000 operations per month with 40 FTEs.", "Quantified_Value": "15,000 ops/month; 40 FTEs; 20 months", "Impact_Type": "Operational"}, {"Result_ID": "1-R2", "STAR_ID": "1", "Result_Sequence": "2", "Result_Description": "Harmonised back-office procedures and workflow systems enabled subsequent single Core Banking System implementation across all 6 branches.", "Quantified_Value": "6 branches unified", "Impact_Type": "Operational / Strategic"}, {"Result_ID": "1-R3", "STAR_ID": "1", "Result_Sequence": "3", "Result_Description": "Gradual branch FTE reallocation from back-office to front-office over 6 years following SCE go-live.", "Quantified_Value": "6 years transition", "Impact_Type": "People / Operational"}, {"Result_ID": "2-R1", "STAR_ID": "2", "Result_Sequence": "1", "Result_Description": "Successfully consolidated Italian, French and Spanish BBSA branches under BBAG (Germany consolidation not completed due to regulatory environment).", "Quantified_Value": "EUR 1.5B assets consolidated; 3 of 4 branches", "Impact_Type": "Strategic / Regulatory"}, {"Result_ID": "2-R2", "STAR_ID": "2", "Result_Sequence": "2", "Result_Description": "BBAG gained full Universal Banking License enabling expanded product range and improved Cost-Income Ratio.", "Quantified_Value": "Universal Banking License; 350 MEUR capital", "Impact_Type": "Strategic / Financial"}, {"Result_ID": "3-R1", "STAR_ID": "3", "Result_Sequence": "1", "Result_Description": "Reduced EOM accounting sign-off from 20 days to 4-5 days, eliminating reporting rework across all departments.", "Quantified_Value": "20 days \u2192 4-5 days (75% reduction)", "Impact_Type": "Operational"}, {"Result_ID": "3-R2", "STAR_ID": "3", "Result_Sequence": "2", "Result_Description": "Built automated Spotfire dashboards enabling dynamic performance-versus-projection analytics, replacing static Excel reports.", "Quantified_Value": "Dynamic dashboards vs static Excel", "Impact_Type": "Operational / Strategic"}, {"Result_ID": "3-R3", "STAR_ID": "3", "Result_Sequence": "3", "Result_Description": "Accounting Correction Layer became the foundational platform for the bank's future enterprise data warehouse.", "Quantified_Value": "Foundation for enterprise DWH", "Impact_Type": "Strategic"}, {"Result_ID": "3-R4", "STAR_ID": "3", "Result_Sequence": "4", "Result_Description": "Board gained improved management visibility through reconcilable, consistent reporting across all departments.", "Quantified_Value": "Unified reporting; Board-level clarity", "Impact_Type": "Strategic"}, {"Result_ID": "4-R1", "STAR_ID": "4", "Result_Sequence": "1", "Result_Description": "Master File passed audit inspections from tax regulators in Portugal, France, Spain and Austria with zero findings.", "Quantified_Value": "0 audit findings; 4 jurisdictions", "Impact_Type": "Regulatory"}, {"Result_ID": "4-R2", "STAR_ID": "4", "Result_Sequence": "2", "Result_Description": "Transfer Pricing implementation generated tax efficiency exceeding EUR 1 million for FY2016.", "Quantified_Value": "EUR 1M+ tax efficiency", "Impact_Type": "Financial"}, {"Result_ID": "4-R3", "STAR_ID": "4", "Result_Sequence": "3", "Result_Description": "Agreement review reduced annual IT cost payments to parent company by nearly 50% from GBP 2.4 million.", "Quantified_Value": "~50% IT cost reduction; GBP ~1.2M saving", "Impact_Type": "Financial"}, {"Result_ID": "5-R1", "STAR_ID": "5", "Result_Sequence": "1", "Result_Description": "All outsourcing arrangements brought into regulatory conformity within the Transitional Period (one relationship terminated).", "Quantified_Value": "100% compliance; 1 termination", "Impact_Type": "Regulatory"}, {"Result_ID": "5-R2", "STAR_ID": "5", "Result_Sequence": "2", "Result_Description": "Outsourcing Framework externally audited with zero recommendations.", "Quantified_Value": "0 audit recommendations", "Impact_Type": "Regulatory"}, {"Result_ID": "5-R3", "STAR_ID": "5", "Result_Sequence": "3", "Result_Description": "Spill-over: Administrative Procedures harmonised across Europe, invoice payment automated, Levels of Authority clarified.", "Quantified_Value": "Pan-European harmonization", "Impact_Type": "Operational / Strategic"}, {"Result_ID": "6-R1", "STAR_ID": "6", "Result_Sequence": "1", "Result_Description": "Governance processes formalised in published Procedures with annual review cycles, improving transparency and efficiency.", "Quantified_Value": "Procedures published; annual review", "Impact_Type": "Regulatory / Operational"}, {"Result_ID": "6-R2", "STAR_ID": "6", "Result_Sequence": "2", "Result_Description": "SharePoint Libraries enabled decentralised, searchable access to historic Board decisions, dramatically reducing Governance search-and-retrieval workload.", "Quantified_Value": "Search-and-retrieval workload eliminated", "Impact_Type": "Operational"}, {"Result_ID": "6-R3", "STAR_ID": "6", "Result_Sequence": "3", "Result_Description": "Digital Signatures reduced approval formalization workload and improved Board Member confidence in document integrity.", "Quantified_Value": "Paper approvals eliminated", "Impact_Type": "Operational"}, {"Result_ID": "6-R4", "STAR_ID": "6", "Result_Sequence": "4", "Result_Description": "E-signature practice spread organically to other departments as a spill-over effect of the Governance implementation.", "Quantified_Value": "Organisation-wide adoption", "Impact_Type": "Operational / Strategic"}, {"Result_ID": "7-R1", "STAR_ID": "7", "Result_Sequence": "1", "Result_Description": "Procured consulting partner and had Wind Down Project Plan and Budget approved by Supervisory Board within 5 months of wind-down decision (April to September 2023).", "Quantified_Value": "5 months; Supervisory Board approved", "Impact_Type": "Regulatory / Operational"}, {"Result_ID": "7-R2", "STAR_ID": "7", "Result_Sequence": "2", "Result_Description": "French Branch fully wound down across Commercial, Administrative and Regulatory fronts by March 2024.", "Quantified_Value": "Full branch closure; March 2024", "Impact_Type": "Regulatory / Strategic"}, {"Result_ID": "7-R3", "STAR_ID": "7", "Result_Sequence": "3", "Result_Description": "Austrian Commercial and Treasury business wound down by September 2024.", "Quantified_Value": "Commercial wind-down; September 2024", "Impact_Type": "Strategic / Financial"}], "competences": [{"CompetenceEntry_ID": "1-C1", "STAR_ID": "1", "Competence_Category": "Systems Thinking", "Competence": "Thinking Systematically", "Competence_Description": "Interpreted undocumented Products/Services processes across 6 banking setups and conceptualised how they could be standardised within an overarching SCE structure."}, {"CompetenceEntry_ID": "1-C2", "STAR_ID": "1", "Competence_Category": "Relationship Building", "Competence": "Building Value-Based Relationships", "Competence_Description": "Negotiated with Branch Management and back-office employees to trust the transfer of operations to the SCE, overcoming strong resistance rooted in regulatory concerns and job security fears."}, {"CompetenceEntry_ID": "1-C3", "STAR_ID": "1", "Competence_Category": "Innovation", "Competence": "Creating Breakthrough Solutions", "Competence_Description": "Designed a Workflow system that was recognised as Best Automation Solution of the Year in Brazil, demonstrating the credibility of centralised processing."}, {"CompetenceEntry_ID": "1-C4", "STAR_ID": "1", "Competence_Category": "Change Facilitation", "Competence": "Onboarding to New Operating Model", "Competence_Description": "Toured six European branches to promote the use of the new Workflow Interface and to kick-start the interaction between the Branches and the SCE according to the new operating model through hands-on training and structured change adoption."}, {"CompetenceEntry_ID": "2-C1", "STAR_ID": "2", "Competence_Category": "Diversity Management", "Competence": "Managing Diversity", "Competence_Description": "Bridged cultural and language barriers across a diverse group of Managers, Lawyers and Tax Consultants from Brazil, Austria, Italy, France and Spain in a highly political and bureaucratic environment."}, {"CompetenceEntry_ID": "3-C1", "STAR_ID": "3", "Competence_Category": "Capability Building", "Competence": "Building Organizational Capability", "Competence_Description": "Simultaneously built Interactive Dashboard capability in Controlling and automated the EOM process in Accounting \u2014 a joint 6-month effort across 5 FTEs from two departments."}, {"CompetenceEntry_ID": "3-C2", "STAR_ID": "3", "Competence_Category": "Systems Thinking", "Competence": "Thinking Systematically", "Competence_Description": "Eliminated departmental silos by designing a shared data architecture that allowed all departments to self-serve from a single harmonised data source."}, {"CompetenceEntry_ID": "3-C3", "STAR_ID": "3", "Competence_Category": "Relationship Building", "Competence": "Building Value-Based Relationships", "Competence_Description": "Built trust with the Accounting Head to allow Controlling to intervene in and improve a process that was not their own."}, {"CompetenceEntry_ID": "3-C4", "STAR_ID": "3", "Competence_Category": "Initiative & Ownership", "Competence": "Driving Initiatives with Limited Internal Support", "Competence_Description": "Faced initial resistance from his own Head of Department regarding the value of the Accounting Correction Layer project. Worked nearly independently in the early stages to build a working prototype that demonstrated the benefits to both Controlling and Accounting, eventually securing broader departmental buy-in and collaboration."}, {"CompetenceEntry_ID": "3-C5", "STAR_ID": "3", "Competence_Category": "Capability Building", "Competence": "Building & Leading a Controlling Team", "Competence_Description": "Hired and integrated two Controlling Analysts while establishing the Controlling function as part of the newly formed Head Office structure, building analytical capability and performance reporting from the ground up."}, {"CompetenceEntry_ID": "4-C1", "STAR_ID": "4", "Competence_Category": "Change Facilitation", "Competence": "Facilitate Change", "Competence_Description": "Navigated ambiguous OECD guidelines to find Transfer Pricing approaches acceptable to tax experts on both sides across multiple European jurisdictions."}, {"CompetenceEntry_ID": "4-C2", "STAR_ID": "4", "Competence_Category": "Capability Building", "Competence": "Building Organizational Capability", "Competence_Description": "Documented and disseminated the Transfer Pricing methodology to Branch Managers and Accountants across Europe."}, {"CompetenceEntry_ID": "4-C4", "STAR_ID": "4", "Competence_Category": "Capability Building", "Competence": "Transfer Pricing Knowledge Transfer", "Competence_Description": "Documented and disseminated the Transfer Pricing methodology (including Master File) to Branch Managers and Accountants across Europe, formally propagating technical aspects to ensure full implementation."}, {"CompetenceEntry_ID": "5-C1", "STAR_ID": "5", "Competence_Category": "Change Facilitation", "Competence": "Facilitate Change", "Competence_Description": "Consistently found ways to deliver internal benefits alongside regulatory compliance, motivating teams to go beyond minimum requirements."}, {"CompetenceEntry_ID": "5-C2", "STAR_ID": "5", "Competence_Category": "Teamwork & Capability Building", "Competence": "Teamwork / Building Organizational Capability", "Competence_Description": "Unified Administrative Departments across four countries to co-create a single Procurement and Outsourcing Procedure, generating cross-border knowledge exchange."}, {"CompetenceEntry_ID": "5-C4", "STAR_ID": "5", "Competence_Category": "Teamwork & Capability Building", "Competence": "Cross-Border Procedure Harmonization & Knowledge Exchange", "Competence_Description": "Unified Administrative Departments across four countries to co-create a single Procurement and Outsourcing Procedure, generating cross-border knowledge exchange and consistent governance practices."}, {"CompetenceEntry_ID": "6-C1", "STAR_ID": "6", "Competence_Category": "Capability Building", "Competence": "Building Organizational Capability", "Competence_Description": "Built Digital Signature and SharePoint skills jointly with analysts, then disseminated to other departments across the bank."}, {"CompetenceEntry_ID": "6-C2", "STAR_ID": "6", "Competence_Category": "Controlled Decision-Making", "Competence": "Controlled Decision Making", "Competence_Description": "Designed an RFP that made it evident to the Management Board that their expectations exceeded their budget, reducing pressure to purchase an inadequate off-the-shelf solution."}, {"CompetenceEntry_ID": "6-C3", "STAR_ID": "6", "Competence_Category": "Initiative & Ownership", "Competence": "Building Solutions with Limited Support", "Competence_Description": "Took full ownership of designing and implementing an in-house Governance System using Microsoft SharePoint and Power Automate when off-the-shelf solutions exceeded budget. Built the solution with minimal internal support and turned initial resistance from senior stakeholders into organisation-wide adoption."}, {"CompetenceEntry_ID": "6-C4", "STAR_ID": "6", "Competence_Category": "Capability Building", "Competence": "Governance Onboarding & Executive Induction", "Competence_Description": "Developed and delivered a Governance Onboarding programme for newly appointed Supervisory Board members, producing a full documentation package and leading introductory executive walkthroughs of the digital governance processes, decision flows, Levels of Authority, and bank-specific governance rituals and protocols."}, {"CompetenceEntry_ID": "6-C5", "STAR_ID": "6", "Competence_Category": "Capability Building", "Competence": "Digital Tools Dissemination", "Competence_Description": "Built Digital Signature and SharePoint skills jointly with analysts, then disseminated these capabilities to other departments across the bank, driving organisation-wide adoption."}, {"CompetenceEntry_ID": "6-C6", "STAR_ID": "6", "Competence_Category": "Capability Building", "Competence": "Hiring & Team Building", "Competence_Description": "Hired and integrated new analysts while restructuring an existing department, shifting administrative functions to HR and building a new Governance & Strategy capability."}, {"CompetenceEntry_ID": "6-C7", "STAR_ID": "6", "Competence_Category": "Leadership & Change", "Competence": "Organizational Restructuring & Team Transformation", "Competence_Description": "Led the transformation of a secretarial/administrative function into a strategic Governance & Strategy department by reassigning roles and hiring targeted capabilities."}, {"CompetenceEntry_ID": "7-C1", "STAR_ID": "7", "Competence_Category": "Organisational Sensitivity", "Competence": "Organizational Sensitivity", "Competence_Description": "Navigated a toxic, fear-driven environment as teams learned the bank would close, acting as mediator in escalated conflicts between Management Board and Department Heads."}, {"CompetenceEntry_ID": "7-C2", "STAR_ID": "7", "Competence_Category": "Complexity Management", "Competence": "Managing Complexity", "Competence_Description": "Consolidated detailed department-level Wind Down Planners into a meaningful aggregated view for Management Board oversight, balancing granularity with executive clarity."}, {"CompetenceEntry_ID": "7-C3", "STAR_ID": "7", "Competence_Category": "Conflict Resolution / Mediation", "Competence": "Acting as Mediator", "Competence_Description": "Acted as a neutral mediator in escalated conflicts between the Management Board and Department Heads, as well as among Management Board Members themselves, during the highly sensitive and politically charged Wind Down process. Maintained composure and neutrality while navigating strong emotions, fear, and conflicting interests under intense shareholder pressure."}, {"CompetenceEntry_ID": "7-C4", "STAR_ID": "7", "Competence_Category": "Conflict Resolution / Mediation", "Competence": "Acting as Mediator", "Competence_Description": "Acted as a neutral mediator and trusted advisor during escalated conflicts between the Management Board and Department Heads (as well as among Management Board Members themselves) in a politically sensitive and high-pressure environment. Maintained composure and neutrality while navigating strong emotions, fear, and conflicting interests under intense shareholder pressure, enabling progress despite significant internal resistance."}], "attributes": [{"AttributeEntry_ID": "1-A1", "STAR_ID": "1", "Attribute": "Rapport Building", "Attribute_Description": "Actively listened to Branch Management concerns about non-compliance, cost increases and operational losses to build trust during a sensitive transition."}, {"AttributeEntry_ID": "1-A2", "STAR_ID": "1", "Attribute": "Sensitivity", "Attribute_Description": "Interacted with Branch employees contributing to service migration while fearing for their jobs, maintaining trust and dignity throughout."}, {"AttributeEntry_ID": "1-A3", "STAR_ID": "1", "Attribute": "Self-Organisation", "Attribute_Description": "Managed Project Management responsibilities simultaneously with specific operational deliverables without losing quality or timelines."}, {"AttributeEntry_ID": "2-A1", "STAR_ID": "2", "Attribute": "Good Listener", "Attribute_Description": "Understood the concerns of senior executives, lawyers and consultants in a highly political and multi-jurisdictional environment."}, {"AttributeEntry_ID": "2-A2", "STAR_ID": "2", "Attribute": "Mediator", "Attribute_Description": "Resolved conflicts and reached consensus among executives, lawyers and consultants with competing interests across five countries."}, {"AttributeEntry_ID": "3-A1", "STAR_ID": "3", "Attribute": "Listening and Interviewing", "Attribute_Description": "Captured nuanced process details through careful listening and interviewing of the Accounting Team."}, {"AttributeEntry_ID": "3-A2", "STAR_ID": "3", "Attribute": "Innovativeness", "Attribute_Description": "Found operational and technical solutions \u2014 Postgres staging, sequenced queries, Spotfire dashboards \u2014 to automate a previously manual process."}, {"AttributeEntry_ID": "3-A3", "STAR_ID": "3", "Attribute": "Resilience", "Attribute_Description": "Created a new process while simultaneously supporting reconciliation between As-Is and New Process results across multiple EOM cycles."}, {"AttributeEntry_ID": "4-A1", "STAR_ID": "4", "Attribute": "Persistence", "Attribute_Description": "Persisted through repeated Management Board challenges and external auditor revisions \u2014 the project was described internally as 'Pure Nitroglycerin' due to its tax sensitivity."}, {"AttributeEntry_ID": "4-A2", "STAR_ID": "4", "Attribute": "Innovativeness", "Attribute_Description": "Found acceptable Transfer Pricing solutions where OECD guidelines were ambiguous, satisfying tax experts on both the Head Office and branch sides."}, {"AttributeEntry_ID": "4-A3", "STAR_ID": "4", "Attribute": "Persistence under High Sensitivity & Scrutiny", "Attribute_Description": "Demonstrated strong ownership by persisting through repeated challenges and external scrutiny during the Transfer Pricing methodology implementation. The project was internally described as \u201cPure Nitroglycerin\u201d due to its sensitivity and potential consequences. Despite multiple rounds of stress-testing by the Management Board and external auditors, maintained focus and iteratively strengthened the methodology until it was considered bullet-proof."}, {"AttributeEntry_ID": "5-A1", "STAR_ID": "5", "Attribute": "Result-Oriented", "Attribute_Description": "Maintained focus on full implementation across all deliverables rather than stopping at a limited-scope regulatory minimum."}, {"AttributeEntry_ID": "5-A2", "STAR_ID": "5", "Attribute": "Innovativeness", "Attribute_Description": "Developed innovative artifacts during the Outsourcing Framework design that reduced compliance workload while enabling automation."}, {"AttributeEntry_ID": "6-A1", "STAR_ID": "6", "Attribute": "Resilience", "Attribute_Description": "Endured significant initial criticism from superiors during the in-house SharePoint Governance system implementation."}, {"AttributeEntry_ID": "6-A2", "STAR_ID": "6", "Attribute": "Entrepreneurial", "Attribute_Description": "Developed a governance system without internal or external support, drawing on market examples and building further improvements independently."}, {"AttributeEntry_ID": "7-A1", "STAR_ID": "7", "Attribute": "Tolerance for Stress", "Attribute_Description": "Maintained focus and effectiveness through the most challenging professional environment of my career \u2014 a wind-down with shareholder inconsistency, management turbulence and peer fear."}, {"AttributeEntry_ID": "7-A2", "STAR_ID": "7", "Attribute": "Confidentiality & Trust", "Attribute_Description": "Was one of the first employees to receive information about the shareholder decision to wind down the bank\u2019s operations in Europe, and entrusted as one of few employees to spar with and advise the Management Board on sensitive wind-down decisions."}, {"AttributeEntry_ID": "7-A4", "STAR_ID": "7", "Attribute": "Confidentiality & Trust", "Attribute_Description": "Entrusted as one of the few employees to spar with and advise the Management Board on highly sensitive wind-down decisions. Enjoyed the trust of Supervisory Board Chairs for preparing and leading their meetings and served for 6 years as shareholder representative in General Assembly meetings."}], "responsibilities": [{"Responsibility_ID": "A-R1", "Position_ID": "A", "Responsibility_Category": "Board & Assembly Coordination", "Responsibility_Text": "Owned end-to-end governance for Management Board, Supervisory Board and General Assembly cycles including agendas, decision packs and meeting logistics to enable timely executive decisions.", "JD_Group_Tags": "CSEO, TPM", "ATS_Keywords": "board governance, Management Board, Supervisory Board, General Assembly, executive decisions"}, {"Responsibility_ID": "A-R2", "Position_ID": "A", "Responsibility_Category": "Board & Assembly Coordination", "Responsibility_Text": "Captured, formalised and maintained board and shareholder resolutions ensuring accurate documentation, traceability and audit-ready records.", "JD_Group_Tags": "CSEO", "ATS_Keywords": "corporate governance, resolutions, audit-ready, documentation, traceability"}, {"Responsibility_ID": "A-R3", "Position_ID": "A", "Responsibility_Category": "Governance Oversight", "Responsibility_Text": "Maintained and updated the governance framework including Articles of Association, Committee Rules of Procedure and Levels of Authority, coordinating decision rights and managing statutory changes.", "JD_Group_Tags": "CSEO, TPM", "ATS_Keywords": "governance framework, Articles of Association, levels of authority, decision rights, statutory"}, {"Responsibility_ID": "A-R4", "Position_ID": "A", "Responsibility_Category": "Governance Oversight", "Responsibility_Text": "Represented the shareholder at General Assembly meetings for six years, communicating confidently at board level and ensuring decisions were executed in line with governance requirements.", "JD_Group_Tags": "CSEO, SCD", "ATS_Keywords": "shareholder representative, General Assembly, board level, governance"}, {"Responsibility_ID": "A-R5", "Position_ID": "A", "Responsibility_Category": "Strategic Partnering", "Responsibility_Text": "Served as strategic sparring partner to the Management Board on governance and strategy discussions, leveraging senior internal consulting experience and non-confrontational communication style.", "JD_Group_Tags": "CSEO, SCD, TPM", "ATS_Keywords": "strategic sparring partner, CEO, Management Board, internal consultant, executive communication"}, {"Responsibility_ID": "A-R6", "Position_ID": "A", "Responsibility_Category": "Compliance & Controls", "Responsibility_Text": "Monitored adequacy of internal controls documentation (Policies and Procedures) and supervised mandatory corporate disclosures and regulatory filings.", "JD_Group_Tags": "CSEO", "ATS_Keywords": "internal controls, policies and procedures, regulatory filings, compliance"}, {"Responsibility_ID": "A-R7", "Position_ID": "A", "Responsibility_Category": "Digital Transformation", "Responsibility_Text": "Digitalised board decision-making by automating approvals in SharePoint and introducing e-signatures, improving speed, transparency and compliance with EBA governance guidelines.", "JD_Group_Tags": "TPM, CSEO", "ATS_Keywords": "SharePoint, Power Automate, e-signatures, digital transformation, EBA, governance"}, {"Responsibility_ID": "A-R8", "Position_ID": "A", "Responsibility_Category": "Procurement & Outsourcing", "Responsibility_Text": "Developed a regulatory-compliant Procurement and Outsourcing Framework and implemented iValua to centralise supplier and contract management.", "JD_Group_Tags": "POESG, TPM", "ATS_Keywords": "outsourcing framework, iValua, procurement, contract management, EBA, regulatory compliance"}, {"Responsibility_ID": "A-R9", "Position_ID": "A", "Responsibility_Category": "Leadership & People Development", "Responsibility_Text": "Built and restructured the Governance & Strategy department by hiring targeted capabilities and shifting administrative functions, transforming it from a secretarial unit into a strategic advisory function.", "JD_Group_Tags": "CSEO, TPM", "ATS_Keywords": "Team building, hiring, department transformation, people leadership, organizational change"}, {"Responsibility_ID": "B-R1", "Position_ID": "B", "Responsibility_Category": "Financial Planning & Performance", "Responsibility_Text": "Owned budgeting, forecasting and monthly performance reporting for the Management Board, translating financial and operational drivers into decision-ready insights and variance narratives.", "JD_Group_Tags": "CFPA", "ATS_Keywords": "budgeting, forecasting, performance reporting, Management Board, FP&A, variance analysis"}, {"Responsibility_ID": "B-R2", "Position_ID": "B", "Responsibility_Category": "Data & Systems", "Responsibility_Text": "Designed and implemented a workflow to correct and harmonise accounting and controlling data, reducing EOM close from 20 to 5 days and scaling the solution into the enterprise data warehouse.", "JD_Group_Tags": "CFPA, TPM", "ATS_Keywords": "EOM close, data harmonisation, Postgres, data warehouse, automation, controlling"}, {"Responsibility_ID": "B-R3", "Position_ID": "B", "Responsibility_Category": "Reporting & Analytics", "Responsibility_Text": "Built commercial performance versus projection dashboards in Spotfire to enable data-driven steering across business lines.", "JD_Group_Tags": "CFPA", "ATS_Keywords": "Spotfire, dashboards, performance management, KPI, reporting, analytics"}, {"Responsibility_ID": "B-R4", "Position_ID": "B", "Responsibility_Category": "Transfer Pricing", "Responsibility_Text": "Implemented Transfer Pricing documentation for the European group, improving tax efficiency while ensuring robust governance and audit-ready documentation.", "JD_Group_Tags": "CFPA, POESG", "ATS_Keywords": "transfer pricing, OECD, tax efficiency, audit, documentation, compliance"}, {"Responsibility_ID": "B-R5", "Position_ID": "B", "Responsibility_Category": "Vendor & Contract Management", "Responsibility_Text": "Partnered with senior stakeholders to formulate and negotiate SLAs across entities, delivering material IT cost reduction through contract renegotiations with the parent company.", "JD_Group_Tags": "POESG, CFPA", "ATS_Keywords": "SLA, contract negotiation, IT cost reduction, vendor management, intercompany"}, {"Responsibility_ID": "B-R6", "Position_ID": "B", "Responsibility_Category": "Leadership & People Development", "Responsibility_Text": "Built the Controlling function from the ground up by hiring and developing two Controlling Analysts, establishing analytical capability and performance reporting processes for the newly created Head Office.", "JD_Group_Tags": "CFPA, TPM", "ATS_Keywords": "Team building, hiring, controlling function setup, people leadership"}, {"Responsibility_ID": "C-R1", "Position_ID": "C", "Responsibility_Category": "Strategic Financial Analysis", "Responsibility_Text": "Supported board-level strategic transactions by building and refining financial models and entity valuations for cross-border restructuring and capital decisions.", "JD_Group_Tags": "SCD, CFPA", "ATS_Keywords": "financial modelling, entity valuation, cross-border, restructuring, capital structure, board"}, {"Responsibility_ID": "C-R2", "Position_ID": "C", "Responsibility_Category": "M&A & Integration", "Responsibility_Text": "Co-led the legal merger of French, Spanish and Italian entities into the Austrian subsidiary, coordinating Tax and Legal stakeholders across Brazil, Austria, France, Spain and Italy consolidating EUR 1.5 billion in assets.", "JD_Group_Tags": "SCD, TPM", "ATS_Keywords": "merger, M&A, legal merger, EUR 1.5B, multi-country, consolidation, integration"}, {"Responsibility_ID": "C-R3", "Position_ID": "C", "Responsibility_Category": "Regulatory & Deal Execution", "Responsibility_Text": "Owned end-to-end delivery of core deal workstreams including Business Plans, Contribution-in-Kind contracts, regulatory filings, capital increase documentation and board resolutions.", "JD_Group_Tags": "SCD, TPM", "ATS_Keywords": "regulatory filing, Contribution in Kind, capital increase, board resolutions, deal execution"}, {"Responsibility_ID": "D-R1", "Position_ID": "D", "Responsibility_Category": "Operating Model Design", "Responsibility_Text": "Designed the Target Operating Model for Operational Process Integration, mapping end-to-end workflows across European back-office functions to standardise processes and strengthen performance management.", "JD_Group_Tags": "OSS, TPM", "ATS_Keywords": "Target Operating Model, TOM, process mapping, back-office, standardisation, performance management"}, {"Responsibility_ID": "D-R2", "Position_ID": "D", "Responsibility_Category": "Shared Services", "Responsibility_Text": "Led the consolidation of European back-office operations into a 40-member Shared Services Centre, coordinating stakeholders across entities to ensure continuity of service.", "JD_Group_Tags": "OSS", "ATS_Keywords": "shared services, SSC, back-office, 40 FTEs, stakeholder coordination, service continuity"}, {"Responsibility_ID": "D-R3", "Position_ID": "D", "Responsibility_Category": "Reporting & Controls", "Responsibility_Text": "Rationalised workflows and controls to improve data quality and reporting consistency, translating operational activity into clear management insights for senior stakeholders.", "JD_Group_Tags": "CFPA, OSS", "ATS_Keywords": "workflow rationalisation, data quality, reporting, controls, management insights"}, {"Responsibility_ID": "E-R1", "Position_ID": "E", "Responsibility_Category": "Regulatory Compliance", "Responsibility_Text": "Led external consultants on an Operational Risk reduction programme in response to a Financial Services Agency (Japan) improvement order, aligning delivery with regulatory expectations.", "JD_Group_Tags": "TPM", "ATS_Keywords": "operational risk, FSA Japan, regulatory compliance, external consultants, improvement order"}, {"Responsibility_ID": "E-R2", "Position_ID": "E", "Responsibility_Category": "Controls & Compliance", "Responsibility_Text": "Streamlined Treasury operational controls across FX, cash-flow projections, nostro accounts and outstanding bids, improving data quality and the control environment under SoX requirements.", "JD_Group_Tags": "CFPA", "ATS_Keywords": "Treasury controls, FX, cash flow, nostro, SoX, data quality, control environment"}, {"Responsibility_ID": "E-R3", "Position_ID": "E", "Responsibility_Category": "Reporting", "Responsibility_Text": "Designed and implemented automated regulatory reporting for Japanese regulators and the Brazilian Head Office.", "JD_Group_Tags": "CFPA", "ATS_Keywords": "regulatory reporting, automation, management information, Japan, Head Office"}], "skills": [{"Skill_ID": "SK-01", "Skill_Name": "Global Process Ownership", "Skill_Category": "Process & Transformation", "Proficiency_Level": "Expert", "STAR_Evidence": "STARs 1,5", "ATS_Keyword_Variants": ["global process ownership", "process harmonization", "end-to-end process", "process standardization"], "Notes": "Core differentiator. Cover both GBS and corporate transformation JDs.", "STAR_Evidence_Parsed": ["1", "5"]}, {"Skill_ID": "SK-02", "Skill_Name": "Target Operating Model Design", "Skill_Category": "Process & Transformation", "Proficiency_Level": "Expert", "STAR_Evidence": "STAR 1,2", "ATS_Keyword_Variants": ["TOM", "Target Operating Model", "operating model design", "organizational design"], "Notes": "Explicit TOM experience from Servicing Center.", "STAR_Evidence_Parsed": ["1", "2"]}, {"Skill_ID": "SK-03", "Skill_Name": "Process Standardization & Harmonization", "Skill_Category": "Process & Transformation", "Proficiency_Level": "Expert", "STAR_Evidence": "STARs 1,4,5,6", "ATS_Keyword_Variants": ["process standardization", "process harmonization", "global process design", "procedure development"], "Notes": "Expert-level creation of operating manuals (51 products), published internal procedures (Transfer Pricing), full policy & lifecycle design in Visio (Outsourcing Framework), and enterprise SharePoint + Power Automate governance systems. Evidence spans back-office harmonization, regulatory compliance documentation, and digital transformation of decision-making processes", "STAR_Evidence_Parsed": ["1", "4", "5", "6"]}, {"Skill_ID": "SK-04", "Skill_Name": "Lean / Digital Transformation", "Skill_Category": "Process & Transformation", "Proficiency_Level": "Advanced", "STAR_Evidence": "STARs 3,5,6", "ATS_Keyword_Variants": ["Lean", "digital transformation", "process automation", "RPA", "Power Automate", "iValua"], "Notes": "Power Automate, iValua, Postgres, Spotfire.", "STAR_Evidence_Parsed": ["3", "5", "6"]}, {"Skill_ID": "SK-05", "Skill_Name": "ERP Process Design", "Skill_Category": "Process & Transformation", "Proficiency_Level": "Advanced", "STAR_Evidence": "STAR 3", "ATS_Keyword_Variants": ["ERP process design", "ERP transformation", "post-ERP stabilization", "Oracle Flexcube", "Postgres"], "Notes": "Oracle Flexcube + Postgres staging layer.", "STAR_Evidence_Parsed": ["3"]}, {"Skill_ID": "SK-06", "Skill_Name": "Financial Planning & Analysis", "Skill_Category": "Finance & Controlling", "Proficiency_Level": "Expert", "STAR_Evidence": "STARs 3,4", "ATS_Keyword_Variants": ["FP&A", "financial planning", "budgeting", "forecasting", "performance reporting"], "Notes": "Deputy Head of Controlling role; multi-year FP&A ownership.", "STAR_Evidence_Parsed": ["3", "4"]}, {"Skill_ID": "SK-07", "Skill_Name": "Transfer Pricing", "Skill_Category": "Finance & Controlling", "Proficiency_Level": "Expert", "STAR_Evidence": "STAR 4", "ATS_Keyword_Variants": ["transfer pricing", "OECD transfer pricing", "Master File", "Local File", "intercompany pricing"], "Notes": "130-page Master File; EUR 1M tax efficiency; GBP 1.2M IT saving.", "STAR_Evidence_Parsed": ["4"]}, {"Skill_ID": "SK-08", "Skill_Name": "Activity Based Costing", "Skill_Category": "Finance & Controlling", "Proficiency_Level": "Expert", "STAR_Evidence": "STARs 1,4", "ATS_Keyword_Variants": ["activity based costing", "ABC", "cost allocation", "OECD", "KPI-driven costing"], "Notes": "Used in both SCE cost allocation and Transfer Pricing.", "STAR_Evidence_Parsed": ["1", "4"]}, {"Skill_ID": "SK-09", "Skill_Name": "Management Reporting & Dashboards", "Skill_Category": "Finance & Controlling", "Proficiency_Level": "Expert", "STAR_Evidence": "STAR 3", "ATS_Keyword_Variants": ["management reporting", "Spotfire", "Power BI", "dashboards", "KPI management", "analytics"], "Notes": "Spotfire dashboards; future DWH foundation.", "STAR_Evidence_Parsed": ["3"]}, {"Skill_ID": "SK-10", "Skill_Name": "Corporate Governance", "Skill_Category": "Governance & Compliance", "Proficiency_Level": "Expert", "STAR_Evidence": "STARs 5,6,7", "ATS_Keyword_Variants": ["corporate governance", "board governance", "Supervisory Board", "Management Board", "General Assembly"], "Notes": "6 years as Shareholder Representative; Head of Governance.", "STAR_Evidence_Parsed": ["5", "6", "7"]}, {"Skill_ID": "SK-11", "Skill_Name": "Regulatory Compliance (EBA / Banking)", "Skill_Category": "Governance & Compliance", "Proficiency_Level": "Expert", "STAR_Evidence": "STARs 2,4,5,6,7", "ATS_Keyword_Variants": ["EBA guidelines", "regulatory compliance", "banking regulation", "BaFin", "FMA", "Basel", "governance"], "Notes": "EBA Outsourcing, EBA Governance, FMA merger approval, FSA Japan.", "STAR_Evidence_Parsed": ["2", "4", "5", "6", "7"]}, {"Skill_ID": "SK-12", "Skill_Name": "Outsourcing Framework Design", "Skill_Category": "Governance & Compliance", "Proficiency_Level": "Expert", "STAR_Evidence": "STAR 5", "ATS_Keyword_Variants": ["outsourcing framework", "EBA outsourcing", "vendor governance", "third-party risk", "iValua"], "Notes": "End-to-end framework; externally audited with zero findings.", "STAR_Evidence_Parsed": ["5"]}, {"Skill_ID": "SK-13", "Skill_Name": "Levels of Authority Design", "Skill_Category": "Governance & Compliance", "Proficiency_Level": "Expert", "STAR_Evidence": "STARs 5,6", "ATS_Keyword_Variants": ["levels of authority", "decision rights", "governance framework", "escalation framework"], "Notes": "In-depth LoA review for Governance Transformation.", "STAR_Evidence_Parsed": ["5", "6"]}, {"Skill_ID": "SK-14", "Skill_Name": "Program & Project Management", "Skill_Category": "Project & Change Management", "Proficiency_Level": "Expert", "STAR_Evidence": "STARs 1,2,5,7", "ATS_Keyword_Variants": ["project management", "program management", "PMO", "project delivery", "transformation delivery"], "Notes": "600+ task project schedules; Wind Down Programme.", "STAR_Evidence_Parsed": ["1", "2", "5", "7"]}, {"Skill_ID": "SK-15", "Skill_Name": "Stakeholder Management", "Skill_Category": "Project & Change Management", "Proficiency_Level": "Expert", "STAR_Evidence": "All STARs", "ATS_Keyword_Variants": ["stakeholder management", "executive engagement", "C-level communication", "board communication"], "Notes": "Management Board, Supervisory Board, Central Banks, Tax Authorities.", "STAR_Evidence_Parsed": ["1", "2", "3", "4", "5", "6", "7"]}, {"Skill_ID": "SK-16", "Skill_Name": "Change Management", "Skill_Category": "Project & Change Management", "Proficiency_Level": "Expert", "STAR_Evidence": "STARs 1,3,5,6", "ATS_Keyword_Variants": ["change management", "change leadership", "organisational change", "transformation management"], "Notes": "Branch migration; 6-country training tours.", "STAR_Evidence_Parsed": ["1", "3", "5", "6"]}, {"Skill_ID": "SK-17", "Skill_Name": "M&A / Merger Integration", "Skill_Category": "Project & Change Management", "Proficiency_Level": "Advanced", "STAR_Evidence": "STAR 2", "ATS_Keyword_Variants": ["M&A", "merger integration", "post-merger integration", "legal merger", "due diligence"], "Notes": "EUR 1.5B asset consolidation; 4-country legal merger.", "STAR_Evidence_Parsed": ["2"]}, {"Skill_ID": "SK-18", "Skill_Name": "Shared Services Centre Design & Build", "Skill_Category": "Operations & Shared Services", "Proficiency_Level": "Expert", "STAR_Evidence": "STAR 1", "ATS_Keyword_Variants": ["shared services", "GBS", "SSC", "servicing center", "back-office operations", "captive model"], "Notes": "Built from 0 to 40 FTEs; 15,000 operations/month.", "STAR_Evidence_Parsed": ["1"]}, {"Skill_ID": "SK-19", "Skill_Name": "Service Level Agreement Design", "Skill_Category": "Operations & Shared Services", "Proficiency_Level": "Expert", "STAR_Evidence": "STARs 1,4", "ATS_Keyword_Variants": ["SLA", "service level agreement", "service design", "cut-off times", "performance standards"], "Notes": "SLAs for SCE + intercompany SLAs for Transfer Pricing.", "STAR_Evidence_Parsed": ["1", "4"]}, {"Skill_ID": "SK-20", "Skill_Name": "Data Architecture & Engineering", "Skill_Category": "Technology & Data", "Proficiency_Level": "Advanced", "STAR_Evidence": "STAR 3", "ATS_Keyword_Variants": ["data architecture", "database design", "Postgres", "ETL", "data warehouse", "data engineering"], "Notes": "Postgres staging; future DWH foundation.", "STAR_Evidence_Parsed": ["3"]}, {"Skill_ID": "SK-21", "Skill_Name": "SharePoint & Power Automate", "Skill_Category": "Technology & Data", "Proficiency_Level": "Advanced", "STAR_Evidence": "STAR 6", "ATS_Keyword_Variants": ["SharePoint", "Power Automate", "Microsoft 365", "workflow automation", "digital tools"], "Notes": "In-house Governance system; Power Flow workflows.", "STAR_Evidence_Parsed": ["6"]}, {"Skill_ID": "SK-22", "Skill_Name": "Procurement Systems (iValua)", "Skill_Category": "Technology & Data", "Proficiency_Level": "Proficient", "STAR_Evidence": "STAR 5", "ATS_Keyword_Variants": ["iValua", "procurement system", "contract management system", "CLM"], "Notes": "Centralised outsourcing and TP contracts in iValua.", "STAR_Evidence_Parsed": ["5"]}, {"Skill_ID": "SK-23", "Skill_Name": "Team Leadership & People Development", "Skill_Category": "Leadership", "Proficiency_Level": "Advanced", "STAR_Evidence": "All senior STARs", "ATS_Keyword_Variants": ["team leadership", "people management", "talent development", "direct reports", "coaching"], "Notes": "Direct reports: 1 Senior + 3 Analysts (Head role); 2 Senior Analysts (Deputy role).", "STAR_Evidence_Parsed": ["3", "4", "5", "6", "7"]}, {"Skill_ID": "SK-24", "Skill_Name": "Cross-Cultural Leadership", "Skill_Category": "Leadership", "Proficiency_Level": "Expert", "STAR_Evidence": "STARs 1,2,7", "ATS_Keyword_Variants": ["cross-cultural leadership", "diversity management", "international teams", "multicultural"], "Notes": "5-country teams; 6 languages in use.", "STAR_Evidence_Parsed": ["1", "2", "7"]}, {"Skill_ID": "SK-25", "Skill_Name": "Executive Communication & Board Reporting", "Skill_Category": "Leadership", "Proficiency_Level": "Expert", "STAR_Evidence": "STARs 2,6,7", "ATS_Keyword_Variants": ["executive communication", "board reporting", "C-suite communication", "Supervisory Board"], "Notes": "6 years Shareholder Representative; Wind Down Board reporting.", "STAR_Evidence_Parsed": ["2", "6", "7"]}], "bullets": [{"ID": "L2", "CV Position": "A0", "Full CV Bullet": "Led the strategic transformation of the Governance function by restructuring the department, shifting administrative and secretarial responsibilities to Human Resources, and hiring targeted analytical capabilities, thereby evolving a traditional secretarial unit into a strategic Governance & Strategy advisory function supporting the Management Board and Supervisory Board.", "Linked Requirement Skills": "Department Transformation, Organizational Restructuring, Hiring, Strategic Leadership, Governance", "Comment": "Based on 6-C6 + 6-C7 + A-R9. Excellent for Chief of Staff, Governance, or Transformation roles. Best placed in Role Overview (Position A).", "SourceRefs": [{"ref": "6-C6", "kind": "competence"}, {"ref": "6-C7", "kind": "competence"}, {"ref": "A-R9", "kind": "responsibility"}], "PositionRef": "A"}, {"ID": "G10", "CV Position": "A1", "Full CV Bullet": "Facilitated cross-country co-development workshops uniting the Administrative Departments of Austria, Portugal, France, and Italy to agree on a single Procurement and Outsourcing Procedure.", "Linked Requirement Skills": "Workshop Facilitation, Cross-Functional Alignment", "Comment": "Source 5-9. Facilitation-method angle; complements G9 (outcome angle). Merge with G9 or use standalone for facilitation-focused JDs.", "SourceRefs": [{"ref": "5-9", "kind": "action"}], "PositionRef": "A"}, {"ID": "G7", "CV Position": "A1", "Full CV Bullet": "Designed and rolled out an enterprise-wide Outsourcing Framework covering the full end-to-end Procurement, Outsourcing, and Contract Management lifecycle, eliminating regional process variants and establishing consistent governance across six European countries. (Process Harmonization, Outsourcing Governance)", "Linked Requirement Skills": "Process Harmonization, Outsourcing Governance", "Comment": "Good coverage of process & outsourcing governance.", "SourceRefs": [], "PositionRef": "A"}, {"ID": "G8", "CV Position": "A1", "Full CV Bullet": "Led the implementation of the iValua system to centralize all Outsourcing and Transfer Pricing contracts, delivering improved data integrity, governance controls, and reporting efficiency across the organization. (System Implementation, Process Efficiency)", "Linked Requirement Skills": "System Implementation, Process Efficiency", "Comment": "Related to G7. Consider merging to save space while keeping key impact.", "SourceRefs": [], "PositionRef": "A"}, {"ID": "G9", "CV Position": "A1", "Full CV Bullet": "Unified Procurement and Outsourcing procedures across the Administrative Departments in Austria, Portugal, France, and Italy, driving standardization and reducing operational complexity through cross-functional alignment. (Cross-Functional Alignment, Process Standardization)", "Linked Requirement Skills": "Cross-Functional Alignment, Process Standardization", "Comment": "Lower uniqueness. Can be summarized in Role Overview if needed.", "SourceRefs": [], "PositionRef": "A"}, {"ID": "G4", "CV Position": "A2", "Full CV Bullet": "Spearheaded the design and implementation of an enterprise Governance System using Microsoft SharePoint and Power Automate, replacing fragmented processes with a standardized, auditable framework that improved decision-making speed and transparency across the bank. (Process Governance, System Building)", "Linked Requirement Skills": "Process Governance, System Building", "Comment": "Directly addresses Core requirement on process & system building. Strong ownership signal.", "SourceRefs": [], "PositionRef": "A"}, {"ID": "G5", "CV Position": "A2", "Full CV Bullet": "Led a collaborative review of the Levels of Authority with Heads of Department and the Management Board, delivering clear recommendations that strengthened governance controls, clarified decision rights, and improved organizational accountability. (Governance Improvement, Stakeholder Alignment)", "Linked Requirement Skills": "Governance Improvement, Stakeholder Alignment", "Comment": "Strong cross-functional leadership and governance impact.", "SourceRefs": [], "PositionRef": "A"}, {"ID": "G6", "CV Position": "A2", "Full CV Bullet": "Introduced electronic signatures across key governance processes, accelerating approval workflows while ensuring compliance with EBA Guidelines on Governance. (Process Efficiency, Regulatory Compliance)", "Linked Requirement Skills": "Process Efficiency, Regulatory Compliance", "Comment": "Lower strategic impact. Can be merged into G4 or removed if space is tight.", "SourceRefs": [], "PositionRef": "A"}, {"ID": "G11", "CV Position": "A2", "Full CV Bullet": "Developed and delivered a Governance Onboarding programme for newly appointed Supervisory Board members, producing a full documentation package and leading introductory executive walkthroughs of the digital governance processes, decision flows, Levels of Authority, and bank-specific governance rituals and protocols.", "Linked Requirement Skills": "Governance Onboarding, Executive Training, Knowledge Transfer, Stakeholder Engagement, Documentation Management, Process Adoption", "Comment": "Source 6-8. governance onboarding, executive onboarding, board induction, governance training, knowledge transfer, documentation package, governance rituals, process walkthrough, digital governance adoption, EBA compliance, SharePoint governance", "SourceRefs": [{"ref": "6-8", "kind": "action"}], "PositionRef": "A"}, {"ID": "G1", "CV Position": "A3", "Full CV Bullet": "Co-led the design and execution of a multi-year Wind Down programme by developing the Project Plan and Budget with input from 10 department heads, ensuring regulatory, operational, legal, and financial closure under tight shareholder deadlines and Supervisory Board oversight. (Cross-Functional Leadership, Strategic Execution)", "Linked Requirement Skills": "Cross-Functional Leadership, Strategic Execution", "Comment": "High strategic execution + Board-level oversight. Directly addresses Core requirements.", "SourceRefs": [], "PositionRef": "A"}, {"ID": "G2", "CV Position": "A3", "Full CV Bullet": "Prepared and presented formal resolutions to the Supervisory Board for approval of the Wind Down Plan and Budget, providing clear analysis, risk assessment, and recommendations to support critical governance decisions. (Board Reporting, Executive Communication)", "Linked Requirement Skills": "Board Reporting, Executive Communication", "Comment": "Strong Board-level exposure and executive communication. Highly relevant for CEO Associate role.", "SourceRefs": [], "PositionRef": "A"}, {"ID": "G3", "CV Position": "A3", "Full CV Bullet": "Acted as a trusted mediator and advisor during escalated conflicts between the Management Board and department heads in a politically sensitive environment, maintaining neutrality and enabling progress despite significant internal resistance and external pressure. (Conflict Mediation, Strategic Judgment)", "Linked Requirement Skills": "Conflict Mediation, Strategic Judgment", "Comment": "Excellent demonstration of senior judgment under pressure. Unique and differentiating experience.", "SourceRefs": [], "PositionRef": "A"}, {"ID": "L1", "CV Position": "B0", "Full CV Bullet": "Built the Controlling function from the ground up as part of the newly established Head Office by hiring and integrating two Controlling Analysts, while simultaneously designing and implementing an automated Accounting Correction Layer and performance dashboards that reduced the month-end close from 20 days to 5 days.", "Linked Requirement Skills": "Team Building, Controlling Function Setup, Process Transformation, Leadership", "Comment": "Based on 3-C5 + B-R6. Strong for roles requiring team setup + process transformation. Can be used in Role Overview or under STAR 3 project.", "SourceRefs": [{"ref": "3-C5", "kind": "competence"}, {"ref": "B-R6", "kind": "responsibility"}], "PositionRef": "B"}, {"ID": "C1", "CV Position": "B1", "Full CV Bullet": "Designed and implemented an Accounting Correction Layer using a segregated Postgres staging scheme and sequenced queries, transforming fragmented manual processes into an automated, scalable solution that reduced the month-end close from 20 days to 5 days. (Process Transformation, Operational Excellence)", "Linked Requirement Skills": "Process Transformation, Operational Excellence", "Comment": "Strong quantifiable impact (20 \u2192 5 days). Good demonstration of process transformation.", "SourceRefs": [], "PositionRef": "B"}, {"ID": "C2", "CV Position": "B1", "Full CV Bullet": "Built automated Spotfire dashboards connected to clean, stable data from the Accounting Correction Layer, enabling dynamic performance vs projection analytics and data-driven decision-making across the organization. (Data Reliability, Analytical Excellence)", "Linked Requirement Skills": "Data Reliability, Analytical Excellence", "Comment": "Supports data-driven decision making. Solid but slightly less senior than other bullets.", "SourceRefs": [], "PositionRef": "B"}, {"ID": "C3", "CV Position": "B1", "Full CV Bullet": "Established scalable accounting operations processes through structured data staging and exception management workflows, laying the foundation for greater automation and process reliability. (Process Design, Scalability)", "Linked Requirement Skills": "Process Design, Scalability", "Comment": "Lower impact and uniqueness. Can be merged into C1 if needed.", "SourceRefs": [], "PositionRef": "B"}, {"ID": "C4", "CV Position": "B2", "Full CV Bullet": "Developed and implemented OECD-aligned Transfer Pricing Master File documentation for the European group, establishing robust governance, audit-ready files, and delivering approximately \u20ac1 million per year in tax efficiency. (Transfer Pricing Governance, Tax Efficiency)", "Linked Requirement Skills": "Transfer Pricing Governance, Tax Efficiency", "Comment": "Strong quantifiable business impact (\u20ac1M/year). Good governance angle.", "SourceRefs": [], "PositionRef": "B"}, {"ID": "C5", "CV Position": "B2", "Full CV Bullet": "Partnered with senior stakeholders across multiple European entities to design and review Service Level and Cost-Sharing arrangements, significantly increasing cost transparency and ultimately reducing IT expenditures by nearly 50%. (Stakeholder Management, Cost Optimization)", "Linked Requirement Skills": "Stakeholder Management, Cost Optimization", "Comment": "Excellent stakeholder management + clear cost impact (50% reduction).", "SourceRefs": [], "PositionRef": "B"}, {"ID": "C6", "CV Position": "B2", "Full CV Bullet": "Coordinated the alignment of transfer pricing methodologies and cost allocation frameworks across different legal entities, strengthening financial governance and consistency in intercompany arrangements. (Cross-Entity Alignment, Financial Governance)", "Linked Requirement Skills": "Cross-Entity Alignment, Financial Governance", "Comment": "Lower impact compared to C4 and C5. Can be summarized if space is tight.", "SourceRefs": [], "PositionRef": "B"}, {"ID": "C7", "CV Position": "B2", "Full CV Bullet": "Defended the European Transfer Pricing methodology through repeated Management Board challenges and external-auditor stress-testing, iteratively strengthening it until accepted as audit-proof, then delivered knowledge transfer and training to Branch Managers and Accountants across Europe to embed it in practice.", "Linked Requirement Skills": "Executive Presentation, Stakeholder Persuasion, Training Delivery", "Comment": "Source 4-A1 (defence under Management Board + external-auditor scrutiny) + 4-7 (knowledge transfer); merged per decision. Standalone-worthy. Optional flavour: project internally dubbed 'Pure Nitroglycerin'.", "SourceRefs": [{"ref": "4-A1", "kind": "attribute"}, {"ref": "4-7", "kind": "action"}], "PositionRef": "B"}, {"ID": "S1", "CV Position": "C0", "Full CV Bullet": "Acted as a strategic sparring partner to the Management Board by developing financial models and forward-looking scenarios to support cross-border restructuring and capital structure decisions during the merger of BBSA branches into BBAG. (Strategic Advisory, Board-Level Support)", "Linked Requirement Skills": "Strategic Advisory, Board-Level Support", "Comment": "Excellent Board-level advisory experience. Very high relevance and uniqueness for a Chief of Staff role.", "SourceRefs": [], "PositionRef": "C"}, {"ID": "S2", "CV Position": "C1", "Full CV Bullet": "Led the complex multi-country transformation and stakeholder coordination across Brazil, Austria, France, Spain, and Italy to successfully consolidate \u20ac1.5 billion in assets under the Austrian subsidiary, enabling full Universal Banking License and expanded product capabilities. (Multi-Country Transformation, Stakeholder Coordination)", "Linked Requirement Skills": "Multi-Country Transformation, Stakeholder Coordination", "Comment": "High impact (\u20ac1.5 billion consolidation) + multi-country leadership. Strong strategic execution signal.", "SourceRefs": [], "PositionRef": "C"}, {"ID": "S3", "CV Position": "C1", "Full CV Bullet": "Developed business plans and managed regulatory deliverables for multiple European Central Banks (France, Spain, and Italy), securing the necessary approvals for BBAG to establish branches under passporting rights. (Regulatory Coordination, Cross-Border Execution)", "Linked Requirement Skills": "Regulatory Coordination, Cross-Border Execution", "Comment": "Good regulatory and cross-border execution experience. Slightly lower priority than S1 and S2 but still valuable.", "SourceRefs": [], "PositionRef": "C"}, {"ID": "S4", "CV Position": "C1", "Full CV Bullet": "The consolidation of back-office operations into a Shared Services Centre and the merge of the European branches under a single Universal Banking License enabled the bank's European growth platform by broadening the product range and consolidating capital that supported risk-weighted asset growth from \u20ac600 million (2009) to over \u20ac2 billion (2015).", "Linked Requirement Skills": "Growth Enablement, Strategic Platform Building", "Comment": null, "SourceRefs": [], "PositionRef": "C"}, {"ID": "P1", "CV Position": "D1", "Full CV Bullet": "Designed and implemented a Target Operating Model for the European back-office integration, defining clear process ownership and negotiating the split of responsibilities between local branches and the newly established Servicing Center in Portugal. (Operating Model Design, Process Ownership)", "Linked Requirement Skills": "Operating Model Design, Process Ownership", "Comment": "Good strategic design work. Relevant for roles involving operating model / shared services transformation.", "SourceRefs": [], "PositionRef": "D"}, {"ID": "P2", "CV Position": "D1", "Full CV Bullet": "Led the migration of back-office services by engaging with branch leadership across six European countries (Austria, France, Italy, Germany, Spain, and the UK), ensuring alignment and operational continuity during the transition to the centralized Servicing Center. (Cross-Border Leadership, Stakeholder Management)", "Linked Requirement Skills": "Cross-Border Leadership, Stakeholder Management", "Comment": "Strong cross-border stakeholder management and change leadership. High relevance for Chief of Staff type roles.", "SourceRefs": [], "PositionRef": "D"}, {"ID": "P3", "CV Position": "D1", "Full CV Bullet": "Implemented an Activity Based Costing methodology to accurately allocate Servicing Center costs across benefiting branches, enabling transparent cost distribution and supporting OECD Transfer Pricing compliance. (Cost Allocation, Performance Transparency)", "Linked Requirement Skills": "Cost Allocation, Performance Transparency", "Comment": "Solid but lower seniority and uniqueness compared to P1 and P2. Candidate for removal if space is tight.", "SourceRefs": [], "PositionRef": "D"}, {"ID": "O1", "CV Position": "Overarching Skills", "Full CV Bullet": "Capable of designing and operating a structured, AI-assisted workflow for complex knowledge work. I can build workflows with reference-data architectures, multi-stage process pipelines, evidence-grounding and quality-control discipline to produce reliable, auditable outputs while actively managing the limitations of generative AI tools.", "Linked Requirement Skills": "AI-Assisted Workflow, Generative AI Application", "Comment": null, "SourceRefs": [], "PositionRef": null}]}</script>
+<script>
+const RAW = JSON.parse(document.getElementById('graph-data').textContent);
+
+// ---------- index helpers ----------
+const byId = (arr, key) => Object.fromEntries(arr.map(d => [String(d[key]), d]));
+const posIndex = byId(RAW.positions, 'Position_ID');
+const starIndex = byId(RAW.stars, 'STAR_ID');
+const skillIndex = byId(RAW.skills, 'Skill_ID');
+const respIndex = byId(RAW.responsibilities, 'Responsibility_ID');
+
+const starsByPos = {};
+RAW.stars.forEach(s => (starsByPos[s.Position_ID] ??= []).push(s));
+const respByPos = {};
+RAW.responsibilities.forEach(r => (respByPos[r.Position_ID] ??= []).push(r));
+const actionsByStar = {};
+RAW.actions.forEach(a => (actionsByStar[a.STAR_ID] ??= []).push(a));
+const resultsByStar = {};
+RAW.results.forEach(r => (resultsByStar[r.STAR_ID] ??= []).push(r));
+const compByStar = {};
+RAW.competences.forEach(c => (compByStar[c.STAR_ID] ??= []).push(c));
+const attrByStar = {};
+RAW.attributes.forEach(a => (attrByStar[a.STAR_ID] ??= []).push(a));
+const skillsByStar = {};
+RAW.skills.forEach(sk => sk.STAR_Evidence_Parsed.forEach(sid => (skillsByStar[sid] ??= []).push(sk)));
+
+// chronological order of positions (oldest -> newest)
+const posOrder = [...RAW.positions].sort((a,b) => Number(a.Start_Date) - Number(b.Start_Date));
+const posOrderIndex = Object.fromEntries(posOrder.map((p,i)=>[p.Position_ID, i]));
+
+// ---------- build nodes & links ----------
+const nodes = [];
+const links = [];
+
+posOrder.forEach((p) => {
+  nodes.push({ id:'pos-'+p.Position_ID, type:'position', label:p.Position_Title, sub:p.Company, ref:p.Position_ID, data:p });
+});
+RAW.stars.forEach(s => {
+  nodes.push({ id:'star-'+s.STAR_ID, type:'star', label:s.STAR_Title, ref:s.STAR_ID, data:s, parent:'pos-'+s.Position_ID });
+  links.push({ source:'pos-'+s.Position_ID, target:'star-'+s.STAR_ID, kind:'contains' });
+});
+RAW.actions.forEach(a => {
+  if (!starIndex[a.STAR_ID]) return;
+  nodes.push({ id:'act-'+a.Action_ID, type:'action', label:a.Action_Description, ref:a.Action_ID, data:a, parent:'star-'+a.STAR_ID });
+  links.push({ source:'star-'+a.STAR_ID, target:'act-'+a.Action_ID, kind:'contains' });
+});
+RAW.results.forEach(r => {
+  if (!starIndex[r.STAR_ID]) return;
+  nodes.push({ id:'res-'+r.Result_ID, type:'result', label:r.Result_Description, ref:r.Result_ID, data:r, parent:'star-'+r.STAR_ID });
+  links.push({ source:'star-'+r.STAR_ID, target:'res-'+r.Result_ID, kind:'contains' });
+});
+RAW.responsibilities.forEach(r => {
+  nodes.push({ id:'resp-'+r.Responsibility_ID, type:'responsibility', label:r.Responsibility_Text, ref:r.Responsibility_ID, data:r, parent:'pos-'+r.Position_ID });
+  links.push({ source:'pos-'+r.Position_ID, target:'resp-'+r.Responsibility_ID, kind:'contains' });
+});
+// Competences and attributes recur across stories under the same name (e.g.
+// "Innovativeness" shows up on STAR 3, 4 and 5) — the workbook just logs a fresh
+// row per story rather than pointing back to one shared entry. Group by name so
+// each unique competence/attribute is one node with a connection to every STAR
+// that demonstrates it, the same pattern skills already use.
+function dedupeByName(rows, nameField){
+  const map = new Map();
+  rows.forEach(row => {
+    const key = String(row[nameField]).trim().toLowerCase();
+    if (!map.has(key)) map.set(key, { name: row[nameField], entries: [] });
+    map.get(key).entries.push(row);
+  });
+  return [...map.values()];
+}
+function slug(s){ return String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-+|-+$)/g,''); }
+
+const compNodeIdByEntry = {};
+dedupeByName(RAW.competences, 'Competence').forEach(g => {
+  const id = 'comp-' + slug(g.name);
+  const starIds = [...new Set(g.entries.map(e=>String(e.STAR_ID)))].filter(sid=>starIndex[sid]);
+  if (!starIds.length) return;
+  nodes.push({ id, type:'competence', label:g.name, data:g });
+  g.entries.forEach(e => { compNodeIdByEntry[e.CompetenceEntry_ID] = id; });
+  starIds.forEach(sid => links.push({ source:'star-'+sid, target:id, kind:'contains' }));
+});
+
+const attrNodeIdByEntry = {};
+dedupeByName(RAW.attributes, 'Attribute').forEach(g => {
+  const id = 'attr-' + slug(g.name);
+  const starIds = [...new Set(g.entries.map(e=>String(e.STAR_ID)))].filter(sid=>starIndex[sid]);
+  if (!starIds.length) return;
+  nodes.push({ id, type:'attribute', label:g.name, data:g });
+  g.entries.forEach(e => { attrNodeIdByEntry[e.AttributeEntry_ID] = id; });
+  starIds.forEach(sid => links.push({ source:'star-'+sid, target:id, kind:'contains' }));
+});
+RAW.skills.forEach(sk => {
+  nodes.push({ id:'skill-'+sk.Skill_ID, type:'skill', label:sk.Skill_Name, ref:sk.Skill_ID, data:sk });
+  sk.STAR_Evidence_Parsed.forEach(sid => {
+    if (starIndex[sid]) links.push({ source:'star-'+sid, target:'skill-'+sk.Skill_ID, kind:'evidence' });
+  });
+});
+
+// CV Bullets — the overlay layer. A bullet always belongs to one CV slot
+// (position>bullet, dashed — "lives here on the page"), and where the Bullet Bank's
+// notes cite the specific STAR action/result/responsibility/competence/attribute it
+// was built from, that becomes a real bullet>evidence edge (solid — "built from
+// this"). Most bullets in the workbook only record the slot, not the source, so
+// most bullet nodes will only ever show the one dashed link — that's the honest
+// state of the data, not a bug.
+function refNodeId(ref){
+  switch (ref.kind) {
+    case 'action': return 'act-'+ref.ref;
+    case 'result': return 'res-'+ref.ref;
+    case 'responsibility': return 'resp-'+ref.ref;
+    case 'competence': return compNodeIdByEntry[ref.ref];
+    case 'attribute': return attrNodeIdByEntry[ref.ref];
+    default: return null;
+  }
+}
+(RAW.bullets || []).forEach(b => {
+  const id = 'bullet-' + b.ID;
+  nodes.push({ id, type:'bullet', label:b['Full CV Bullet'], data:b });
+  if (b.PositionRef && posIndex[b.PositionRef]) {
+    links.push({ source:'pos-'+b.PositionRef, target:id, kind:'bullet-slot' });
+  }
+  (b.SourceRefs || []).forEach(ref => {
+    const targetId = refNodeId(ref);
+    if (targetId && nodes.some(n => n.id === targetId)) {
+      links.push({ source:id, target:targetId, kind:'bullet-source' });
+    }
+  });
+});
+
+const nodeById = Object.fromEntries(nodes.map(n=>[n.id,n]));
+
+// ---------- stats ----------
+const totalResults = RAW.results.length;
+const quantified = RAW.results.filter(r => r.Quantified_Value && String(r.Quantified_Value).trim()).length;
+const skillsWithAts = RAW.skills.filter(s => s.ATS_Keyword_Variants && s.ATS_Keyword_Variants.length>0).length;
+
+const stats = [
+  { n: RAW.positions.length, l:'Positions', accent:false },
+  { n: RAW.stars.length, l:'STAR stories', accent:false },
+  { n: quantified+'/'+totalResults, l:'Quantified results', accent:true },
+  { n: skillsWithAts+'/'+RAW.skills.length, l:'Skills with ATS variants', accent:false },
+];
+d3.select('#statRow').selectAll('.statTile').data(stats).join('div').attr('class','statTile').html(d =>
+  `<div class="n ${d.accent?'accent':''}">${d.n}</div><div class="l">${d.l}</div>`
+);
+
+// ---------- legend / visibility ----------
+const TYPE_META = {
+  position:      { label:'Positions',        color:'rgb(30 58 138)' },
+  star:          { label:'STAR stories',     color:'rgb(13 148 136)' },
+  action:        { label:'Actions',          color:'rgb(22 163 74)' },
+  result:        { label:'Results',          color:'rgb(234 88 12)' },
+  responsibility:{ label:'Responsibilities', color:'rgb(100 116 139)' },
+  competence:    { label:'Competences',      color:'rgb(124 58 237)' },
+  attribute:     { label:'Attributes',       color:'rgb(219 39 119)' },
+  skill:         { label:'Skills',           color:'rgb(180 83 9)' },
+  bullet:        { label:'CV Bullets',       color:'rgb(190 18 60)', rect:true },
+};
+// Every evidence type is visible by default; CV Bullets is the one exception — it's
+// an overlay, not part of the graph's resting shape, so it only appears once someone
+// deliberately asks for it via the legend.
+const visible = { position:true, star:true, action:true, result:true, responsibility:true, competence:true, attribute:true, skill:true, bullet:false };
+
+// Legend dot diameter encodes the same size code as the graph itself (scaled down
+// for a toolbar chip): Position, largest — Responsibilities — Actions/Results —
+// Competences/Attributes/Skills, all sharing the smallest, "granular" size. CV
+// Bullets get their own rectangular swatch since they're rendered as chips, not dots.
+const LEGEND_PX = { position:17, star:13, responsibility:11, action:9, result:9, competence:6.5, attribute:6.5, skill:6.5, bullet:9 };
+
+const legend = d3.select('#legend');
+Object.entries(TYPE_META).forEach(([key, meta]) => {
+  const item = legend.append('div').attr('class','legendItem'+(key==='bullet'?' bulletToggle':'')).attr('data-key', key)
+    .classed('off', !visible[key])
+    .on('click', () => { visible[key] = !visible[key]; item.classed('off', !visible[key]); applyVisibility(); fitToView(true); });
+  const px = LEGEND_PX[key] ?? 9;
+  const dot = item.append('span').attr('class','legendDot'+(meta.rect?' rect':'')).style('background', meta.color);
+  if (meta.rect) dot.style('width', (px*1.8)+'px').style('height', px+'px');
+  else dot.style('width', px+'px').style('height', px+'px');
+  item.append('span').text(meta.label);
+});
+
+// ---------- svg / zoom setup ----------
+const svg = d3.select('#graphSvg');
+const svgNode = svg.node();
+let width = svgNode.clientWidth || 900, height = 760;
+
+const g = svg.append('g');
+const linkLayer = g.append('g').attr('class','links');
+const nodeLayer = g.append('g').attr('class','nodes');
+
+const zoomBehavior = d3.zoom().scaleExtent([0.25, 4]).on('zoom', (ev) => g.attr('transform', ev.transform));
+svg.call(zoomBehavior);
+
+// Smooth, incremental wheel zoom. D3's built-in wheel handler applies each tick's
+// scale change instantly — fine for a trackpad's tiny continuous deltas, but a
+// physical mouse wheel sends a handful of big notches, so it reads as jumpy. Here
+// we take over the wheel event: each notch nudges the target scale gently and eases
+// into it over ~160ms, anchored under the cursor, so zooming in/out feels continuous
+// rather than stepped.
+svg.on('wheel.zoom', null);
+svgNode.addEventListener('wheel', (event) => {
+  event.preventDefault();
+  const rect = svgNode.getBoundingClientRect();
+  const cx = event.clientX - rect.left, cy = event.clientY - rect.top;
+  const t = d3.zoomTransform(svgNode);
+  const factor = Math.pow(1.0018, -event.deltaY); // gentle exponential step per notch
+  const [kMin, kMax] = zoomBehavior.scaleExtent();
+  const newK = Math.max(kMin, Math.min(kMax, t.k * factor));
+  const newT = d3.zoomIdentity
+    .translate(cx - (cx - t.x) * (newK / t.k), cy - (cy - t.y) * (newK / t.k))
+    .scale(newK);
+  svg.transition().duration(160).ease(d3.easeCubicOut).call(zoomBehavior.transform, newT);
+}, { passive: false });
+
+// ---------- simulation ----------
+// Organic hub-and-spoke: positions are the biggest hubs, STARs are secondary hubs
+// hanging off them, and responsibilities/competences/attributes are the small leaf
+// dots fanned out around whichever hub they belong to. Skills sit apart and are tied
+// back in only by their (sparse, dashed) evidence links — the few long lines that
+// stitch the separate clusters together, same shape as the reference layout.
+//
+// Size code (largest → most granular), independent of color: Position, then
+// Responsibilities, then Actions/Results, then Competences/Attributes/Skills — the
+// last three share one size because CV tailoring treats them as equivalent "skill"
+// language even though the Career Graph itself keeps them as distinct evidence types.
+// CV Bullets are drawn as rounded-rect chips rather than circles — deliberately
+// larger than a STAR (the next-biggest thing they can connect to) so a bullet always
+// reads as "bigger than any single piece of evidence it's built from".
+const BULLET_W = 40, BULLET_H = 20;
+const BULLET_RADIUS = Math.hypot(BULLET_W, BULLET_H) / 2; // collision/force radius equivalent
+
+const SIZE_TIER = { position:20, star:12, responsibility:6.5, action:4.5, result:4.5, competence:3, attribute:3, skill:3, bullet:BULLET_RADIUS };
+function nodeRadius(d){ return SIZE_TIER[d.type] ?? 5; }
+const CHARGE = { position:-950, star:-170, skill:-22, result:-15, responsibility:-22, action:-13, competence:-13, attribute:-13, bullet:-70 };
+
+// Each "contains" edge gets a distance keyed by the (source type → target type) pair,
+// so siblings that share a hub don't fight over the same ring. Actions sit on the
+// inner orbit around their STAR (closest — same priority Responsibilities already get
+// around Positions); Results sit one ring further out. A competence/attribute shared
+// by more than one STAR simply gets more than one of these short links, so it settles
+// visibly between the stories it belongs to.
+const RING_DIST = {
+  'position>star': 78,
+  'position>responsibility': 34,
+  'star>action': 20,
+  'star>result': 44,
+  'star>competence': 24,
+  'star>attribute': 24,
+};
+function edgeKey(l){ return l.source.type + '>' + l.target.type; }
+function linkDistance(l){
+  if (l.kind === 'evidence') return 190;
+  if (l.kind === 'bullet-slot') return 60;
+  if (l.kind === 'bullet-source') return 46;
+  return RING_DIST[edgeKey(l)] ?? 30;
+}
+function linkStrength(l){
+  if (l.kind === 'evidence') return 0.12;
+  if (l.kind === 'bullet-slot') return 0.75;
+  if (l.kind === 'bullet-source') return 0.55;
+  return edgeKey(l) === 'position>star' ? 0.85 : 1;
+}
+
+const simulation = d3.forceSimulation(nodes)
+  .force('link', d3.forceLink(links).id(d=>d.id).distance(linkDistance).strength(linkStrength))
+  .force('charge', d3.forceManyBody().strength(d => CHARGE[d.type] ?? -30))
+  .force('collide', d3.forceCollide().radius(d => nodeRadius(d) + (d.type==='position'||d.type==='star'?6:2)))
+  .force('x', d3.forceX(width/2).strength(0.018))
+  .force('y', d3.forceY(height/2).strength(0.018));
+
+const linkSel = linkLayer.selectAll('line').data(links).join('line')
+  .attr('class', d => 'link'
+    + (d.kind==='evidence' ? ' evidence' : '')
+    + (d.kind==='bullet-slot' ? ' bullet-slot' : '')
+    + (d.kind==='bullet-source' ? ' bullet-source' : ''));
+
+const nodeSel = nodeLayer.selectAll('g.node').data(nodes).join('g')
+  .attr('class', d => 'node node-'+d.type)
+  .style('cursor','pointer')
+  .call(d3.drag()
+    .on('start', (ev,d) => { if (!ev.active) simulation.alphaTarget(0.25).restart(); d.fx=d.x; d.fy=d.y; })
+    .on('drag', (ev,d) => { d.fx=ev.x; d.fy=ev.y; })
+    .on('end', (ev,d) => { if (!ev.active) simulation.alphaTarget(0); d.fx=null; d.fy=null; }))
+  .on('click', (ev,d) => { ev.stopPropagation(); selectNode(d); })
+  .on('mouseenter', (ev,d) => { if(!selected) hoverHighlight(d); showTooltip(ev,d); })
+  .on('mousemove', (ev) => { moveTooltip(ev); })
+  .on('mouseleave', () => { if(!selected) clearHighlight(); hideTooltip(); });
+
+nodeSel.each(function(d){
+  if (d.type === 'bullet') {
+    d3.select(this).append('rect')
+      .attr('x', -BULLET_W/2).attr('y', -BULLET_H/2)
+      .attr('width', BULLET_W).attr('height', BULLET_H)
+      .attr('rx', 5);
+  } else {
+    d3.select(this).append('circle').attr('r', nodeRadius(d));
+  }
+});
+
+// Only the two hub types carry a text label — every leaf (responsibility,
+// competence, attribute, skill) stays an unlabeled dot so the graph reads as one
+// connected shape rather than a wall of text, same as the reference layout.
+nodeSel.filter(d => d.type==='position' || d.type==='star')
+  .append('text').attr('class','nodeLabel big')
+  .attr('text-anchor','middle')
+  .attr('dy', d => -nodeRadius(d)-6)
+  .text(d => d.label.length > 34 ? d.label.slice(0,32)+'…' : d.label);
+
+simulation.on('tick', () => {
+  linkSel
+    .attr('x1', d=>d.source.x).attr('y1', d=>d.source.y)
+    .attr('x2', d=>d.target.x).attr('y2', d=>d.target.y);
+  nodeSel.attr('transform', d=>`translate(${d.x},${d.y})`);
+});
+
+// Once the simulation settles, fit the whole composition into the viewport —
+// the graph's footprint isn't known ahead of time since it's physics-driven. Only
+// currently-visible node types count toward the frame, so an overlay layer like CV
+// Bullets — hidden by default, and free to settle wherever its links pull it — never
+// widens the view before anyone's asked to see it.
+let fitTransform = d3.zoomIdentity;
+function fitToView(animate){
+  const shown = nodes.filter(n => visible[n.type]);
+  if (!shown.length) return;
+  const pad = 40;
+  const xs = shown.map(n=>n.x), ys = shown.map(n=>n.y);
+  const x0 = Math.min(...xs)-pad, x1 = Math.max(...xs)+pad;
+  const y0 = Math.min(...ys)-pad, y1 = Math.max(...ys)+pad;
+  const bw = x1-x0, bh = y1-y0;
+  const scale = Math.max(0.25, Math.min(2, 0.96 / Math.max(bw/width, bh/height)));
+  const tx = width/2 - scale*(x0+x1)/2;
+  const ty = height/2 - scale*(y0+y1)/2;
+  fitTransform = d3.zoomIdentity.translate(tx,ty).scale(scale);
+  (animate ? svg.transition().duration(500) : svg).call(zoomBehavior.transform, fitTransform);
+}
+simulation.on('end', () => fitToView(true));
+
+// ---------- visibility toggling ----------
+function applyVisibility(){
+  nodeSel.style('display', d => visible[d.type] ? null : 'none');
+  linkSel.style('display', l => {
+    const s = typeof l.source==='object'?l.source:nodeById[l.source];
+    const t = typeof l.target==='object'?l.target:nodeById[l.target];
+    return (visible[s.type] && visible[t.type]) ? null : 'none';
+  });
+}
+applyVisibility(); // CV Bullets start hidden — apply that before the first paint/fit.
+
+// ---------- highlight / selection ----------
+let selected = null;
+
+function neighborsOf(d){
+  const set = new Set([d.id]);
+  links.forEach(l => {
+    const s = typeof l.source==='object'?l.source.id:l.source;
+    const t = typeof l.target==='object'?l.target.id:l.target;
+    if (s===d.id) set.add(t);
+    if (t===d.id) set.add(s);
+  });
+  return set;
+}
+
+function hoverHighlight(d){
+  const set = neighborsOf(d);
+  nodeSel.classed('dimmed', n => !set.has(n.id));
+  linkSel.classed('hi', l => (l.source.id||l.source)===d.id || (l.target.id||l.target)===d.id)
+         .classed('dim', l => !((l.source.id||l.source)===d.id || (l.target.id||l.target)===d.id));
+}
+function clearHighlight(){
+  nodeSel.classed('dimmed', false);
+  linkSel.classed('hi', false).classed('dim', false);
+}
+
+// ---------- hover tooltip ----------
+// Full text for whatever's under the cursor — the graph itself only carries labels
+// on the two hub types, so this is how every leaf node's content becomes readable.
+const tooltip = document.getElementById('graphTooltip');
+const graphPanelEl = document.querySelector('.graphPanel');
+function tooltipContent(d){
+  switch (d.type) {
+    case 'position': return [d.data.Position_Title, `${d.data.Company} · ${d.data.Start_Date}–${d.data.End_Date}`];
+    case 'star': { const p = posIndex[d.data.Position_ID]; return [d.label, p ? p.Position_Title : '']; }
+    case 'action': { const s = starIndex[d.data.STAR_ID]; return [d.label, 'Action · '+(s? s.STAR_Title : '')]; }
+    case 'result': { const s = starIndex[d.data.STAR_ID]; return [d.label, [d.data.Quantified_Value, s?.STAR_Title].filter(Boolean).join(' · ')]; }
+    case 'responsibility': return [d.label, d.data.Responsibility_Category || 'Responsibility'];
+    case 'competence': { const n = d.data.entries.length; return [d.label, n>1 ? `Competence · ${n} stories` : 'Competence · '+(starIndex[d.data.entries[0].STAR_ID]?.STAR_Title||'')]; }
+    case 'attribute': { const n = d.data.entries.length; return [d.label, n>1 ? `Attribute · ${n} stories` : 'Attribute · '+(starIndex[d.data.entries[0].STAR_ID]?.STAR_Title||'')]; }
+    case 'skill': return [d.label, d.data.Skill_Category || 'Skill'];
+    case 'bullet': { const t = d.data['Full CV Bullet'] || ''; return [t.length>110 ? t.slice(0,108)+'…' : t, 'CV Bullet · '+(d.data['CV Position']||'')]; }
+    default: return [d.label, ''];
+  }
+}
+function showTooltip(ev, d){
+  const [title, sub] = tooltipContent(d);
+  tooltip.querySelector('.t').textContent = title;
+  tooltip.querySelector('.s').textContent = sub || '';
+  tooltip.classList.add('show');
+  moveTooltip(ev);
+}
+function moveTooltip(ev){
+  const rect = graphPanelEl.getBoundingClientRect();
+  let x = ev.clientX - rect.left + 16;
+  let y = ev.clientY - rect.top + 16;
+  // keep it inside the panel rather than spilling past the right/bottom edge
+  const tw = tooltip.offsetWidth || 200, th = tooltip.offsetHeight || 40;
+  if (x + tw > rect.width - 8) x = ev.clientX - rect.left - tw - 16;
+  if (y + th > rect.height - 8) y = ev.clientY - rect.top - th - 16;
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+function hideTooltip(){ tooltip.classList.remove('show'); }
+
+svg.on('click', () => { selected = null; clearHighlight(); renderSide(null); });
+
+function selectNode(d){
+  selected = d;
+  hoverHighlight(d);
+  renderSide(d);
+}
+
+// jump helper used by chip clicks inside the side panel
+function jumpTo(id){
+  const d = nodeById[id];
+  if (!d) return;
+  selectNode(d);
+}
+window.jumpTo = jumpTo;
+
+// ---------- search ----------
+d3.select('#searchInput').on('input', function(){
+  const q = this.value.trim().toLowerCase();
+  if (!q){ clearHighlight(); return; }
+  const matches = new Set(nodes.filter(n =>
+    n.label.toLowerCase().includes(q) ||
+    (n.type==='skill' && n.data.ATS_Keyword_Variants.some(v=>v.toLowerCase().includes(q)))
+  ).map(n=>n.id));
+  nodeSel.classed('dimmed', n => !matches.has(n.id));
+  linkSel.classed('dim', true).classed('hi', false);
+});
+
+d3.select('#resetBtn').on('click', () => {
+  d3.select('#searchInput').property('value','');
+  selected = null;
+  clearHighlight();
+  renderSide(null);
+  svg.transition().duration(400).call(zoomBehavior.transform, fitTransform);
+});
+
+// ---------- side panel rendering ----------
+const side = document.getElementById('sidePanel');
+
+function esc(s){ return (s??'').toString(); }
+
+function renderSide(d){
+  if (!d){
+    side.innerHTML = `<div class="sideEmpty">
+      <div class="k">Map the evidence</div>
+      <h3 class="serif">Select any node</h3>
+      <p>Positions are the big hubs. Each STAR breaks down into its own actions and results, plus the competences, attributes and skills it demonstrates. The dashed lines are skill evidence. Click through to see the full record.</p>
+    </div>`;
+    return;
+  }
+  if (d.type === 'position') return renderPosition(d);
+  if (d.type === 'star') return renderStar(d);
+  if (d.type === 'action') return renderAction(d);
+  if (d.type === 'result') return renderResult(d);
+  if (d.type === 'responsibility') return renderResponsibility(d);
+  if (d.type === 'competence') return renderCompetence(d);
+  if (d.type === 'attribute') return renderAttribute(d);
+  if (d.type === 'skill') return renderSkill(d);
+  if (d.type === 'bullet') return renderBullet(d);
+}
+
+function renderPosition(d){
+  const p = d.data;
+  const stars = starsByPos[p.Position_ID] || [];
+  const resp = respByPos[p.Position_ID] || [];
+  side.innerHTML = `<div class="sideBody">
+    <span class="kicker position">Position · ${esc(p.Position_ID)}</span>
+    <h2 class="serif">${esc(p.Position_Title)}</h2>
+    <div class="sideMeta">${esc(p.Company)} · ${esc(p.Location)} · ${esc(p.Start_Date)}–${esc(p.End_Date)}</div>
+    <div class="sideMeta">${esc(p.Seniority_Level)}${p.Direct_Reports? ' · '+esc(p.Direct_Reports):''}</div>
+    ${p.Notes? `<div class="sideSection"><p class="body">${esc(p.Notes)}</p></div>` : ''}
+    <div class="sideSection">
+      <div class="h">STAR stories (${stars.length})</div>
+      <div class="chipRow">${stars.map(s=>`<span class="chip clickable" onclick="jumpTo('star-${s.STAR_ID}')">${esc(s.STAR_Title)}</span>`).join('') || '<span class="sideMeta">None yet.</span>'}</div>
+    </div>
+    <div class="sideSection">
+      <div class="h">Responsibilities (${resp.length})</div>
+      <ul class="evidenceList">${resp.map(r=>`<li class="clickable" onclick="jumpTo('resp-${r.Responsibility_ID}')">${esc(r.Responsibility_Text)}</li>`).join('') || '<li style="padding-left:0">None yet.</li>'}</ul>
+    </div>
+  </div>`;
+}
+
+function renderStar(d){
+  const s = d.data;
+  const p = posIndex[s.Position_ID];
+  const acts = actionsByStar[s.STAR_ID] || [];
+  const res = resultsByStar[s.STAR_ID] || [];
+  const comps = compByStar[s.STAR_ID] || [];
+  const attrs = attrByStar[s.STAR_ID] || [];
+  const evidencedSkills = skillsByStar[s.STAR_ID] || [];
+  side.innerHTML = `<div class="sideBody">
+    <span class="kicker star">STAR · ${p? esc(p.Position_Title):''}</span>
+    <h2 class="serif">${esc(s.STAR_Title)}</h2>
+    <div class="sideMeta">${p? esc(p.Company)+' · '+esc(p.Start_Date)+'–'+esc(p.End_Date):''}</div>
+    <div class="sideSection">
+      <div class="h">Situation</div>
+      <p class="body">${esc(s.Situation_Summary)}</p>
+      <div class="h">Task</div>
+      <p class="body">${esc(s.Task_Summary)}</p>
+    </div>
+    <div class="sideSection">
+      <div class="h">Actions (${acts.length})</div>
+      <ul class="evidenceList">${acts.map(a=>`<li class="clickable" onclick="jumpTo('act-${a.Action_ID}')">${esc(a.Action_Description)}</li>`).join('')}</ul>
+    </div>
+    <div class="sideSection">
+      <div class="h">Results (${res.length})</div>
+      <ul class="evidenceList">${res.map(r=>`<li class="clickable" onclick="jumpTo('res-${r.Result_ID}')">${esc(r.Result_Description)}${r.Quantified_Value? `<span class="badge">${esc(r.Quantified_Value)}</span>`:''}</li>`).join('')}</ul>
+    </div>
+    <div class="sideSection">
+      <div class="h">Competences (${comps.length})</div>
+      <div class="chipRow">${comps.map(c=>`<span class="chip clickable" title="${esc(c.Competence_Description)}" onclick="jumpTo('${compNodeIdByEntry[c.CompetenceEntry_ID]}')">${esc(c.Competence)}</span>`).join('') || '<span class="sideMeta">None logged.</span>'}</div>
+    </div>
+    <div class="sideSection">
+      <div class="h">Attributes (${attrs.length})</div>
+      <div class="chipRow">${attrs.map(a=>`<span class="chip clickable" title="${esc(a.Attribute_Description)}" onclick="jumpTo('${attrNodeIdByEntry[a.AttributeEntry_ID]}')">${esc(a.Attribute)}</span>`).join('') || '<span class="sideMeta">None logged.</span>'}</div>
+    </div>
+    <div class="sideSection">
+      <div class="h">Evidences these skills (${evidencedSkills.length})</div>
+      <div class="chipRow">${evidencedSkills.map(sk=>`<span class="chip amber clickable" onclick="jumpTo('skill-${sk.Skill_ID}')">${esc(sk.Skill_Name)}</span>`).join('') || '<span class="sideMeta">None mapped.</span>'}</div>
+      <div class="microNote">Recorded at story level in your current profile data, not tied to one specific action or result.</div>
+    </div>
+    <div class="sideSection">
+      <a class="linkBtn" onclick="jumpTo('pos-${s.Position_ID}')">← Back to ${p? esc(p.Position_Title):'position'}</a>
+    </div>
+  </div>`;
+}
+
+function renderAction(d){
+  const a = d.data;
+  const s = starIndex[a.STAR_ID];
+  const p = s ? posIndex[s.Position_ID] : null;
+  const skillsDemo = a.Skills_Demonstrated || [];
+  side.innerHTML = `<div class="sideBody">
+    <span class="kicker action">Action · Step ${esc(a.Action_Sequence)}</span>
+    <h2 class="serif" style="font-size:20px;">${esc(a.Action_Description)}</h2>
+    <div class="sideMeta">${s? esc(s.STAR_Title):''}${p? ' · '+esc(p.Position_Title):''}</div>
+    ${skillsDemo.length? `<div class="sideSection"><div class="h">Skills demonstrated</div><div class="chipRow">${skillsDemo.map(v=>`<span class="chip">${esc(v)}</span>`).join('')}</div><div class="microNote">Free-text from this action's record — not yet matched to a Skill in your master list.</div></div>` : ''}
+    ${a.ATS_Keywords? `<div class="sideSection"><div class="h">ATS keywords</div><div class="chipRow">${String(a.ATS_Keywords).split(',').map(k=>`<span class="chip">${esc(k.trim())}</span>`).join('')}</div></div>` : ''}
+    <div class="sideSection">
+      <a class="linkBtn" onclick="jumpTo('star-${a.STAR_ID}')">← Back to ${s? esc(s.STAR_Title):'story'}</a>
+    </div>
+  </div>`;
+}
+
+function renderResult(d){
+  const r = d.data;
+  const s = starIndex[r.STAR_ID];
+  const p = s ? posIndex[s.Position_ID] : null;
+  side.innerHTML = `<div class="sideBody">
+    <span class="kicker result">Result${r.Impact_Type? ' · '+esc(r.Impact_Type):''}</span>
+    <h2 class="serif" style="font-size:20px;">${esc(r.Result_Description)}</h2>
+    <div class="sideMeta">${s? esc(s.STAR_Title):''}${p? ' · '+esc(p.Position_Title):''}</div>
+    ${r.Quantified_Value? `<div class="sideSection"><div class="h">Quantified</div><div class="chipRow"><span class="chip" style="background:rgb(234 88 12 / .12);color:rgb(234 88 12);border-color:rgb(234 88 12 / .3);">${esc(r.Quantified_Value)}</span></div></div>` : ''}
+    <div class="sideSection">
+      <a class="linkBtn" onclick="jumpTo('star-${r.STAR_ID}')">← Back to ${s? esc(s.STAR_Title):'story'}</a>
+    </div>
+  </div>`;
+}
+
+function renderResponsibility(d){
+  const r = d.data;
+  const p = posIndex[r.Position_ID];
+  side.innerHTML = `<div class="sideBody">
+    <span class="kicker responsibility">Responsibility · ${r.Responsibility_Category||''}</span>
+    <h2 class="serif" style="font-size:20px;">${esc(r.Responsibility_Text)}</h2>
+    <div class="sideMeta">${p? esc(p.Position_Title)+' · '+esc(p.Company):''}</div>
+    ${r.ATS_Keywords? `<div class="sideSection"><div class="h">ATS keywords</div><div class="chipRow">${String(r.ATS_Keywords).split(',').map(k=>`<span class="chip">${esc(k.trim())}</span>`).join('')}</div></div>` : ''}
+    <div class="sideSection">
+      <a class="linkBtn" onclick="jumpTo('pos-${r.Position_ID}')">← Back to ${p? esc(p.Position_Title):'position'}</a>
+    </div>
+  </div>`;
+}
+
+function renderCompetence(d){
+  const g = d.data; // { name, entries: [{STAR_ID, Competence_Category, Competence, Competence_Description}, ...] }
+  const cat = g.entries[0]?.Competence_Category || '';
+  side.innerHTML = `<div class="sideBody">
+    <span class="kicker competence">Competence · ${esc(cat)}</span>
+    <h2 class="serif" style="font-size:22px;">${esc(g.name)}</h2>
+    <div class="sideMeta">Demonstrated in ${g.entries.length} ${g.entries.length===1?'story':'stories'}</div>
+    <div class="sideSection">
+      ${g.entries.map(e => {
+        const s = starIndex[e.STAR_ID];
+        return `<div style="margin-bottom:12px;">
+          <a class="linkBtn" onclick="jumpTo('star-${e.STAR_ID}')">${s? esc(s.STAR_Title) : 'STAR '+esc(e.STAR_ID)}</a>
+          <p class="body" style="margin-top:4px;">${esc(e.Competence_Description)}</p>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function renderAttribute(d){
+  const g = d.data; // { name, entries: [{STAR_ID, Attribute, Attribute_Description}, ...] }
+  side.innerHTML = `<div class="sideBody">
+    <span class="kicker attribute">Attribute</span>
+    <h2 class="serif" style="font-size:22px;">${esc(g.name)}</h2>
+    <div class="sideMeta">Demonstrated in ${g.entries.length} ${g.entries.length===1?'story':'stories'}</div>
+    <div class="sideSection">
+      ${g.entries.map(e => {
+        const s = starIndex[e.STAR_ID];
+        return `<div style="margin-bottom:12px;">
+          <a class="linkBtn" onclick="jumpTo('star-${e.STAR_ID}')">${s? esc(s.STAR_Title) : 'STAR '+esc(e.STAR_ID)}</a>
+          <p class="body" style="margin-top:4px;">${esc(e.Attribute_Description)}</p>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function renderSkill(d){
+  const sk = d.data;
+  const evidenceStars = sk.STAR_Evidence_Parsed.map(sid=>starIndex[sid]).filter(Boolean);
+  side.innerHTML = `<div class="sideBody">
+    <span class="kicker skill">Skill · ${esc(sk.Skill_Category)}</span>
+    <h2 class="serif" style="font-size:22px;">${esc(sk.Skill_Name)}</h2>
+    <div class="sideMeta">Proficiency: ${esc(sk.Proficiency_Level)}</div>
+    <div class="sideSection">
+      <div class="h">ATS keyword variants</div>
+      <div class="chipRow">${sk.ATS_Keyword_Variants.map(v=>`<span class="chip">${esc(v)}</span>`).join('') || '<span class="sideMeta">None yet — a gap the coach would flag.</span>'}</div>
+    </div>
+    <div class="sideSection">
+      <div class="h">Evidenced by (${evidenceStars.length} STAR${evidenceStars.length===1?'':'s'})</div>
+      <div class="chipRow">${evidenceStars.map(s=>`<span class="chip clickable" onclick="jumpTo('star-${s.STAR_ID}')">${esc(s.STAR_Title)}</span>`).join('')}</div>
+    </div>
+    ${sk.Notes? `<div class="sideSection"><p class="body">${esc(sk.Notes)}</p></div>` : ''}
+  </div>`;
+}
+
+function renderBullet(d){
+  const b = d.data;
+  const text = b['Full CV Bullet'] || '';
+  const cvPos = b['CV Position'] || '';
+  const p = b.PositionRef ? posIndex[b.PositionRef] : null;
+  const reqSkills = String(b['Linked Requirement Skills'] || '').split(',').map(s=>s.trim()).filter(Boolean);
+  const refs = b.SourceRefs || [];
+  side.innerHTML = `<div class="sideBody">
+    <span class="kicker bullet">CV Bullet · ${esc(cvPos)}</span>
+    <p class="body" style="margin-top:10px;font-size:13.5px;color:rgb(var(--ink));line-height:1.6;">${esc(text)}</p>
+    <div class="sideMeta">${p ? `Slotted under <a class="linkBtn" onclick="jumpTo('pos-${p.Position_ID}')">${esc(p.Position_Title)}</a>` : 'Overarching — not tied to one position.'}</div>
+    ${reqSkills.length ? `<div class="sideSection"><div class="h">Linked requirement skills</div><div class="chipRow">${reqSkills.map(s=>`<span class="chip">${esc(s)}</span>`).join('')}</div></div>` : ''}
+    <div class="sideSection">
+      <div class="h">Built from (${refs.length})</div>
+      ${refs.length ? `<div class="chipRow">${refs.map(r => {
+        const nid = refNodeId(r);
+        const node = nid ? nodeById[nid] : null;
+        const label = node ? node.label : r.ref;
+        return `<span class="chip amber clickable" onclick="jumpTo('${nid}')">${esc(label.length>42 ? label.slice(0,40)+'…' : label)}</span>`;
+      }).join('')}</div>` : '<span class="sideMeta">No specific evidence item captured for this bullet in your Bullet Bank — only its CV slot is recorded.</span>'}
+    </div>
+    ${b.Comment ? `<div class="sideSection"><div class="h">Note</div><p class="body">${esc(b.Comment)}</p></div>` : ''}
+  </div>`;
+}
+
+// ---------- resize ----------
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    width = svgNode.clientWidth || width;
+    simulation.force('x', d3.forceX(width/2).strength(0.018));
+    simulation.force('y', d3.forceY(height/2).strength(0.018));
+    fitToView(true);
+  }, 200);
+});
+</script>
+</body>
+</html>

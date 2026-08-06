@@ -63,11 +63,12 @@ export const leadStatusEnum = pgEnum('lead_status', [
   // these leads never had an application to stop.
   'not_pursued',
 ]);
-// NOTE: the human gate is labelled Keep/Maybe/Drop in the UI; the DB enum stays
-// green/yellow/red for now (single source of truth for the labels:
-// APPROVAL_LABEL in lib/db/types.ts). A future migration renames the enum to
-// keep/maybe/drop — tracked in docs/ROADMAP.md (P6). Until then, map via the helper,
-// don't hardcode the colour words in new UI.
+// NOTE: per-row Keep/Maybe/Drop labelling was retired — the UI now approves the
+// whole Requirement → evidence map in one action, and only ever sets `green`;
+// `yellow`/`red` survive purely for legacy rows. The DB enum stays green/yellow/red
+// for now (single source of truth for display: APPROVAL_LABEL in lib/db/types.ts).
+// A possible future migration/cleanup is tracked in docs/ROADMAP.md (P6). Until
+// then, map via the helper, don't hardcode the colour words in new UI.
 export const approvalStatusEnum = pgEnum('approval_status', ['pending', 'green', 'yellow', 'red']);
 export const pipelineStepEnum = pgEnum('pipeline_step', [
   'A1',
@@ -120,7 +121,15 @@ export const profiles = pgTable('profiles', {
   email: text('email'),
   phone: text('phone'),
   location: text('location'),
-  languagesSummary: text('languages_summary'),
+  // Fixed eligibility facts, not skill evidence — free text, owner-maintained.
+  // Fed into B6/C2 as context (see profile-context.ts's candidateFactsSummary)
+  // so a requirement like "must have permission to work in the EU" or "willing
+  // to relocate" can be matched without inventing a fake CV bullet for it, and
+  // folded into the compiled CV's contact line / a `<<Citizenship>>` /
+  // `<<Relocation>>` / `<<Travel>>` template placeholder if the owner adds one.
+  citizenship: text('citizenship'),
+  relocation: text('relocation'),
+  travel: text('travel'),
   // Additive Plan · C4 · Proof Link. Opt-in, default OFF — a public, read-only
   // proof summary lives at /p/<publicToken> only while publicEnabled is true.
   // No contact fields are ever exposed there; the token is the unguessable key.
@@ -416,6 +425,15 @@ export const requirementTailoring = pgTable('requirement_tailoring', {
   requirementLine: text('requirement_line'),
   connectionToExpertise: text('connection_to_expertise'),
   evidenceRef: text('evidence_ref'),
+  // Bullet | Education | Language | STAR action | Responsibility — the evidence
+  // node's own kind, snapshotted the same way requirement_evidence already does.
+  // Exists so the approval gate can tell "genuinely unslotted" (a STAR action
+  // that needs a real Professional Experience slot) apart from "was never going
+  // to have one" (Education/Language — CV_SLOTS has no such slot, and the CV's
+  // Education/Languages sections are filled straight from the profile tables
+  // regardless of Keep status; see generateCv). Nullable: legacy rows written
+  // before this shipped fall back to the pre-existing (stricter) behaviour.
+  evidenceKind: text('evidence_kind'),
   originalText: text('original_text'),
   cvPosition: text('cv_position'),
   cvBullet: text('cv_bullet'),
@@ -572,8 +590,10 @@ export const coachingPrompts = pgTable('coaching_prompts', {
   ownerDedupe: uniqueIndex('coaching_prompts_owner_dedupe_uq').on(t.ownerId, t.dedupeKey),
 }));
 
-// A coaching answer → an AI-structured draft awaiting the same Keep/Maybe/Drop gate
-// as C2. Only an approved answer writes a real evidence node (committedNodeId set).
+// A coaching answer → an AI-structured draft awaiting its own per-answer
+// keep/maybe/drop decision (a distinct, still-live pattern — not the same as C2's
+// gate, which was retired in favour of a single "approve entire map" action).
+// Only an approved answer writes a real evidence node (committedNodeId set).
 export const coachingAnswers = pgTable('coaching_answers', {
   ...base,
   promptId: uuid('prompt_id').notNull(),
@@ -584,7 +604,7 @@ export const coachingAnswers = pgTable('coaching_answers', {
   needsMetric: boolean('needs_metric').notNull().default(false), // result described but no number given
   confidence: real('confidence'),
   committedNodeId: uuid('committed_node_id'), // set on approve → links to the real evidence node
-  decision: text('decision'), // keep | maybe | drop (mirrors the C2 gate)
+  decision: text('decision'), // keep | maybe | drop — this table's own per-answer decision
   revert: jsonb('revert'), // M3: how to undo this approval (delete created nodes / restore prior values)
 });
 

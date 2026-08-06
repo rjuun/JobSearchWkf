@@ -232,6 +232,13 @@
       "when": 1785589999242,
       "tag": "0032_naive_black_cat",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1785958678178,
+      "tag": "0033_jittery_thunderball",
+      "breakpoints": true
     }
   ]
 }
