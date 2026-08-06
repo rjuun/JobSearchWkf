@@ -119,6 +119,7 @@ export default async function RoleProofWorkspacePage({
     originalText: t.originalText,
     cvBullet: t.cvBullet,
     cvPosition: normalizeCvPosition(t.cvPosition),
+    evidenceKind: t.evidenceKind ?? null,
     approvalStatus: t.approvalStatus,
     provSource: t.provSource,
     approvedAt: t.approvedAt ? t.approvedAt.toISOString() : null,

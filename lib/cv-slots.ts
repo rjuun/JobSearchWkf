@@ -28,3 +28,19 @@ export function normalizeCvPosition(value: string | null | undefined): CvSlot | 
   const upper = raw.toUpperCase();
   return SLOT_BY_CODE.get(upper) ?? SLOT_BY_CODE.get(slotCode(upper)) ?? null;
 }
+
+/**
+ * `CV_SLOTS` has no Education or Language entry — those sections render in the
+ * CV straight from the `education`/`languages` profile tables, unconditional of
+ * Keep status (see `generateCv` in `lib/pipeline/tailoring.ts`). So a row whose
+ * evidence is Education/Language kind was never going to get a `cvPosition`,
+ * and gating its approval on one is a mismatched check, not a genuine
+ * unresolved slot — unlike a STAR action or Responsibility, which really is
+ * blocked until something (today: nothing; needs a manual picker) assigns it
+ * one of the 11 real slots. `kind === null` (legacy rows written before this
+ * distinction existed) is treated as "needs a slot" — the stricter, pre-
+ * existing behaviour, so nothing that used to be blocked silently unblocks.
+ */
+export function evidenceNeedsCvSlot(kind: string | null): boolean {
+  return kind !== 'Education' && kind !== 'Language';
+}

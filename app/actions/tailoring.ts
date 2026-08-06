@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 import { runEvidenceMapping, generateCv } from '@/lib/pipeline/tailoring';
 import { db } from '@/lib/db';
 import { requirementTailoring } from '@/lib/db/schema';
@@ -9,6 +9,7 @@ import type { StepReport } from '@/lib/pipeline/runs';
 import { recordActivation } from '@/lib/activation';
 import { recordActivity } from '@/lib/activity';
 import { currentOwnerId } from '@/lib/auth';
+import { evidenceNeedsCvSlot } from '@/lib/cv-slots';
 
 export async function mapEvidenceAction(leadId: string): Promise<StepReport[]> {
   const owner = await currentOwnerId();
@@ -17,37 +18,64 @@ export async function mapEvidenceAction(leadId: string): Promise<StepReport[]> {
   return reports;
 }
 
-export async function setApprovalAction(
-  rowId: string,
-  status: 'pending' | 'green' | 'yellow' | 'red',
-  leadId: string
-): Promise<void> {
+/**
+ * Approve the entire evidence map in one shot — replaces the row-by-row
+ * Keep/Maybe/Drop triage (retired per the owner's request: reviewing 16 rows
+ * one at a time when the whole map is visible below is a redundant step).
+ * The old single-row `setApprovalAction` was deleted (2026-08-06) once confirmed
+ * dead — nothing called it after this replaced it; rebuild from this function
+ * and its call sites if a per-row path is ever needed again.
+ *
+ * Approves every not-yet-green row that has a valid CV template slot (a row
+ * can only be Kept once it has somewhere on the CV to land — it is never
+ * stranded, it just can't be marked Kept without a slot). Rows without a slot
+ * are left `pending` and reported back as skipped rather than silently ignored.
+ */
+export async function approveAllAction(leadId: string): Promise<{ approved: number; skipped: number }> {
   const owner = await currentOwnerId();
-  // Any evidence can be Kept; evidence outside the template slots simply routes
-  // the CV to the programmatic builder at C6 (it is never stranded).
-  const [prior] = await db
-    .select({ s: requirementTailoring.approvalStatus })
+  const rows = await db
+    .select({
+      id: requirementTailoring.id,
+      approvalStatus: requirementTailoring.approvalStatus,
+      cvPosition: requirementTailoring.cvPosition,
+      evidenceKind: requirementTailoring.evidenceKind,
+    })
     .from(requirementTailoring)
-    .where(and(eq(requirementTailoring.id, rowId), eq(requirementTailoring.jobLeadId, leadId), eq(requirementTailoring.ownerId, owner)));
-  // M7 provenance: stamp approvedAt only on the transition INTO green (preserve the
-  // original approval date across re-saves); clear it when un-kept.
-  const set: { approvalStatus: typeof status; approvedAt?: Date | null } = { approvalStatus: status };
-  if (status === 'green') {
-    if (prior?.s !== 'green') set.approvedAt = new Date();
-  } else {
-    set.approvedAt = null;
-  }
-  await db
-    .update(requirementTailoring)
-    .set(set)
-    .where(and(eq(requirementTailoring.id, rowId), eq(requirementTailoring.jobLeadId, leadId), eq(requirementTailoring.ownerId, owner)));
-  // Only count a Keep when it actually transitions INTO green — so toggling green→undo→green
-  // doesn't inflate decisions-before-win / evidence-kept.
-  if (status === 'green' && prior?.s !== 'green') {
-    await recordActivation(owner, 'keep', { leadId });
-    await recordActivity(owner, 'evidence_kept', { leadId, summary: 'Kept a piece of evidence onto a CV' });
+    .where(and(eq(requirementTailoring.jobLeadId, leadId), eq(requirementTailoring.ownerId, owner)));
+
+  // Education/Language kind rows never get a cvPosition (no such CV_SLOTS entry
+  // exists) — they're exempt from the slot requirement rather than stranded.
+  const hasSlotOrExempt = (r: (typeof rows)[number]) => !evidenceNeedsCvSlot(r.evidenceKind) || !!r.cvPosition;
+  const toApprove = rows.filter((r) => r.approvalStatus !== 'green' && hasSlotOrExempt(r));
+  const skipped = rows.filter((r) => r.approvalStatus !== 'green' && !hasSlotOrExempt(r)).length;
+
+  if (toApprove.length > 0) {
+    await db
+      .update(requirementTailoring)
+      .set({ approvalStatus: 'green', approvedAt: new Date() })
+      .where(
+        and(
+          eq(requirementTailoring.jobLeadId, leadId),
+          eq(requirementTailoring.ownerId, owner),
+          ne(requirementTailoring.approvalStatus, 'green'),
+          inArray(
+            requirementTailoring.id,
+            toApprove.map((r) => r.id)
+          )
+        )
+      );
+    // One decision, not N: approving the whole map is a single judgement call,
+    // not `toApprove.length` separate ones — recorded that way so decisions-
+    // before-win reflects what the person actually did.
+    await recordActivation(owner, 'keep', { leadId, meta: { bulk: true, count: toApprove.length } });
+    await recordActivity(owner, 'evidence_kept', {
+      leadId,
+      summary: `Approved the entire evidence map (${toApprove.length} item${toApprove.length === 1 ? '' : 's'})`,
+      meta: { bulk: true, count: toApprove.length },
+    });
   }
   revalidatePath(`/roleproof/leads/${leadId}`);
+  return { approved: toApprove.length, skipped };
 }
 
 export async function generateCvAction(leadId: string): Promise<{ reports: StepReport[]; atsRating: number }> {

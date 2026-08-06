@@ -60,7 +60,16 @@ export async function listLeads() {
  *               are the stuck ones (see STUCK_AFTER_MS in ready-to-score.tsx);
  *               that comparison is done client-side so it stays live as the
  *               user watches, rather than freezing at render time.
- * - `results` · what the batch produced, best fit first.
+ * - `results` · what the batch produced, best fit first — plus anything that's
+ *               moved into C-phase since (`promoted`/`tailoring`/`ready`).
+ *               Without those three, a lead that's been promoted has no B-phase
+ *               tab left to appear on at all: it's the same "screened" row,
+ *               just further along, and it's still mid-decision (evidence not
+ *               yet approved, CV not yet generated) rather than a finished
+ *               Application — that's what makes the Applications tab a
+ *               different concept (a real `applications` row, opened by the
+ *               first CV download; see app/api/cv/[leadId]/route.ts), not a
+ *               replacement home for these three statuses.
  */
 export async function scoringQueueData() {
   const owner = await currentOwnerId();
@@ -70,7 +79,7 @@ export async function scoringQueueData() {
     .where(
       and(
         eq(jobLeads.ownerId, owner),
-        inArray(jobLeads.status, ['scoring_queue', 'hold', 'selected', 'screening', 'screened'])
+        inArray(jobLeads.status, ['scoring_queue', 'hold', 'selected', 'screening', 'screened', 'promoted', 'tailoring', 'ready'])
       )
     )
     .orderBy(sql`${jobLeads.overallFitScore} desc nulls last`, asc(jobLeads.title));
@@ -79,7 +88,7 @@ export async function scoringQueueData() {
     queue: rows.filter((l) => l.status === 'scoring_queue' || l.status === 'hold'),
     ready: rows.filter((l) => l.status === 'selected'),
     running: rows.filter((l) => l.status === 'screening'),
-    results: rows.filter((l) => l.status === 'screened'),
+    results: rows.filter((l) => l.status === 'screened' || l.status === 'promoted' || l.status === 'tailoring' || l.status === 'ready'),
   };
 }
 
@@ -753,7 +762,7 @@ export async function flowCounts(): Promise<{
   return {
     queue: lead('scoring_queue') + lead('hold'),
     ready: lead('selected') + lead('screening'),
-    results: lead('screened'),
+    results: lead('screened') + lead('promoted') + lead('tailoring') + lead('ready'),
     applications: OPEN_APPLICATION_STATUSES.reduce((n, s) => n + app(s), 0),
     archive: app(ARCHIVED_APPLICATION_STATUS),
     notPursued: lead('not_pursued'),

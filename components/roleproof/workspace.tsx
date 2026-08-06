@@ -18,11 +18,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { runScreeningAction, promoteLeadAction, toggleTargetAction } from '@/app/actions/pipeline';
 import { markNotPursuedAction } from '@/app/actions/scoring-queue';
-import { mapEvidenceAction, setApprovalAction, generateCvAction } from '@/app/actions/tailoring';
+import { mapEvidenceAction, approveAllAction, generateCvAction } from '@/app/actions/tailoring';
 import { addTipAction, resolveTipAction } from '@/app/actions/tips';
 import { trackUxAction } from '@/app/actions/ux';
 import type { JourneyResult } from '@/lib/journey';
 import { provenanceCoverage } from '@/lib/provenance';
+import { evidenceNeedsCvSlot } from '@/lib/cv-slots';
 import { Mach, CodeBadge } from '@/components/machinery';
 import { Frame } from '@/components/layout';
 import { cn, RpStagePill, rpVerdict, scoreTone, SCORE_TEXT } from './kit';
@@ -76,6 +77,10 @@ export type RpRow = {
   originalText: string | null;
   cvBullet: string | null;
   cvPosition: string | null;
+  // Bullet | Education | Language | STAR action | Responsibility. Lets the
+  // approval gate tell "no slot because Education/Language never gets one"
+  // apart from "genuinely unslotted" (see evidenceNeedsCvSlot in cv-slots.ts).
+  evidenceKind: string | null;
   approvalStatus: string;
   provSource: string; // imported | coached | swapped
   approvedAt: string | null;
@@ -88,9 +93,10 @@ export type RpRow = {
 /**
  * B6's initial requirement→evidence link, scoped to the Master Bullet Bank
  * (CI · B6 Never Receives the Master Bullet Bank). Machine-proposed and not yet
- * triaged — which is why it has no `approvalStatus`: Keep/Maybe/Drop is C2's
- * decision, and rendering these as "pending" would invite a click that does
- * nothing at this stage.
+ * reviewed — which is why it has no `approvalStatus`: approval is C2's
+ * decision (a single "approve entire map" action, not a per-row one), and
+ * rendering these as "pending" would invite a click that does nothing at
+ * this stage.
  */
 export type RpEvidence = {
   id: string;
@@ -178,20 +184,15 @@ type Ctx = {
   showMaths: boolean;
   toggleMaths: () => void;
   effective: (row: RpRow) => string;
-  current: RpRow | null;
-  decided: number;
-  total: number;
   kept: number;
   atsRating: number | null;
   busy: boolean;
   busyPhase: 'map' | 'generate' | null;
   busyStep: number;
-  canUndo: boolean;
   onScreen: () => void;
   onPromote: () => void;
   onMap: () => void;
-  onVote: (status: 'green' | 'yellow' | 'red') => void;
-  onUndo: () => void;
+  onApproveAll: () => void;
   onGenerate: () => void;
 };
 
@@ -204,7 +205,6 @@ export function RpWorkspace(props: Props) {
   const [runStep, setRunStep] = useState(0);
   const [showMaths, setShowMaths] = useState(false);
   const [overlay, setOverlay] = useState<Record<string, string>>({});
-  const [history, setHistory] = useState<string[]>([]);
   const [atsRating, setAtsRating] = useState<number | null>(props.initialAtsRating);
   const [error, setError] = useState<string | null>(null);
   const [busyPhase, setBusyPhase] = useState<'map' | 'generate' | null>(null);
@@ -231,8 +231,6 @@ export function RpWorkspace(props: Props) {
   const scored = lead.overallFitScore != null;
   const dims: Dim[] = props.dims.map((d, i) => ({ ...d, weight: WEIGHTS[i] ?? 0 }));
   const effective = (row: RpRow) => overlay[row.id] ?? row.approvalStatus;
-  const current = tailoring.find((r) => effective(r) === 'pending') ?? null;
-  const decided = tailoring.filter((r) => effective(r) !== 'pending').length;
   const kept = tailoring.filter((r) => effective(r) === 'green').length;
 
   function onScreen() {
@@ -280,37 +278,34 @@ export function RpWorkspace(props: Props) {
       }
     });
   }
-  function onVote(status: 'green' | 'yellow' | 'red') {
-    if (!current) return;
-    const id = current.id;
-    if (status === 'green' && !current.cvPosition) {
-      setError('This evidence needs a valid CV template slot before it can be kept.');
-      return;
-    }
-    const previous = effective(current);
-    setOverlay((o) => ({ ...o, [id]: status }));
-    setHistory((h) => [...h, id]);
+  // Approves the whole map in one action — replaces the old row-by-row
+  // Keep/Maybe/Drop triage. Optimistically flips every approvable (has a CV
+  // slot, or is Education/Language kind which never needs one), not-yet-green
+  // row to green; reverts the overlay if the action fails.
+  function onApproveAll() {
+    const approvable = tailoring.filter(
+      (r) => effective(r) !== 'green' && (!evidenceNeedsCvSlot(r.evidenceKind) || !!r.cvPosition)
+    );
+    if (approvable.length === 0) return;
+    setOverlay((o) => {
+      const next = { ...o };
+      for (const r of approvable) next[r.id] = 'green';
+      return next;
+    });
     startTransition(async () => {
       try {
         setError(null);
-        await setApprovalAction(id, status, lead.id);
+        await approveAllAction(lead.id);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
-        setOverlay((o) => ({ ...o, [id]: previous }));
-        setHistory((h) => h.filter((entry) => entry !== id));
+        setOverlay((o) => {
+          const next = { ...o };
+          for (const r of approvable) delete next[r.id];
+          return next;
+        });
       } finally {
         router.refresh();
       }
-    });
-  }
-  function onUndo() {
-    const id = history[history.length - 1];
-    if (!id) return;
-    setHistory((h) => h.slice(0, -1));
-    setOverlay((o) => ({ ...o, [id]: 'pending' }));
-    startTransition(async () => {
-      await setApprovalAction(id, 'pending', lead.id);
-      router.refresh();
     });
   }
   function onGenerate() {
@@ -363,20 +358,15 @@ export function RpWorkspace(props: Props) {
     showMaths,
     toggleMaths: () => setShowMaths((v) => !v),
     effective,
-    current,
-    decided,
-    total: tailoring.length,
     kept,
     atsRating,
     busy,
     busyPhase,
     busyStep,
-    canUndo: history.length > 0,
     onScreen,
     onPromote,
     onMap,
-    onVote,
-    onUndo,
+    onApproveAll,
     onGenerate,
   };
 
@@ -423,10 +413,6 @@ function hasTrace(c: Ctx, steps: readonly string[]): boolean {
 
 function hasMappableRequirements(c: Ctx): boolean {
   return c.requirements.some((r) => r.rank === 'Core' || r.rank === 'Important');
-}
-
-function compactCvSlot(value: string): string {
-  return value.match(/[A-D][0-9]/)?.[0] ?? value;
 }
 
 function traceMode(model: string | null): string {
@@ -551,7 +537,7 @@ function TwoPane({ c }: { c: Ctx }) {
             ) : c.rows.length === 0 ? (
               <MapCard c={c} />
             ) : (
-              <TriageCard c={c} />
+              <ApproveMapCard c={c} />
             ))}
           {c.scored && <EnrichBar c={c} />}
         </div>
@@ -575,15 +561,19 @@ function TwoPane({ c }: { c: Ctx }) {
         // links land at screening and are what the header has always promised
         // ("evidence lanes fill at B6"); C2's rows supersede them the moment
         // tailoring runs, because those are the same evidence re-picked over the
-        // whole Career Graph and carrying a Keep/Maybe/Drop state. Merging the two
-        // would stack each bullet twice in its slot and make the triage colours
-        // meaningless (CI · B6 Never Receives the Master Bullet Bank §2.3).
+        // whole Career Graph and carrying a real approval state (pending/green).
+        // Merging the two would stack each bullet twice in its slot and make
+        // the approval colours meaningless (CI · B6 Never Receives the Master
+        // Bullet Bank §2.3).
         evidence={
           c.rows.length > 0
             ? c.rows.map((row) => ({
                 id: row.id,
                 requirementIds: row.requirementId ? [row.requirementId] : [],
-                slot: row.cvPosition,
+                // Education/Language kind never gets a cvPosition (no such CV_SLOTS
+                // entry exists) — same fallback B6's getInitialEvidence already uses,
+                // so these rows land in their credential lane instead of vanishing.
+                slot: evidenceNeedsCvSlot(row.evidenceKind) ? row.cvPosition : row.evidenceRef,
                 text: row.originalText,
                 approvalStatus: row.approvalStatus,
                 groupKey: row.evidenceRef,
@@ -1355,6 +1345,7 @@ function nextAction(c: Ctx) {
     screen: c.onScreen,
     promote: c.onPromote,
     map: hasMappableRequirements(c) ? c.onMap : c.onScreen,
+    approve: c.onApproveAll,
     generate: c.onGenerate,
   };
   const labels: Partial<Record<string, string>> = {
@@ -1362,7 +1353,7 @@ function nextAction(c: Ctx) {
     promote: 'Promote',
     map: hasMappableRequirements(c) ? 'Map' : 'Extract must-haves',
     generate: 'Generate',
-    approve: 'Review',
+    approve: 'Approve map',
   };
   const fn = map[cta];
   if (!fn) return <span className={cn(cls, 'cursor-default opacity-90')}>{labels[cta] ?? 'Go'}</span>;
@@ -1528,39 +1519,41 @@ function MapCard({ c }: { c: Ctx }) {
   );
 }
 
-function TriageCard({ c }: { c: Ctx }) {
-  const cur = c.current;
+/**
+ * Approves the whole map in one action (retires the old row-by-row Keep /
+ * Maybe / Drop triage — the owner's call: reviewing 16 rows one at a time is a
+ * redundant step when the full Requirement → evidence map is already visible
+ * below). A row still needs a CV template slot to be Kept, same rule the old
+ * per-row Keep enforced — except Education/Language kind rows, which never
+ * get one (CV_SLOTS has no such slot; those CV sections render straight from
+ * the profile tables regardless of Keep status) and so are exempt.
+ */
+function ApproveMapCard({ c }: { c: Ctx }) {
+  const total = c.rows.length;
+  const pending = c.rows.filter((r) => c.effective(r) === 'pending');
+  const approvable = pending.filter((r) => !evidenceNeedsCvSlot(r.evidenceKind) || !!r.cvPosition);
+  const blocked = pending.filter((r) => evidenceNeedsCvSlot(r.evidenceKind) && !r.cvPosition);
+  // Multiple requirement_tailoring ROWS can legitimately share one evidenceRef
+  // (CI-034 §2.2 — one bullet may support several requirements), so "N rows"
+  // overstates how many distinct pieces of evidence are actually in play.
+  // The headline counts unique evidence; the button's own "+N" stays row-based
+  // (it's a literal count of rows about to flip to green).
+  const approvableEvidenceCount = new Set(approvable.map((r) => r.evidenceRef).filter((ref): ref is string => !!ref)).size;
+
   return (
     <div className="overflow-hidden rounded-card border border-hairline bg-surface shadow-card">
       {/* progress strip */}
       <div className="flex items-center gap-3 border-b border-hairline px-4 py-3">
         <span className="text-[12px] text-ink-muted">
-          Evidence <b className="text-ink">{c.decided}</b> / {c.total}
+          Evidence <b className="text-ink">{c.kept}</b> / {total}
         </span>
         <div className="flex flex-1 gap-1">
           {c.rows.map((r) => {
             const v = c.effective(r);
-            const color =
-              v === 'green'
-                ? 'bg-proof'
-                : v === 'yellow'
-                  ? 'bg-caution'
-                  : v === 'red'
-                    ? 'bg-drop'
-                    : cur && r.id === cur.id
-                      ? 'bg-ink'
-                      : 'bg-hairline';
+            const color = v === 'green' ? 'bg-proof' : v === 'yellow' ? 'bg-caution' : v === 'red' ? 'bg-drop' : 'bg-hairline';
             return <span key={r.id} className={cn('h-[5px] flex-1 rounded-sm', color)} />;
           })}
         </div>
-        <button
-          type="button"
-          onClick={c.onUndo}
-          disabled={!c.canUndo || c.busy}
-          className={cn('text-[11px] font-semibold', c.canUndo ? 'text-proof' : 'text-ink-subtle')}
-        >
-          ↩ Undo
-        </button>
         <button
           type="button"
           onClick={c.onMap}
@@ -1576,67 +1569,39 @@ function TriageCard({ c }: { c: Ctx }) {
         </div>
       )}
 
-      {cur ? (
-        <>
-          <div className="px-5 pt-5">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-subtle">
-              {c.kept} kept so far
-            </div>
-            <div className="mt-1 font-serif text-[21px] leading-snug text-ink">
-              {cur.requirementLine ?? 'This requirement'}
-            </div>
-            <div className="mt-4 rounded-[10px] border border-hairline bg-raised p-4">
-              <div className="mb-2 flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-ink-subtle">From your history</span>
-                {cur.evidenceRef && (
-                  <span className="rounded-[5px] bg-paper px-2 py-0.5 font-mono text-[10px] text-ink-muted ring-1 ring-inset ring-hairline">
-                    {cur.evidenceRef}
-                  </span>
-                )}
-                {cur.cvPosition ? (
-                  <span className="rounded-[5px] bg-proof-soft px-2 py-0.5 text-[10px] font-semibold text-proof-deep ring-1 ring-inset ring-proof/20">
-                    Slot {compactCvSlot(cur.cvPosition)}
-                  </span>
-                ) : (
-                  <span className="rounded-[5px] bg-caution-soft px-2 py-0.5 text-[10px] font-semibold text-caution-deep ring-1 ring-inset ring-caution/25">
-                    Needs CV slot
-                  </span>
-                )}
-              </div>
-              <div className="text-[13.5px] leading-relaxed text-ink">
-                {cur.originalText ?? 'Evidence from your career graph.'}
-              </div>
-              {(cur.mySkills.length > 0 || cur.requirementSkills.length > 0) && (
-                <div className="mt-3 flex flex-col gap-1.5 border-t border-hairline pt-3">
-                  {cur.requirementSkills.length > 0 && (
-                    <SkillBadgeRow label="Requirement Skills" tone="proof" items={cur.requirementSkills} />
-                  )}
-                  {cur.mySkills.length > 0 && <SkillBadgeRow label="My Skills" tone="neutral" items={cur.mySkills} />}
-                </div>
-              )}
-            </div>
+      {approvable.length > 0 ? (
+        <div className="px-5 py-8 text-center">
+          <div className="font-serif text-[22px] leading-snug text-ink">
+            {approvableEvidenceCount} evidence{approvableEvidenceCount === 1 ? '' : 's'} matched your requirements
           </div>
-          <div className="grid grid-cols-[1fr_1fr_1.3fr] gap-2.5 px-5 pb-2 pt-4">
-            <VoteBtn tone="drop" disabled={c.busy} onClick={() => c.onVote('red')}>
-              Drop
-            </VoteBtn>
-            <VoteBtn tone="caution" disabled={c.busy} onClick={() => c.onVote('yellow')}>
-              Maybe
-            </VoteBtn>
-            <VoteBtn tone="proof" disabled={c.busy || !cur.cvPosition} onClick={() => c.onVote('green')}>
-              Keep
-            </VoteBtn>
-          </div>
-          <p className="px-5 pb-5 pt-1 text-center text-[11px] text-ink-subtle">
-            Only “Keep” reaches your CV — the system won’t claim anything you haven’t kept.
+          <p className="mx-auto mt-1.5 max-w-sm text-[13px] text-ink-muted">
+            Across {approvable.length} requirement link{approvable.length === 1 ? '' : 's'} below — approve them all at once rather than one at a time.
           </p>
-        </>
-      ) : (
+          <button
+            type="button"
+            onClick={c.onApproveAll}
+            disabled={c.busy}
+            className="mt-4 rounded-[10px] bg-proof px-6 py-3 text-[14px] font-bold text-white shadow-[0_2px_10px_-3px_rgba(19,122,91,.5)] transition hover:bg-proof-deep disabled:opacity-60"
+          >
+            {c.busy ? 'Approving…' : `Approve entire map${c.kept > 0 ? ` (+${approvable.length})` : ''} →`}
+          </button>
+          {blocked.length > 0 && (
+            <p className="mx-auto mt-3 max-w-sm text-[11px] text-ink-subtle">
+              {blocked.length} item{blocked.length === 1 ? '' : 's'} need{blocked.length === 1 ? 's' : ''} a CV slot before they can be approved.
+            </p>
+          )}
+        </div>
+      ) : c.kept > 0 ? (
         <div className="px-5 py-8 text-center">
           <div className="font-serif text-[24px] text-ink">{c.kept} pieces kept</div>
           <p className="mx-auto mt-1.5 max-w-sm text-[13px] text-ink-muted">
             Every one is something you can defend in an interview. Ready to assemble the CV.
           </p>
+          {blocked.length > 0 && (
+            <p className="mx-auto mt-1.5 max-w-sm text-[11px] text-ink-subtle">
+              {blocked.length} item{blocked.length === 1 ? '' : 's'} left out — no CV slot to place {blocked.length === 1 ? 'it' : 'them'} in.
+            </p>
+          )}
           <button
             type="button"
             onClick={c.onGenerate}
@@ -1645,6 +1610,14 @@ function TriageCard({ c }: { c: Ctx }) {
           >
             {c.busy ? 'Assembling…' : 'Generate CV →'}
           </button>
+        </div>
+      ) : (
+        <div className="px-5 py-8 text-center">
+          <div className="font-serif text-[20px] leading-snug text-ink">No evidence has a CV slot yet</div>
+          <p className="mx-auto mt-1.5 max-w-sm text-[13px] text-ink-muted">
+            Nothing in this map can be approved until at least one match has a CV Position. Re-map, or fill in the CV
+            template's slots.
+          </p>
         </div>
       )}
     </div>
@@ -1696,34 +1669,6 @@ function PipelineProgress({ c }: { c: Ctx }) {
         Running live — every claim stays traceable to evidence you kept.
       </div>
     </div>
-  );
-}
-
-function VoteBtn({
-  tone,
-  onClick,
-  disabled,
-  children,
-}: {
-  tone: 'proof' | 'caution' | 'drop';
-  onClick: () => void;
-  disabled?: boolean;
-  children: React.ReactNode;
-}) {
-  const styles = {
-    proof: 'bg-proof text-white shadow-[0_2px_8px_-2px_rgba(19,122,91,.5)] hover:bg-proof-deep',
-    caution: 'border border-caution-ring bg-caution-soft text-caution-deep hover:bg-caution-soft/70',
-    drop: 'border border-drop-ring bg-drop-soft text-drop-deep hover:bg-drop-soft/70',
-  }[tone];
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={cn('rounded-[10px] py-3 text-[13px] font-bold transition disabled:opacity-60', styles)}
-    >
-      {children}
-    </button>
   );
 }
 
