@@ -209,6 +209,14 @@ Worth checking while implementing: whether `runScoringAction` (B5/B6) has the sa
 comment says it is "safe to re-invoke from the top on a stuck lead (B4/B6 overwrite, B5 skips
 re-extraction)" — so it is likely benign, but confirm rather than assume.
 
+> [!NOTE] Implemented 2026-08-06 — see §4 for the full account
+> **(3)** is done: `runScreeningAction`, `runInitialChecksAction` and `runScoringAction` all now block by
+> default on `promoted`/`tailoring`/`ready`/`applied` and require an explicit `force` override, confirmed
+> in the UI after showing what's at stake. **(1)** was also added as the belt-and-braces this section
+> recommends, now that (3) means it can only fire on a deliberately confirmed re-screen. **(2)** was not
+> built — it's C2's merge logic, which doesn't exist yet in this codebase state (see §4); moot until it
+> does, and the CI note's own §2.0 scope already treats it as unnecessary once (3) is in place.
+
 ### 2.5 The one remaining risk
 
 **Re-proposed rejected evidence.** This cannot arise on a first pass — B6 offers no approval step, and C2
@@ -250,12 +258,17 @@ money. Both halves are measurable, and one is free.
       ordinal helpers
 - [ ] `approvalStatus` survives a re-run for every unreplaced row — proven by the free double-run test
 - [ ] Wholesale `delete(requirementTailoring)` removed from the C2 block
-- [ ] Stale-row rule implemented per §2.4, with the choice justified in §4
+- [x] Stale-row rule implemented per §2.4, with the choice justified in §4 — option (3) (the gate) plus
+      option (1) (belt-and-braces) as of 2026-08-06; §2.1–§2.3's merge/tiering (and therefore option (2))
+      are still open, see §4
 - [ ] Decision recorded in §4 for the §2.2 one-row-vs-many question and the §2.5 rejected-evidence question
 - [ ] Harness variant flag so targeted vs untargeted C2 can be A/B'd
 - [ ] Live measurement per §2.6, per-run numbers recorded in §4 — not just means
-- [ ] `npx tsc --noEmit` clean · `npx vitest run` all passing (195 at time of writing)
-- [ ] Mock mode still works (`mockEvidenceMap` must cope with a tiered requirement set)
+- [x] `npx tsc --noEmit` clean · `npx vitest run` all passing (200 — 195 baseline + 5 new gate tests,
+      2026-08-06) — scoped to §2.4's work only; §2.1–§2.3, the harness flag, and the live measurement are
+      unimplemented so their tests don't exist yet
+- [ ] Mock mode still works (`mockEvidenceMap` must cope with a tiered requirement set) — N/A until
+      §2.1's tiering exists; this CI's mock (`mockEvidenceMap`) is untouched by the §2.4 gate
 - [ ] One live tailoring run verified in the UI, including a **second** run proving approvals survive
 
 ---
@@ -403,6 +416,56 @@ maps for less money), as opposed to proving the rebuild didn't break anything. S
 (the original question is still open) — see `[[++ Continuous Improvement Procedure]]` for the new value.
 Also still open, unrelated to the LLM run: §2.4 option (3), gating B-phase re-screening actions on lead
 status — a Claude Code prompt for that was handed off separately.
+
+### 2026-08-06 · §2.4 option (3) implemented — the B-phase re-screen gate
+
+Scoped narrowly per a dedicated hand-off prompt: build the gate only, independent of §2.1–§2.3's
+merge/tiering work (which has not landed in this codebase — `lib/pipeline/tailoring.ts`'s C2 block is
+still the original delete-then-replace `runEvidenceMapping`, unchanged by this entry). §2.4's own analysis
+already established the gate doesn't depend on the merge: it blocks re-entry into B2–B6, not anything C2
+does with what B2–B6 produce.
+
+**Built:**
+- `assertRescreenAllowed` in `app/actions/pipeline.ts` guards `runScreeningAction`, `runInitialChecksAction`
+  and `runScoringAction`. Each gained a `force = false` parameter; when the lead's status is
+  `promoted`/`tailoring`/`ready`/`applied` and `force` is false, the action throws instead of running,
+  pointing at `refreshFreshnessAction` as the safe alternative. `runScoringAction` was gated too (the CI
+  note's "worth checking" at §2.4) — reasoned through rather than assumed: B5 skips re-extraction when
+  `job_requirements` rows exist and B6 only overwrites `requirement_evidence` by existing id, so it cannot
+  orphan anything the way B2's re-extraction can; it's gated anyway for consistency and because it still
+  silently re-spends an Opus call for no benefit on a lead past the B-phase. No current UI call site
+  reaches `runScoringAction` on a past-`promoted` lead (Ready-to-score only ever operates on
+  `screening`/`selected` rows), so this is defense-in-depth, not a UX change.
+- `rescreenBlocked(status, force)` and `PAST_PROMOTED_STATUSES` extracted as a pure, DB-free predicate in
+  `lib/db/types.ts` — same pattern as `gateStatusFor` — so both the server gate and the client confirm
+  prompt read one definition, and so the predicate is unit-testable without a live lead.
+  `lib/__tests__/rescreen-gate.test.ts` covers: every past-promoted status blocked without override; every
+  one let through with `force: true`; every everyday status (`captured` through `selected`) never blocked
+  either way; the exact status set; `archived` explicitly left out (a re-screen there is the owner's call,
+  not this gate's).
+- `getRescreenImpactAction(leadId)` — a new read-only action returning `{ status, total, green }` over
+  `requirement_tailoring`, so the UI can show what's at stake before someone overrides.
+- UI wiring in `components/roleproof/workspace.tsx`: `onScreen` now checks the gate client-side first
+  (`lead.status` is already a prop, no round trip needed to ask); if blocked, it fetches the impact via
+  `getRescreenImpactAction` and renders a new `RescreenConfirm` card (sibling of `ActionError`, same visual
+  language) with the counts and a "Re-screen anyway" button that re-invokes with `force: true`.
+  `onScreen`/`onConfirmRescreen` are separate zero-arg closures in `Ctx` specifically so a raw
+  `onClick={c.onScreen}` never has a MouseEvent misread as `force: true` — `force` is never a parameter any
+  DOM handler can reach directly.
+- **Option (1), belt-and-braces:** confirmed already present in `lib/pipeline/screening.ts`'s B2 `tooThin`
+  re-extraction branch — it already deletes `requirement_tailoring` alongside `requirement_evidence`/
+  `job_requirements` (landed earlier, in the live evidence-kind testing session), so a deliberately
+  confirmed override that lands in that branch doesn't orphan tailoring rows. Not implemented: option (2)
+  (C2 dropping unresolvable rows) — moot, since it's C2 merge logic that doesn't exist yet, and §2.4 already
+  rated it the weakest of the three.
+
+**Not implemented, out of scope for this entry:** §2.1's tiering, §2.2's merge rule, §2.3's approval
+preservation, the harness A/B flag, the §2.6 live measurement, and a live UI verification against a real
+lead (this was built in an isolated worktree with no DB/auth access, then reviewed and ported by hand onto
+`main` once confirmed sound — see the commit-organization note below for why it wasn't a plain `git merge`).
+`npx tsc --noEmit` and `npx vitest run` were confirmed clean in the worktree (200/200: 195 baseline + 5 new
+gate tests); not re-run independently after the port, since it's a line-for-line copy of already-verified
+code plus one already-landed hunk (option 1) that turned out to need no changes at all.
 
 ### 2026-08-06 · Commit-organization note — where the code actually lands
 

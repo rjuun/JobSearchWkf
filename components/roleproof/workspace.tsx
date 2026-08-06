@@ -16,11 +16,12 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { runScreeningAction, promoteLeadAction, toggleTargetAction } from '@/app/actions/pipeline';
+import { runScreeningAction, getRescreenImpactAction, promoteLeadAction, toggleTargetAction } from '@/app/actions/pipeline';
 import { markNotPursuedAction } from '@/app/actions/scoring-queue';
 import { mapEvidenceAction, approveAllAction, generateCvAction } from '@/app/actions/tailoring';
 import { addTipAction, resolveTipAction } from '@/app/actions/tips';
 import { trackUxAction } from '@/app/actions/ux';
+import { rescreenBlocked } from '@/lib/db/types';
 import type { JourneyResult } from '@/lib/journey';
 import { provenanceCoverage } from '@/lib/provenance';
 import { evidenceNeedsCvSlot } from '@/lib/cv-slots';
@@ -194,6 +195,11 @@ type Ctx = {
   onMap: () => void;
   onApproveAll: () => void;
   onGenerate: () => void;
+  /** §2.4's gate tripped — what re-running screening would touch, shown before
+   * the person confirms. Null when there's nothing to confirm. */
+  rescreenImpact: { status: string; total: number; green: number } | null;
+  onConfirmRescreen: () => void;
+  onCancelRescreen: () => void;
 };
 
 export function RpWorkspace(props: Props) {
@@ -209,6 +215,7 @@ export function RpWorkspace(props: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busyPhase, setBusyPhase] = useState<'map' | 'generate' | null>(null);
   const [busyStep, setBusyStep] = useState(0);
+  const [rescreenImpact, setRescreenImpact] = useState<{ status: string; total: number; green: number } | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const phaseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -233,15 +240,33 @@ export function RpWorkspace(props: Props) {
   const effective = (row: RpRow) => overlay[row.id] ?? row.approvalStatus;
   const kept = tailoring.filter((r) => effective(r) === 'green').length;
 
-  function onScreen() {
+  // §2.4 option (3) — a lead past `promoted` may carry approved tailoring rows,
+  // so the first click surfaces what's at stake instead of firing straight away
+  // (CI · Make C2 Build on B6 Instead of Re-Deriving the Map). `force` only
+  // ever arrives true from onConfirmRescreen below, never from a raw onClick —
+  // React calls onClick handlers with the DOM event, and a truthy event object
+  // would otherwise read as an accidental override.
+  function onScreen(force = false) {
     if (running) return;
+    if (rescreenBlocked(lead.status, force)) {
+      setError(null);
+      (async () => {
+        try {
+          setRescreenImpact(await getRescreenImpactAction(lead.id));
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+      })();
+      return;
+    }
+    setRescreenImpact(null);
     setError(null);
     setRunning(true);
     setRunStep(0);
     intervalRef.current = setInterval(() => setRunStep((s) => Math.min(s + 1, 5)), 600);
     (async () => {
       try {
-        await runScreeningAction(lead.id);
+        await runScreeningAction(lead.id, force);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -363,11 +388,14 @@ export function RpWorkspace(props: Props) {
     busy,
     busyPhase,
     busyStep,
-    onScreen,
+    onScreen: () => onScreen(false),
     onPromote,
     onMap,
     onApproveAll,
     onGenerate,
+    rescreenImpact,
+    onConfirmRescreen: () => onScreen(true),
+    onCancelRescreen: () => setRescreenImpact(null),
   };
 
   return <TwoPane c={c} />;
@@ -521,6 +549,7 @@ function TwoPane({ c }: { c: Ctx }) {
         <div ref={railRef} className="flex flex-col gap-4">
           {c.scored ? <ScoreCard c={c} /> : c.isHold ? <HeldCard c={c} /> : <RunCard c={c} />}
           <ActionError c={c} />
+          <RescreenConfirm c={c} />
           {c.scored && <JourneyRail stages={c.journey.stages} />}
           {!c.running && !c.busyPhase && c.journey.next.cta !== 'none' && <NextMove c={c} />}
           {/* Key Patterns takes the slot `How RoleProof checked` used to occupy. */}
@@ -1102,6 +1131,50 @@ function ActionError({ c }: { c: Ctx }) {
       >
         ×
       </button>
+    </div>
+  );
+}
+
+/**
+ * §2.4's confirm-and-override step — a lead past `promoted` can still be
+ * re-screened, just not silently. Shown once `onScreen` has fetched what a
+ * re-run would touch; `onConfirmRescreen` is the only caller that ever passes
+ * `force: true` into `runScreeningAction`.
+ */
+function RescreenConfirm({ c }: { c: Ctx }) {
+  if (!c.rescreenImpact) return null;
+  const { status, total, green } = c.rescreenImpact;
+  return (
+    <div className="flex items-start gap-3 rounded-card border border-caution-ring bg-caution-soft px-4 py-3 text-[13px] text-caution-deep">
+      <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-caution text-[12px] font-bold text-white">
+        !
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="font-semibold">Re-screen a {status} lead?</div>
+        <div className="mt-0.5 text-ink-muted">
+          {total === 0
+            ? "No requirement→evidence rows exist yet for this lead, so there's nothing to lose — this should be safe."
+            : `${total} requirement→evidence row${total === 1 ? '' : 's'} exist${total === 1 ? 's' : ''} for this lead, ` +
+              `${green} approved. Re-screening just re-spends LLM calls on the same static posting, and a thin ` +
+              `extraction can reset review you've already given.`}
+        </div>
+        <div className="mt-2.5 flex gap-2">
+          <button
+            type="button"
+            onClick={c.onConfirmRescreen}
+            className="rounded-[8px] bg-caution px-3 py-1.5 text-[12px] font-bold text-white transition hover:bg-caution-deep"
+          >
+            Re-screen anyway
+          </button>
+          <button
+            type="button"
+            onClick={c.onCancelRescreen}
+            className="rounded-[8px] border border-caution-ring bg-surface px-3 py-1.5 text-[12px] font-bold text-caution-deep transition hover:bg-caution-soft"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

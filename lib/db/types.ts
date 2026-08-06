@@ -37,6 +37,24 @@ export type LeadStatus =
   | 'applied'
   | 'archived';
 
+/**
+ * Past B-phase screening — the posting is stable text at this point and
+ * `requirement_tailoring` may carry human-approved rows, so re-running B2–B6
+ * here would just re-spend LLM calls for the same answer (`refreshFreshnessAction`'s
+ * own doc comment states the design) and, if B2's `tooThin` branch fires, reset
+ * review a human already gave. CI · Make C2 Build on B6 Instead of Re-Deriving
+ * the Map §2.4 option (3) — read by both the server action gate
+ * (app/actions/pipeline.ts) and the client confirm prompt (workspace.tsx).
+ */
+export const PAST_PROMOTED_STATUSES: readonly string[] = ['promoted', 'tailoring', 'ready', 'applied'];
+
+/** Pure predicate behind the re-screen gate — DB-free so it's testable without
+ * a live lead, same pattern as `gateStatusFor` in lib/pipeline/screening.ts.
+ * `force` is the deliberate, confirmed override. */
+export function rescreenBlocked(status: string, force: boolean): boolean {
+  return !force && PAST_PROMOTED_STATUSES.includes(status);
+}
+
 export type JobLead = InferSelectModel<typeof jobLeads>;
 export type JobRequirement = InferSelectModel<typeof jobRequirements>;
 export type RequirementTailoring = InferSelectModel<typeof requirementTailoring>;
