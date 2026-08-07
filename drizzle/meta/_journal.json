@@ -239,6 +239,20 @@
       "when": 1785958678178,
       "tag": "0033_jittery_thunderball",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786122765871,
+      "tag": "0034_flowery_ghost_rider",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1786130360789,
+      "tag": "0035_gorgeous_norman_osborn",
+      "breakpoints": true
     }
   ]
 }
