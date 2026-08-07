@@ -17,6 +17,7 @@ import {
   education,
   languages,
   bulletBank,
+  bulletEvidence,
   skillsMaster,
   onboardingState,
   ciInitiatives,
@@ -282,7 +283,7 @@ export async function getCareerGraph(): Promise<CareerGraph> {
 
 /** Owner-scoped graph loader — usable outside a request (jobs, tests, generators). */
 export async function getCareerGraphFor(owner: string): Promise<CareerGraph> {
-  const [profileRows, pos, st, actions, results, competences, attributes, resp, edu, langs, bullets, skills] =
+  const [profileRows, pos, st, actions, results, competences, attributes, resp, edu, langs, bullets, bulletEv, skills] =
     await Promise.all([
       db.select().from(profiles).where(eq(profiles.id, owner)),
       db.select().from(positions).where(eq(positions.ownerId, owner)).orderBy(asc(positions.refCode)),
@@ -295,6 +296,7 @@ export async function getCareerGraphFor(owner: string): Promise<CareerGraph> {
       db.select().from(education).where(eq(education.ownerId, owner)).orderBy(asc(education.refCode)),
       db.select().from(languages).where(eq(languages.ownerId, owner)).orderBy(asc(languages.refCode)),
       db.select().from(bulletBank).where(eq(bulletBank.ownerId, owner)).orderBy(asc(bulletBank.refCode)),
+      db.select().from(bulletEvidence).where(eq(bulletEvidence.ownerId, owner)),
       db.select().from(skillsMaster).where(eq(skillsMaster.ownerId, owner)).orderBy(asc(skillsMaster.refCode)),
     ]);
   const graph: CareerGraph = {
@@ -309,6 +311,7 @@ export async function getCareerGraphFor(owner: string): Promise<CareerGraph> {
     education: edu,
     languages: langs,
     bullets,
+    bulletEvidence: bulletEv,
     skills,
     targets: EMPTY_TARGETS,
   };

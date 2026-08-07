@@ -67,6 +67,7 @@ function emptyGraph(): CareerGraph {
     education: [],
     languages: [],
     bullets: [],
+    bulletEvidence: [],
     skills: [],
     targets: EMPTY_TARGETS,
   };

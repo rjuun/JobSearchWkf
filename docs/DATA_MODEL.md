@@ -24,6 +24,7 @@ SharePoint to the App* §2.2, re-verified against the schema 2026-08-01.)
 | "Job Requirements List" | `job_requirements` |
 | "Requirements Tailoring List" | `requirement_tailoring` |
 | *(no predecessor — it postdates both)* | `requirement_evidence` — B6's requirement→evidence map |
+| *(no predecessor — it postdates the workbook)* | `bullet_evidence` — per-bullet evidence provenance |
 
 Field-level, for `job_requirements` — **two rows here are counter-intuitive and are the reason this
 table exists**:
@@ -82,6 +83,7 @@ them, and nothing in the app has a filesystem to reach them with.
 | `languages` | `ref_code`, language, cefr_level | 4 |
 | `bullet_bank` | `ref_code`, text, tags[], `version` | ~23 strongest bullets; used by B6 scoring |
 | `skills_master` | `ref_code`, skill, proficiency, `ats_keyword_variants text[]`, star_evidence[] | ~25 skills |
+| `bullet_evidence` | bullet_id→, evidence_table, evidence_key (a `ref_code`) | CI · *Real Bullet Evidence Provenance* — a bullet's actual source row(s), one row per (bullet, evidence) pair. Many-to-many by design (a bullet can merge several evidence rows); human-confirmed only, never a rendered-on-faith guess |
 
 ## Pipeline side (the operational tracker)
 
@@ -122,6 +124,9 @@ them, and nothing in the app has a filesystem to reach them with.
 ```
 profiles 1─┬─< positions 1─< stars 1─< star_actions / star_results / star_competences / star_attributes
            ├─< responsibilities   ├─< education   ├─< languages   ├─< bullet_bank   └─< skills_master
+           │                                                            │
+           │                                                            1─< bullet_evidence >─ (evidence_table/evidence_key →
+           │                                                                responsibilities/stars/star_*/skills_master)
            │
            └─< job_leads >─ companies, offices, jd_groups (primary/secondary)
                   │

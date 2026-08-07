@@ -17,6 +17,7 @@ function mkGraph(o: Partial<CareerGraph> = {}): CareerGraph {
     education: [],
     languages: [],
     bullets: [],
+    bulletEvidence: [],
     skills: [],
     targets: EMPTY_TARGETS,
     ...o,

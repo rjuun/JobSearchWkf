@@ -43,6 +43,7 @@ function mkGraph(o: {
     education: rows(edu) as CareerGraph['education'],
     languages: rows(langs) as CareerGraph['languages'],
     bullets: rows(bullets) as CareerGraph['bullets'],
+    bulletEvidence: [] as CareerGraph['bulletEvidence'],
     skills: rows(skills, (i) => ({ atsKeywordVariants: i < skillsWithAts ? ['kw'] : [] })) as CareerGraph['skills'],
     targets,
   };
@@ -106,7 +107,7 @@ describe('live requirement coverage (Issue 5)', () => {
   const graphWith = (text: string): CareerGraph =>
     ({
       profile: null, positions: [], actions: [], results: [], competences: [], attributes: [],
-      responsibilities: [], education: [], languages: [], bullets: [], skills: [],
+      responsibilities: [], education: [], languages: [], bullets: [], bulletEvidence: [], skills: [],
       stars: [{ title: text, summary: '' }] as CareerGraph['stars'],
       targets: EMPTY_TARGETS,
     }) as CareerGraph;

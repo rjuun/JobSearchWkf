@@ -265,6 +265,35 @@ export const bulletBank = pgTable('bullet_bank', {
   version: text('version'),
 });
 
+/**
+ * CI · Real Bullet Evidence Provenance in the Career Graph — per-bullet evidence
+ * provenance: which exact evidence row(s) a `bullet_bank` line was actually written
+ * from, distinct from `bulletBank.cvPosition` (a CV_SLOTS slot code, which answers
+ * WHERE a bullet renders, not WHAT it was built from).
+ *
+ * Its own table, NOT two polymorphic-pointer columns on `bullet_bank`, because the
+ * relationship is one-to-many: real bullets checked against the owner's actual data
+ * (e.g. `C1`) score almost equally against several `star_actions` at once — a bullet
+ * stitched together from multiple pieces of evidence, not a rewrite of one. Same
+ * "many-to-many by design" precedent `requirement_evidence` already sets elsewhere in
+ * this schema.
+ *
+ * Rows are only ever written by a human-confirmed backfill (see
+ * scripts/propose-bullet-evidence-links.ts) — this is provenance data a future
+ * Evidence Picker treats as ground truth, so nothing here is a best-effort inference.
+ */
+export const bulletEvidence = pgTable('bullet_evidence', {
+  ...base,
+  ...prov,
+  bulletId: uuid('bullet_id').notNull(), // -> bullet_bank.id
+  /** Which table `evidenceKey` resolves against. */
+  evidenceTable: text('evidence_table').$type<
+    'responsibilities' | 'stars' | 'star_actions' | 'star_results' | 'star_competences' | 'star_attributes' | 'skills_master'
+  >(),
+  /** The `ref_code` within `evidenceTable` — same ref-code join convention every other evidence link in this schema uses. */
+  evidenceKey: text('evidence_key'),
+});
+
 export const skillsMaster = pgTable('skills_master', {
   ...base,
   ...prov,
