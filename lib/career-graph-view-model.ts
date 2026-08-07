@@ -15,19 +15,23 @@
  * `skillsMaster.starEvidence`.
  *
  * Fidelity note vs. the design mockup: the mockup was built directly from the Excel
- * workbook, which carries richer columns than the live schema — separate
- * Situation/Task text, competence/attribute descriptions, position seniority/location,
- * and free-text bullet source citations that produced real bullet→evidence edges. None
- * of those columns exist in `lib/db/schema.ts` today, so this live version omits them
- * rather than inventing them. CV Bullets link via `cvPosition`, which holds a `CV_SLOTS`
- * slot code (`lib/cv-slots.ts`), not a position title: a project-slot bullet (A1, B2, ...)
- * links to its specific STAR via a hardcoded, human-confirmed slot→STAR mapping
- * (`CV_SLOT_STAR_REF`), and a role-overview bullet (A0, B0, ...) links to every
- * Responsibility under that slot letter's position — a rollup, not a single-project link.
- * A bullet also links to a skill when one of its `tags` exactly matches a skill name.
- * None of this is a stored foreign key (`bullet_bank` has no evidence-source column); both
- * are called out in `GRAPH_FOOTNOTE` below so the UI stays honest about what's real data vs.
- * an inference. See `[[Fix CV Bullet Evidence Linking in the Career Graph]]` (2026-08-06).
+ * workbook, which carries richer columns than the live schema — separate Situation/Task
+ * text and position seniority/location. Those aren't modeled live and are omitted rather
+ * than invented. Bullet source citations, however, ARE real live data now: `bullet_evidence`
+ * (CI · *Real Bullet Evidence Provenance*, 2026-08-08) records which exact evidence row(s)
+ * a bullet was actually written from, one row per (bullet, evidence) pair — a bullet can
+ * genuinely merge several. A bullet with at least one confirmed row draws a dashed line to
+ * each of those exact nodes (kind `bullet-evidence`). A bullet with none yet falls back to
+ * CI-040's slot-level inference: `cvPosition` holds a `CV_SLOTS` slot code (`lib/cv-slots.ts`),
+ * not a position title, so a project-slot bullet (A1, B2, ...) links to its specific STAR via
+ * a hardcoded, human-confirmed slot→STAR mapping (`CV_SLOT_STAR_REF`), and a role-overview
+ * bullet (A0, B0, ...) links to every Responsibility under that slot letter's position — a
+ * rollup, not a single-project link (kind `bullet-slot`, visually weaker). A bullet also links
+ * to a skill when one of its `tags` exactly matches a skill name (kind `bullet-tag`) — always
+ * an inference, never a stored source, regardless of which of the above applies. All three are
+ * called out in `GRAPH_FOOTNOTE` below so the UI stays honest about which is which. See
+ * `[[Fix CV Bullet Evidence Linking in the Career Graph]]` (2026-08-06) and
+ * `[[Real Bullet Evidence Provenance in the Career Graph]]` (2026-08-08).
  */
 import type { CareerGraph } from './career-graph';
 import { normalizeCvPosition, slotCode } from './cv-slots';
@@ -47,7 +51,7 @@ export type GraphNode = {
   data: unknown;
 };
 
-export type LinkKind = 'contains' | 'evidence' | 'bullet-slot' | 'bullet-tag';
+export type LinkKind = 'contains' | 'evidence' | 'bullet-slot' | 'bullet-tag' | 'bullet-evidence';
 
 export type GraphLink = {
   source: string;
@@ -87,14 +91,22 @@ export type GraphViewModel = {
    * parsing free-text shorthand ("STAR 4", "All STARs", "All senior STARs"). Built once
    * here so the side panel doesn't have to re-derive it from raw `starEvidence` text. */
   starsBySkillId: Map<string, CareerGraph['stars']>;
-  /** A project-slot bullet's (A1, B2, ...) resolved STAR, keyed by bullet id — built once
-   * here, alongside the `bullet-slot` link itself, so the side panel reads the same
-   * resolution the graph draws instead of re-deriving it (and drifting) from `cvPosition`
-   * text a second time. */
+  /** A project-slot bullet's (A1, B2, ...) resolved STAR, keyed by bullet id — the
+   * CV_SLOT_STAR_REF fallback, only populated for a bullet with NO confirmed
+   * `bullet_evidence` row. Built once here, alongside the `bullet-slot` link itself, so the
+   * side panel reads the same resolution the graph draws instead of re-deriving it (and
+   * drifting) from `cvPosition` text a second time. */
   starByBulletId: Map<string, CareerGraph['stars'][number]>;
   /** A role-overview bullet's (A0, B0, ...) resolved Responsibilities, keyed by bullet id —
-   * same one-parsing-path rationale as starByBulletId above. */
+   * same fallback-only, one-parsing-path rationale as starByBulletId above. */
   respByBulletId: Map<string, CareerGraph['responsibilities']>;
+  /** CI · Real Bullet Evidence Provenance — a bullet's CONFIRMED evidence nodes (from
+   * `bullet_evidence`), keyed by bullet id. Populated instead of starByBulletId/
+   * respByBulletId whenever a bullet has at least one confirmed row; a bullet can resolve
+   * to several nodes (a genuine multi-source merge, e.g. `C1`). Absent (not just empty)
+   * for a bullet with no confirmed source — "no confirmed source" is a distinct, more
+   * honest state than "confirmed empty". */
+  evidenceNodesByBulletId: Map<string, GraphNode[]>;
   positionById: Map<string, CareerGraph['positions'][number]>;
   starById: Map<string, CareerGraph['stars'][number]>;
 };
@@ -195,22 +207,36 @@ export function buildGraphViewModel(g: CareerGraph): GraphViewModel {
     nodes.push({ id: `star-${s.id}`, type: 'star', label: s.title ?? s.refCode ?? 'STAR', data: s });
     if (p) links.push({ source: `pos-${p.id}`, target: `star-${s.id}`, kind: 'contains' });
   }
+  // Ref-code → node-id maps, built alongside node creation below rather than re-derived
+  // later, so a bullet_evidence row (CI · Real Bullet Evidence Provenance) resolves to
+  // exactly the node the graph actually drew — never a phantom id for a row that was
+  // skipped (no matching STAR/position).
+  const actionNodeIdByRefCode = new Map<string, string>();
+  const resultNodeIdByRefCode = new Map<string, string>();
+  const respNodeIdByRefCode = new Map<string, string>();
+
   for (const a of g.actions) {
     const s = a.starRef ? starByRefCode.get(normRef(a.starRef)) : undefined;
     if (!s) continue;
-    nodes.push({ id: `act-${a.id}`, type: 'action', label: a.text ?? 'Action', data: a });
-    links.push({ source: `star-${s.id}`, target: `act-${a.id}`, kind: 'contains' });
+    const id = `act-${a.id}`;
+    nodes.push({ id, type: 'action', label: a.text ?? 'Action', data: a });
+    links.push({ source: `star-${s.id}`, target: id, kind: 'contains' });
+    if (a.refCode) actionNodeIdByRefCode.set(normRef(a.refCode), id);
   }
   for (const r of g.results) {
     const s = r.starRef ? starByRefCode.get(normRef(r.starRef)) : undefined;
     if (!s) continue;
-    nodes.push({ id: `res-${r.id}`, type: 'result', label: r.text ?? 'Result', data: r });
-    links.push({ source: `star-${s.id}`, target: `res-${r.id}`, kind: 'contains' });
+    const id = `res-${r.id}`;
+    nodes.push({ id, type: 'result', label: r.text ?? 'Result', data: r });
+    links.push({ source: `star-${s.id}`, target: id, kind: 'contains' });
+    if (r.refCode) resultNodeIdByRefCode.set(normRef(r.refCode), id);
   }
   for (const r of g.responsibilities) {
     const p = r.positionRef ? posByRefCode.get(normRef(r.positionRef)) : undefined;
-    nodes.push({ id: `resp-${r.id}`, type: 'responsibility', label: r.text ?? 'Responsibility', data: r });
-    if (p) links.push({ source: `pos-${p.id}`, target: `resp-${r.id}`, kind: 'contains' });
+    const id = `resp-${r.id}`;
+    nodes.push({ id, type: 'responsibility', label: r.text ?? 'Responsibility', data: r });
+    if (p) links.push({ source: `pos-${p.id}`, target: id, kind: 'contains' });
+    if (r.refCode) respNodeIdByRefCode.set(normRef(r.refCode), id);
   }
 
   // Competences/attributes: dedupe by name, one node per unique name, linked to every
@@ -252,6 +278,25 @@ export function buildGraphViewModel(g: CareerGraph): GraphViewModel {
       if (!attributesByStarId.has(sid)) attributesByStarId.set(sid, []);
       attributesByStarId.get(sid)!.push({ name: grp.name, starIds, starRefs: [...grp.starRefs] });
     }
+  }
+
+  // A competence/attribute row's own ref_code → the (deduped, per-name) node id it landed
+  // on, for bullet_evidence resolution. Only set when the row's group actually got a node
+  // (i.e. resolved to at least one real STAR) — a row whose group was dropped has no node
+  // to point to, same as any other unresolved evidence ref.
+  const createdCompetenceIds = new Set(nodes.filter((n) => n.type === 'competence').map((n) => n.id));
+  const competenceNodeIdByRefCode = new Map<string, string>();
+  for (const c of g.competences) {
+    if (!c.refCode || !c.competence) continue;
+    const nid = `comp-${slug(c.competence)}`;
+    if (createdCompetenceIds.has(nid)) competenceNodeIdByRefCode.set(normRef(c.refCode), nid);
+  }
+  const createdAttributeIds = new Set(nodes.filter((n) => n.type === 'attribute').map((n) => n.id));
+  const attributeNodeIdByRefCode = new Map<string, string>();
+  for (const a of g.attributes) {
+    if (!a.refCode || !a.attribute) continue;
+    const nid = `attr-${slug(a.attribute)}`;
+    if (createdAttributeIds.has(nid)) attributeNodeIdByRefCode.set(normRef(a.refCode), nid);
   }
 
   const allStarRefCodes = g.stars.map((st) => st.refCode).filter((r): r is string => !!r);
@@ -307,35 +352,89 @@ export function buildGraphViewModel(g: CareerGraph): GraphViewModel {
     CV_SLOT_LETTER_POSITION.set(letter, p.id);
   }
 
+  // A bullet_evidence row's (evidenceTable, evidenceKey) → the exact node it names, using
+  // the same ref-code join convention as every other edge in this graph. Returns undefined
+  // for a dangling/unrecognized ref — callers must not fall back to the CV_SLOT_STAR_REF
+  // guess in that case (a confirmed-but-broken ref is a data bug to surface, not paper over).
+  function resolveEvidenceNodeId(evidenceTable: string | null, evidenceKey: string | null): string | undefined {
+    if (!evidenceKey) return undefined;
+    const key = normRef(evidenceKey);
+    switch (evidenceTable) {
+      case 'stars': {
+        const s = starByRefCode.get(key);
+        return s ? `star-${s.id}` : undefined;
+      }
+      case 'star_actions':
+        return actionNodeIdByRefCode.get(key);
+      case 'star_results':
+        return resultNodeIdByRefCode.get(key);
+      case 'responsibilities':
+        return respNodeIdByRefCode.get(key);
+      case 'star_competences':
+        return competenceNodeIdByRefCode.get(key);
+      case 'star_attributes':
+        return attributeNodeIdByRefCode.get(key);
+      case 'skills_master': {
+        const sk = skillByRefCode.get(key);
+        return sk ? `skill-${sk.id}` : undefined;
+      }
+      default:
+        return undefined;
+    }
+  }
+
   // Bullets — overlay layer, hidden by default. `cvPosition` holds a CV_SLOTS slot code
-  // (never a position title), so a project-slot bullet (A1, B2, ...) links to its
-  // specific STAR via the hardcoded CV_SLOT_STAR_REF mapping, and a role-overview bullet
-  // (A0, B0, ...) links to every Responsibility under that slot letter's position — a
-  // rollup, since a role-overview bullet isn't tied to one project. Skill link only when
-  // a bullet tag exactly matches a skill name — an inference from the bracketed C3 tag,
-  // not a stored source reference.
+  // (never a position title) and answers WHERE a bullet renders — separate from WHAT it
+  // was built from. A bullet with one or more confirmed `bullet_evidence` rows (CI · Real
+  // Bullet Evidence Provenance) draws a dashed line to each exact evidence row it names —
+  // real, per-bullet provenance, possibly more than one (a bullet can genuinely merge
+  // several evidence rows into one narrative line). A bullet with NO confirmed row yet
+  // falls back to CI-040's slot-level inference (CV_SLOT_STAR_REF / role-overview
+  // Responsibilities rollup) so it still draws *something* rather than floating as an
+  // orphan — a weaker, visually distinct link kind, since it's a slot guess, not a stored
+  // source. Skill link only when a bullet tag exactly matches a skill name — an inference
+  // from the bracketed C3 tag, not a stored source reference either.
+  const skillByRefCode = new Map(g.skills.filter((s) => s.refCode).map((s) => [normRef(s.refCode), s]));
   const skillByName = new Map(g.skills.filter((s) => s.skill).map((s) => [norm(s.skill), s]));
+  const evidenceByBulletId = new Map<string, CareerGraph['bulletEvidence']>();
+  for (const be of g.bulletEvidence) {
+    if (!evidenceByBulletId.has(be.bulletId)) evidenceByBulletId.set(be.bulletId, []);
+    evidenceByBulletId.get(be.bulletId)!.push(be);
+  }
   const starByBulletId = new Map<string, CareerGraph['stars'][number]>();
   const respByBulletId = new Map<string, CareerGraph['responsibilities']>();
+  const evidenceNodeIdsByBulletId = new Map<string, string[]>();
   for (const b of g.bullets) {
     const id = `bullet-${b.id}`;
     nodes.push({ id, type: 'bullet', label: b.text ?? 'CV bullet', data: b });
 
-    const fullSlot = b.cvPosition ? normalizeCvPosition(b.cvPosition) : null;
-    const code = fullSlot ? slotCode(fullSlot) : null;
-    if (code) {
-      const starRef = CV_SLOT_STAR_REF[code];
-      if (starRef) {
-        const s = starByRefCode.get(normRef(starRef));
-        if (s) {
-          links.push({ source: `star-${s.id}`, target: id, kind: 'bullet-slot' });
-          starByBulletId.set(b.id, s);
+    const confirmed = evidenceByBulletId.get(b.id) ?? [];
+    if (confirmed.length > 0) {
+      const resolvedIds: string[] = [];
+      for (const be of confirmed) {
+        const nodeId = resolveEvidenceNodeId(be.evidenceTable, be.evidenceKey);
+        if (!nodeId) continue;
+        resolvedIds.push(nodeId);
+        links.push({ source: nodeId, target: id, kind: 'bullet-evidence' });
+      }
+      if (resolvedIds.length) evidenceNodeIdsByBulletId.set(b.id, resolvedIds);
+    } else {
+      const fullSlot = b.cvPosition ? normalizeCvPosition(b.cvPosition) : null;
+      const code = fullSlot ? slotCode(fullSlot) : null;
+      if (code) {
+        const starRef = CV_SLOT_STAR_REF[code];
+        if (starRef) {
+          const s = starByRefCode.get(normRef(starRef));
+          if (s) {
+            links.push({ source: `star-${s.id}`, target: id, kind: 'bullet-slot' });
+            starByBulletId.set(b.id, s);
+          }
+        } else {
+          const posId = CV_SLOT_LETTER_POSITION.get(code[0]);
+          const resps = posId ? respByPositionId.get(posId) ?? [] : [];
+          if (resps.length) respByBulletId.set(b.id, resps);
+          for (const r of resps) links.push({ source: `resp-${r.id}`, target: id, kind: 'bullet-slot' });
         }
-      } else {
-        const posId = CV_SLOT_LETTER_POSITION.get(code[0]);
-        const resps = posId ? respByPositionId.get(posId) ?? [] : [];
-        if (resps.length) respByBulletId.set(b.id, resps);
-        for (const r of resps) links.push({ source: `resp-${r.id}`, target: id, kind: 'bullet-slot' });
       }
     }
 
@@ -350,6 +449,12 @@ export function buildGraphViewModel(g: CareerGraph): GraphViewModel {
   }
 
   const byId = new Map(nodes.map((n) => [n.id, n]));
+
+  const evidenceNodesByBulletId = new Map<string, GraphNode[]>();
+  for (const [bulletId, nodeIds] of evidenceNodeIdsByBulletId) {
+    const resolved = nodeIds.map((nid) => byId.get(nid)).filter((n): n is GraphNode => !!n);
+    if (resolved.length) evidenceNodesByBulletId.set(bulletId, resolved);
+  }
 
   const starsByPositionId = new Map<string, CareerGraph['stars']>();
   for (const s of g.stars) {
@@ -405,10 +510,11 @@ export function buildGraphViewModel(g: CareerGraph): GraphViewModel {
     starsBySkillId,
     starByBulletId,
     respByBulletId,
+    evidenceNodesByBulletId,
     positionById,
     starById,
   };
 }
 
 export const GRAPH_FOOTNOTE =
-  "Hierarchy: Position→STAR, STAR→Action, STAR→Result and Position→Responsibility (all one-to-many). Competences, attributes and skills are recorded at the STAR level — not tied to one specific action or result — so a competence or attribute that recurs under the same name across stories (e.g. “Innovativeness” on three STARs) is collapsed into one node with a link to each story, the same pattern skills already use via their star evidence list. CV Bullets (hidden until toggled in the legend) hold a CV-slot code, not a position title: a project-slot bullet links to its specific STAR via a hardcoded, human-confirmed mapping, and a role-overview bullet links to every Responsibility under that slot's position. A bullet also links to a skill when one of its tags exactly matches a skill name. None of this is a stored reference — this profile's data doesn't yet record a bullet's specific source evidence — but it's a real, confirmed mapping, not a text-matching guess. Layout is force-directed and settles on load — drag any node to rearrange, scroll to zoom.";
+  "Hierarchy: Position→STAR, STAR→Action, STAR→Result and Position→Responsibility (all one-to-many). Competences, attributes and skills are recorded at the STAR level — not tied to one specific action or result — so a competence or attribute that recurs under the same name across stories (e.g. “Innovativeness” on three STARs) is collapsed into one node with a link to each story, the same pattern skills already use via their star evidence list. CV Bullets stay hidden until toggled in the legend — and once toggled on, the graph switches to bullets-only mode, showing just the bullets and their direct connections rather than dropping them onto the full hierarchy above. A visible bullet draws a solid line to the exact evidence row(s) it was confirmed as written from (CI · Real Bullet Evidence Provenance) — sometimes more than one, when a bullet genuinely merges several pieces of evidence into one narrative line. A bullet with no confirmed source yet falls back to a lighter, more faded line: its CV-slot code (not a position title) resolved via a hardcoded, human-confirmed slot→STAR mapping, or, for a role-overview bullet, a rollup of every Responsibility under that slot's position — an inference, not a stored source. A bullet also links to a skill when one of its tags exactly matches a skill name, always an inference. Layout is force-directed and settles on load — drag any node to rearrange, scroll to zoom.";

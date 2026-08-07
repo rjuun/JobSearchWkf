@@ -253,6 +253,13 @@
       "when": 1786130360789,
       "tag": "0035_gorgeous_norman_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786140541682,
+      "tag": "0036_fearless_hobgoblin",
+      "breakpoints": true
     }
   ]
 }

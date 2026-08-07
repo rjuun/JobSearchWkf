@@ -21,7 +21,7 @@ import {
 // place by D3, never replaced by a React re-render.
 
 type SimNode = GraphNode & d3.SimulationNodeDatum;
-type SimLink = { source: string | SimNode; target: string | SimNode; kind: 'contains' | 'evidence' | 'bullet-slot' | 'bullet-tag' };
+type SimLink = { source: string | SimNode; target: string | SimNode; kind: 'contains' | 'evidence' | 'bullet-slot' | 'bullet-tag' | 'bullet-evidence' };
 
 // Legend order (object key order drives render order below): Positions, then
 // Responsibilities (a position-level fact, so it sits next to Positions rather
@@ -92,6 +92,7 @@ function edgeKey(l: { source: SimNode; target: SimNode }) {
 }
 function linkDistance(l: SimLink) {
   if (l.kind === 'evidence') return 190;
+  if (l.kind === 'bullet-evidence') return 50;
   if (l.kind === 'bullet-slot') return 60;
   if (l.kind === 'bullet-tag') return 46;
   const s = l.source as SimNode;
@@ -100,12 +101,24 @@ function linkDistance(l: SimLink) {
 }
 function linkStrength(l: SimLink) {
   if (l.kind === 'evidence') return 0.12;
+  if (l.kind === 'bullet-evidence') return 0.8;
   if (l.kind === 'bullet-slot') return 0.75;
   if (l.kind === 'bullet-tag') return 0.55;
   const s = l.source as SimNode;
   const t = l.target as SimNode;
   return `${s.type}>${t.type}` === 'position>star' ? 0.85 : 1;
 }
+// bullet-evidence (confirmed, real per-bullet source) reads as the strongest, most solid
+// bullet link — same hue as bullet-tag (an inference) but thicker and never dashed, so a
+// glance tells "confirmed source" apart from "tag-matched skill" apart from bullet-slot's
+// faded, dashed "unconfirmed, slot-level guess".
+const LINK_STYLE: Record<SimLink['kind'], { stroke: string; width: number; dash: string | null; opacity: number }> = {
+  contains: { stroke: 'rgb(230 225 215)', width: 1.1, dash: null, opacity: 1 },
+  evidence: { stroke: 'rgb(180 83 9)', width: 1.1, dash: '2,2', opacity: 0.5 },
+  'bullet-evidence': { stroke: 'rgb(190 18 60)', width: 1.8, dash: null, opacity: 1 },
+  'bullet-tag': { stroke: 'rgb(190 18 60)', width: 1.5, dash: null, opacity: 0.8 },
+  'bullet-slot': { stroke: 'rgb(190 18 60 / .45)', width: 1.1, dash: '1,3', opacity: 1 },
+};
 
 function tooltipContent(d: GraphNode, vm: GraphViewModel): [string, string] {
   switch (d.type) {
@@ -156,6 +169,25 @@ function tooltipContent(d: GraphNode, vm: GraphViewModel): [string, string] {
 
 export function CareerGraphView({ graph }: { graph: CareerGraph }) {
   const vm = useMemo(() => buildGraphViewModel(graph), [graph]);
+
+  // CI-037's original design for this overlay: bullets stay hidden until the legend is
+  // clicked, and once they're on, the graph shows ONLY bullets and their direct
+  // connections — not bullets dropped on top of the full hierarchy (a hairball where a
+  // bullet's real evidence link is indistinguishable from the unrelated structural
+  // 'contains' backbone around it). "Direct connection" means one hop via an actual
+  // bullet edge (bullet-evidence, bullet-slot, bullet-tag) — not the transitive
+  // hierarchy above it (e.g. a cited STAR's own position doesn't reappear just because
+  // the STAR did).
+  const bulletConnectedIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const l of vm.links) {
+      if (l.kind === 'bullet-evidence' || l.kind === 'bullet-slot' || l.kind === 'bullet-tag') {
+        ids.add(l.source);
+        ids.add(l.target);
+      }
+    }
+    return ids;
+  }, [vm]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -238,10 +270,10 @@ export function CareerGraphView({ graph }: { graph: CareerGraph }) {
       .selectAll<SVGLineElement, SimLink>('line')
       .data(links)
       .join('line')
-      .attr('stroke', (d) => (d.kind === 'evidence' ? 'rgb(180 83 9)' : d.kind === 'bullet-tag' ? 'rgb(190 18 60)' : d.kind === 'bullet-slot' ? 'rgb(190 18 60 / .45)' : 'rgb(230 225 215)'))
-      .attr('stroke-width', (d) => (d.kind === 'bullet-tag' ? 1.5 : 1.1))
-      .attr('stroke-dasharray', (d) => (d.kind === 'evidence' ? '2,2' : d.kind === 'bullet-slot' ? '1,3' : null))
-      .attr('opacity', (d) => (d.kind === 'evidence' ? 0.5 : d.kind === 'bullet-tag' ? 0.8 : 1))
+      .attr('stroke', (d) => LINK_STYLE[d.kind].stroke)
+      .attr('stroke-width', (d) => LINK_STYLE[d.kind].width)
+      .attr('stroke-dasharray', (d) => LINK_STYLE[d.kind].dash)
+      .attr('opacity', (d) => LINK_STYLE[d.kind].opacity)
       .attr('fill', 'none');
     linkSelRef.current = linkSel;
 
@@ -385,13 +417,29 @@ export function CareerGraphView({ graph }: { graph: CareerGraph }) {
     const nodeSel = nodeSelRef.current;
     const linkSel = linkSelRef.current;
     if (!nodeSel || !linkSel) return;
-    nodeSel.style('display', (d) => (visible[d.type] ? null : 'none'));
+    // A node's own type toggle always applies. On top of that, once CV Bullets is on,
+    // every non-bullet node also needs a direct bullet edge to stay visible — this is
+    // what turns "bullets overlaid on the full graph" into "just the bullet
+    // neighborhood" per CI-037's original design.
+    const nodeVisible = (d: SimNode) => {
+      if (!visible[d.type]) return false;
+      if (visible.bullet && d.type !== 'bullet' && !bulletConnectedIds.has(d.id)) return false;
+      return true;
+    };
+    nodeSel.style('display', (d) => (nodeVisible(d) ? null : 'none'));
+    const isBulletLinkKind = (k: SimLink['kind']) => k === 'bullet-evidence' || k === 'bullet-slot' || k === 'bullet-tag';
     linkSel.style('display', (l) => {
       const s = l.source as SimNode;
       const t = l.target as SimNode;
-      return visible[s.type] && visible[t.type] ? null : 'none';
+      if (!nodeVisible(s) || !nodeVisible(t)) return 'none';
+      // In bullet-isolate mode, a structural `contains`/`evidence` edge between two
+      // otherwise-visible nodes must still be suppressed unless it's itself a bullet
+      // edge — two nodes can each be visible because of DIFFERENT bullets, and showing
+      // the incidental edge between them would misread as one bullet's real connection.
+      if (visible.bullet && !isBulletLinkKind(l.kind)) return 'none';
+      return null;
     });
-  }, [visible]);
+  }, [visible, bulletConnectedIds]);
 
   // ---------- highlight: search takes priority, then selection, then hover ----------
   useEffect(() => {
@@ -829,8 +877,9 @@ function SidePanel({ node, vm, onJump }: { node: GraphNode; vm: GraphViewModel; 
       const b = node.data as CareerGraph['bullets'][number];
       // Resolved by the view-model, not re-parsed here — same one-parsing-path rationale
       // as the 'skill' case above: `cvPosition` holds a CV_SLOTS slot code, and the
-      // slot→STAR / slot→Responsibilities resolution lives in one place
+      // slot→STAR / slot→Responsibilities / bullet_evidence resolution lives in one place
       // (lib/career-graph-view-model.ts) so this panel can't drift from what the graph draws.
+      const confirmedEvidence = vm.evidenceNodesByBulletId.get(b.id) ?? [];
       const matchedStar = vm.starByBulletId.get(b.id);
       const matchedResps = vm.respByBulletId.get(b.id) ?? [];
       const matchedSkills = (b.tags ?? [])
@@ -841,16 +890,28 @@ function SidePanel({ node, vm, onJump }: { node: GraphNode; vm: GraphViewModel; 
           <Kicker type="bullet">CV Bullet{b.cvPosition ? ` · ${b.cvPosition}` : ''}</Kicker>
           <p className="mt-3 text-[13.5px] leading-relaxed text-ink">{b.text}</p>
           <div className="mt-2 text-[12.5px] text-ink-subtle">
-            {matchedStar ? (
+            {confirmedEvidence.length > 0 ? (
               <>
-                Evidenced by{' '}
+                Built from {confirmedEvidence.length} confirmed evidence row{confirmedEvidence.length === 1 ? '' : 's'}:{' '}
+                {confirmedEvidence.map((n, i) => (
+                  <span key={n.id}>
+                    {i > 0 && ', '}
+                    <button type="button" onClick={() => onJump(n.id)} className="font-semibold text-proof-deep hover:underline">
+                      {n.label}
+                    </button>
+                  </span>
+                ))}
+              </>
+            ) : matchedStar ? (
+              <>
+                No confirmed source yet — best guess from its CV slot:{' '}
                 <button type="button" onClick={() => onJump(`star-${matchedStar.id}`)} className="font-semibold text-proof-deep hover:underline">
                   {matchedStar.title}
                 </button>
               </>
             ) : matchedResps.length > 0 ? (
               <>
-                Rolls up {matchedResps.length} Responsibilit{matchedResps.length === 1 ? 'y' : 'ies'}, incl.{' '}
+                No confirmed source yet — rolls up {matchedResps.length} Responsibilit{matchedResps.length === 1 ? 'y' : 'ies'} under its CV slot, incl.{' '}
                 <button type="button" onClick={() => onJump(`resp-${matchedResps[0].id}`)} className="font-semibold text-proof-deep hover:underline">
                   {matchedResps[0].text?.slice(0, 60)}
                   {(matchedResps[0].text?.length ?? 0) > 60 ? '…' : ''}

@@ -18,6 +18,7 @@ import type {
   education,
   languages,
   bulletBank,
+  bulletEvidence,
   skillsMaster,
 } from './db/schema';
 
@@ -47,6 +48,10 @@ export type CareerGraph = {
   education: InferSelectModel<typeof education>[];
   languages: InferSelectModel<typeof languages>[];
   bullets: InferSelectModel<typeof bulletBank>[];
+  /** CI · Real Bullet Evidence Provenance — which exact evidence row(s) each bullet was
+   * actually built from (bullet_id, evidence_table, evidence_key). One-to-many: a bullet
+   * with no rows here has no confirmed source yet, not zero evidence. */
+  bulletEvidence: InferSelectModel<typeof bulletEvidence>[];
   skills: InferSelectModel<typeof skillsMaster>[];
   /** Flagged-target requirement coverage (defaults to none when not loaded). */
   targets: TargetCoverage;

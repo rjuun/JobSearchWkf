@@ -62,6 +62,7 @@ async function main() {
     education: [],
     languages: [],
     bullets,
+    bulletEvidence: [],
     skills,
     targets: EMPTY_TARGETS,
   };
