@@ -827,7 +827,12 @@ function SidePanel({ node, vm, onJump }: { node: GraphNode; vm: GraphViewModel; 
     }
     case 'bullet': {
       const b = node.data as CareerGraph['bullets'][number];
-      const matchedPos = [...vm.positionById.values()].find((p) => (p.title ?? '').trim().toLowerCase() === (b.cvPosition ?? '').trim().toLowerCase());
+      // Resolved by the view-model, not re-parsed here — same one-parsing-path rationale
+      // as the 'skill' case above: `cvPosition` holds a CV_SLOTS slot code, and the
+      // slot→STAR / slot→Responsibilities resolution lives in one place
+      // (lib/career-graph-view-model.ts) so this panel can't drift from what the graph draws.
+      const matchedStar = vm.starByBulletId.get(b.id);
+      const matchedResps = vm.respByBulletId.get(b.id) ?? [];
       const matchedSkills = (b.tags ?? [])
         .map((tag) => [...vm.byId.values()].find((n) => n.type === 'skill' && (n.data as CareerGraph['skills'][number]).skill?.trim().toLowerCase() === tag.trim().toLowerCase()))
         .filter((n): n is GraphNode => !!n);
@@ -836,15 +841,23 @@ function SidePanel({ node, vm, onJump }: { node: GraphNode; vm: GraphViewModel; 
           <Kicker type="bullet">CV Bullet{b.cvPosition ? ` · ${b.cvPosition}` : ''}</Kicker>
           <p className="mt-3 text-[13.5px] leading-relaxed text-ink">{b.text}</p>
           <div className="mt-2 text-[12.5px] text-ink-subtle">
-            {matchedPos ? (
+            {matchedStar ? (
               <>
-                Slotted under{' '}
-                <button type="button" onClick={() => onJump(`pos-${matchedPos.id}`)} className="font-semibold text-proof-deep hover:underline">
-                  {matchedPos.title}
+                Evidenced by{' '}
+                <button type="button" onClick={() => onJump(`star-${matchedStar.id}`)} className="font-semibold text-proof-deep hover:underline">
+                  {matchedStar.title}
+                </button>
+              </>
+            ) : matchedResps.length > 0 ? (
+              <>
+                Rolls up {matchedResps.length} Responsibilit{matchedResps.length === 1 ? 'y' : 'ies'}, incl.{' '}
+                <button type="button" onClick={() => onJump(`resp-${matchedResps[0].id}`)} className="font-semibold text-proof-deep hover:underline">
+                  {matchedResps[0].text?.slice(0, 60)}
+                  {(matchedResps[0].text?.length ?? 0) > 60 ? '…' : ''}
                 </button>
               </>
             ) : (
-              'Overarching — no matching position found from its CV-slot text.'
+              'No CV-slot link recorded for this bullet (e.g. the Overarching Skills bullet, which isn’t tied to a position).'
             )}
           </div>
           <div className="mt-4 border-t border-hairline pt-3.5">

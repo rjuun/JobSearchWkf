@@ -156,6 +156,10 @@ export const positions = pgTable('positions', {
   title: text('title'),
   startDate: text('start_date'),
   endDate: text('end_date'),
+  // City/country of this position — was only ever static template text on the
+  // CV (never in the DB) until the CV Header/Professional Experience wiring
+  // needed to build "<Title> at <Company>, <City, Country>" from real data.
+  cityCountry: text('city_country'),
   summary: text('summary'),
 });
 
@@ -231,6 +235,12 @@ export const education = pgTable('education', {
   dateCompleted: text('date_completed'),
   notes: text('notes'),
   jdGroupRelevance: jsonb('jd_group_relevance').$type<string[]>().default([]),
+  // CV-facing sub-bullets under this education entry — one array item per line,
+  // same shape as `responsibilities.skills`/`starActions.atsKeywords`. Distinct
+  // from `notes` above, which stays internal (not rendered). Each entry is meant
+  // to work like a bulletBank row: a candidate line that a future evidence-picker
+  // can select in or out per tailoring, not something always printed wholesale.
+  summary: jsonb('summary').$type<string[]>().default([]),
 });
 
 export const languages = pgTable('languages', {
@@ -239,6 +249,10 @@ export const languages = pgTable('languages', {
   refCode: text('ref_code'),
   language: text('language'),
   cefrLevel: text('cefr_level'),
+  // The CV-facing proficiency label ("Fluent", "Native"), distinct from the
+  // technical `cefrLevel` above. A stable per-language attribute, not something
+  // that varies per tailoring the way Header's JD Group fields do.
+  displayLevel: text('display_level'),
 });
 
 export const bulletBank = pgTable('bullet_bank', {

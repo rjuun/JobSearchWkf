@@ -104,12 +104,19 @@ document analysis → page restructuring → live D3 wiring. Re-doing this today
   bullets in the workbook cited a specific action/result/responsibility/competence/attribute). **None of
   that exists in the live schema.**
   ~~The live component does not fabricate it: a CV Bullet links to a position only when its `cvPosition`
-  text case-insensitively matches a position `title` (best-effort, not a stored FK)~~ **— STALE, this
-  description was wrong, not just best-effort. `cvPosition` actually holds a `CV_SLOTS` slot code
-  (`lib/cv-slots.ts`), never a position title, so that match has never once succeeded on real data. See
-  `[[Fix CV Bullet Evidence Linking in the Career Graph]]` (opened 2026-08-06) for the fix.** The
-  bullet→skill link (one of its `tags` exactly matching a skill name, inferred from the bracketed C3 tag,
-  not a stored source reference) is unaffected and works as originally described. Both are called out in
+  text case-insensitively matches a position `title` (best-effort, not a stored FK)~~ **— FIXED, see
+  `[[Fix CV Bullet Evidence Linking in the Career Graph]]` (delivered 2026-08-06). `cvPosition` actually
+  holds a `CV_SLOTS` slot code (`lib/cv-slots.ts`), never a position title, so that title-match had never
+  once succeeded on real data. Now: a project-slot bullet (A1, B2, ...) links to its specific STAR via a
+  hardcoded, human-confirmed `CV_SLOT_STAR_REF` mapping (built from a live `stars`-table read), and a
+  role-overview bullet (A0, B0, ...) links to every Responsibility under that slot letter's position. That
+  CI also fixed a second, related bug it found while verifying in-browser: the side panel
+  (`career-graph-view.tsx`) re-derived the bullet→position match with its own copy of the old (broken)
+  logic instead of reading the view-model's actual link — so even before this fix landed, the graph could
+  draw a correct dashed line while the side panel still said "no matching position found". Both now read
+  from the same `starByBulletId`/`respByBulletId` maps the view-model computes once.** The bullet→skill
+  link (one of its `tags` exactly matching a skill name, inferred from the bracketed C3 tag, not a stored
+  source reference) is unaffected and works as originally described. Both are called out in
   the graph's own footnote text (`GRAPH_FOOTNOTE` in `lib/career-graph-view-model.ts`), which the new CI
   will also need to update.
 - **STAR `refCode` format is not fixed** — the example above (`"F-R2"`) came from the design mockup's
@@ -230,13 +237,14 @@ into this sequence.
   Checks every ref-code join for raw-vs-normalized match differences (proves/disproves the formatting-bug
   theory per join, with examples), then runs the real `buildGraphViewModel` and reports actual orphan nodes
   by type. Built to let the user confirm the `normRef` fix against live data rather than take it on faith.
-- `[[Fix CV Bullet Evidence Linking in the Career Graph]]` **(new CI, split out 2026-08-06)** — the 27 CV
-  Bullet orphans turned out to be a real bug, not a "best-effort match, sometimes misses" limitation as
-  originally described below: `cvPosition` is a `CV_SLOTS` slot code, not a position title, so the
-  title-matching code in §2.1 below has never actually linked a bullet to anything. Spun out as its own CI
-  (rather than fixed in place here) because it needs a live DB read this session couldn't reach — see that
-  note for the full analysis. §2.1's fidelity note below is now stale on this point; superseded by that CI,
-  not corrected here.
+- `[[Fix CV Bullet Evidence Linking in the Career Graph]]` **(new CI, split out 2026-08-06, delivered same
+  day)** — the 27 CV Bullet orphans turned out to be a real bug, not a "best-effort match, sometimes
+  misses" limitation as originally described below: `cvPosition` is a `CV_SLOTS` slot code, not a position
+  title, so the title-matching code in §2.1 below had never actually linked a bullet to anything. Spun out
+  as its own CI because it needed a live DB read this session couldn't reach; delivered from a Claude Code
+  session with normal DB access. Fixed `lib/career-graph-view-model.ts`'s bullets loop plus a related side
+  panel bug it surfaced in-browser (`career-graph-view.tsx` re-derived the match with its own stale copy
+  of the old logic) — see that note for the full analysis and its own progress log.
 
 ### Acceptance criteria
 

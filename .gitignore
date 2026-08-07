@@ -12,7 +12,6 @@
 # Anchored to repo root: macOS is case-insensitive, so an unanchored `Profile/`
 # also ignores app paths like `app/profile/`. Match ONLY the top-level personal dirs.
 /Profile/
-/Group CVs/
 /Job Descriptions/
 /Job Hunting Lists.xlsx
 
@@ -26,6 +25,13 @@
 *.drawio
 *.Rmd
 *.rmd
+# Exception: the docxtemplater source template C6 reads at render time
+# (lib/docx/template.ts). Still carries this owner's real position/company
+# history and Skills block as static text (only Header/Profile/Professional
+# Experience bullets/Education/Executive Education/Languages are <<...>> tags) —
+# tracked on explicit instruction, not because it's been scrubbed of personal
+# content. Revisit before this app is multi-tenant.
+!/Group CVs/CV_Template.docx
 # NOTE: personal *.html (e.g. Profile/Testing-R.html) is already covered by the
 # Profile/ ignore above. The docs/ review pages (.html) ARE tracked deliverables.
 

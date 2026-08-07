@@ -25,6 +25,7 @@ import {
   responsibilities,
   education,
   languages,
+  positions,
   profiles,
   cvVariants,
 } from '../db/schema';
@@ -329,34 +330,143 @@ function templateFits(green: (typeof requirementTailoring.$inferSelect)[]): bool
 /** Map Keep bullets into the template's 11 cv_position slots, refilling any slot
  *  the Keep set doesn't cover from the bank (projects) / responsibilities
  *  (role overviews) so the real 2-page template never renders a blank section. */
+/** "1995-08-01" → "August 1995" — full month name, matching the rest of the CV's
+ *  date convention (positions' dates are e.g. "July 2018"). Passes through
+ *  anything that isn't ISO-shaped. */
+function fmtEduDate(s: string | null): string {
+  const m = s?.match(/^(\d{4})-(\d{2})/);
+  if (!m) return s ?? '';
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  return `${months[Number(m[2]) - 1]} ${m[1]}`;
+}
+
 async function templateSlotData(
   ownerId: string,
   green: (typeof requirementTailoring.$inferSelect)[],
   bulletByRef: Map<string, { bullet: string; skills: string[] }>,
   profileText: string,
-  profile?: { citizenship: string | null; relocation: string | null; travel: string | null } | null
+  profile?: {
+    name: string | null;
+    location: string | null;
+    phone: string | null;
+    email: string | null;
+    citizenship: string | null;
+    relocation: string | null;
+    travel: string | null;
+  } | null,
+  lead?: { jdGroupPrimary: string | null; jdGroupSecondary: string | null } | null,
+  skillsModel?: { category: string; items: string[] }[]
 ): Promise<Record<string, string>> {
-  const [bank, resps] = await Promise.all([
+  const [bank, resps, eduRows, langRows, posRows] = await Promise.all([
     db.select().from(bulletBank).where(eq(bulletBank.ownerId, ownerId)),
     db.select().from(responsibilities).where(eq(responsibilities.ownerId, ownerId)),
+    db.select().from(education).where(eq(education.ownerId, ownerId)),
+    db.select().from(languages).where(eq(languages.ownerId, ownerId)),
+    db.select().from(positions).where(eq(positions.ownerId, ownerId)),
   ]);
   // The tailored C5 profile fills the template's <<Profile>> placeholder, so the
   // .docx leads with role-specific positioning rather than the static scaffold.
-  // (Skills remain the template's curated thematic block — making them role-dynamic
-  // needs the skill_category taxonomy; see ROADMAP P6.)
   const data: Record<string, string> = {};
   if (profileText) data['Profile'] = profileText;
-  // Forward-compatible: these keys do nothing until the owner adds matching
-  // `<<Citizenship>>`/`<<Relocation>>`/`<<Travel>>` tags to their own
-  // Group CVs/CV_Template.docx (gitignored, outside this codebase) —
-  // docxtemplater's nullGetter silently ignores unused data keys.
+
+  // Professional Experience position headers ("<Title> at <Company>, <City,
+  // Country>" + dates) — the one part of Professional Experience that stayed
+  // static template text even after the CV_SLOTS bullets went fully dynamic.
+  // Keyed by CV_SLOTS' own A/B/C/D letters (posByRefCode elsewhere in this file
+  // uses the same convention) — positions E/F exist but were never part of the
+  // rendered CV, so they're not given template tags here.
+  const posByLetter = new Map(posRows.filter((p) => p.refCode).map((p) => [p.refCode as string, p]));
+  for (const letter of ['A', 'B', 'C', 'D']) {
+    const p = posByLetter.get(letter);
+    if (!p) continue;
+    const companyLine = [p.company, p.cityCountry].filter(Boolean).join(', ');
+    data[`Position ${letter} Header`] = [p.title, companyLine].filter(Boolean).join(' at ');
+    const dates = [p.startDate, p.endDate].filter(Boolean).join(' — ');
+    if (dates) data[`Position ${letter} Dates`] = dates;
+  }
+  // C4 already computes this per-tailoring (own-vocabulary skills, Keep-consistent,
+  // grouped into categories) for the programmatic builder's CvModel — reused here
+  // so the real template shows the same tailored skills, not a static block.
+  //
+  // Display-layer cap only — C4's own selection is untouched (its "every Keep
+  // bullet's tag must appear" consistency rule is deliberately uncapped; see C4's
+  // comment above). This just bounds what actually prints, because a large Keep
+  // set can produce a skills list too dense to be a real CV line (one lead with
+  // 30 Keep rows produced 67 skill names in a single line 2026-08-07 — that count
+  // itself means something upstream tagged far more granularly than C4's own
+  // "3–5 categories × 4–8 skills" target ever intended; capping here hides the
+  // symptom, not the cause — see the CI note for the actual investigation).
+  if (skillsModel?.length) {
+    const SKILLS_CAP = 24;
+    let remaining = SKILLS_CAP;
+    const capped = skillsModel
+      .map((g) => {
+        const items = g.items.slice(0, Math.max(0, remaining));
+        remaining -= items.length;
+        return { category: g.category, items };
+      })
+      .filter((g) => g.items.length > 0);
+    if (capped.length) data['Skills'] = capped.map((g) => `${g.category}: ${g.items.join(' · ')}`).join('\n');
+  }
+  if (profile?.name) data['Name'] = profile.name;
+  if (profile?.location) data['Location'] = profile.location;
+  if (profile?.phone) data['Phone'] = profile.phone;
+  if (profile?.email) data['Email'] = profile.email;
   if (profile?.citizenship) data['Citizenship'] = profile.citizenship;
   if (profile?.relocation) data['Relocation'] = profile.relocation;
   if (profile?.travel) data['Travel'] = profile.travel;
+  // Header's "positioning" line is this lead's own B5 classification, not
+  // profiles.headline (which is only ever an internal seed for the C5 prompt
+  // above) — confirmed against a real generated CV, whose header line matched
+  // its lead's JD Group names verbatim, not the profile's stored headline.
+  if (lead?.jdGroupPrimary) data['JD Group Primary'] = lead.jdGroupPrimary;
+  if (lead?.jdGroupSecondary) data['JD Group Secondary'] = lead.jdGroupSecondary;
+
+  // Education / Executive Education — each flattened into one block, same
+  // "join lines into a single tag" approach as CV_SLOTS below (the template's
+  // literal-key parser has no real loop construct to repeat per-row). `type`
+  // already distinguishes the two sections ('Executive Education' vs
+  // everything else) — confirmed against live data, no separate field needed.
+  //
+  // Qualification/institution/dates are hard-mapped — always shown, like a
+  // position's title/company/dates — but `summary` is bullet-like evidence, not
+  // a fixed fact, so it's gated by the same Keep set as Professional Experience:
+  // only shown when this education row was actually cited as green evidence for
+  // THIS job's requirements (C2 cites the whole row, `evidenceKind: 'Education'`,
+  // `evidenceRef` = the row's refCode — there's no per-summary-line evidence
+  // granularity yet, so it's row-level: all of a Kept row's summary lines show,
+  // none of an un-Kept row's do).
+  const eduSortKey = (e: (typeof eduRows)[number]) => e.dateCompleted || e.dateBegin || '';
+  const keptEduRefs = new Set(green.filter((g) => g.evidenceKind === 'Education' && g.evidenceRef).map((g) => g.evidenceRef as string));
+  const eduLine = (e: (typeof eduRows)[number]) => {
+    const head = [e.qualification, [e.institution, e.cityCountry].filter(Boolean).join(', ')].filter(Boolean).join(', ');
+    const start = fmtEduDate(e.dateBegin);
+    const end = e.dateCompleted ? fmtEduDate(e.dateCompleted) : e.dateBegin ? 'Present' : '';
+    const dates = [start, end].filter(Boolean).join(' — ');
+    const summary = e.refCode && keptEduRefs.has(e.refCode) ? e.summary ?? [] : [];
+    return [head, dates, ...summary].filter(Boolean).join('\n');
+  };
+  const education_ = eduRows.filter((e) => e.type !== 'Executive Education').sort((a, b) => eduSortKey(b).localeCompare(eduSortKey(a)));
+  const execEducation = eduRows.filter((e) => e.type === 'Executive Education').sort((a, b) => eduSortKey(b).localeCompare(eduSortKey(a)));
+  if (education_.length) data['Education'] = education_.map(eduLine).join('\n\n');
+  if (execEducation.length) data['Executive Education'] = execEducation.map(eduLine).join('\n\n');
+
+  if (langRows.length) {
+    // Unicode bullet per line ("•", matching the owner's original CV convention)
+    // rather than a single pipe-joined line — the template's parser has no real
+    // loop/list construct, so this is one flat run with manual line breaks
+    // (docxtemplater's `linebreaks: true` turns each `\n` into a real line break).
+    data['Languages'] = langRows.map((l) => `•  ${l.language}: ${l.displayLevel ?? l.cefrLevel ?? ''}`.trim()).join('\n');
+  }
+
   for (const slot of CV_SLOTS) {
     const code = slotCode(slot);
     const letter = code[0];
     const isOverview = code.endsWith('0');
+    const seenLines = new Set<string>();
     let lines = green
       .filter((g) => {
         const normalized = normalizeCvPosition(g.cvPosition);
@@ -368,7 +478,20 @@ async function templateSlotData(
       // and throwing at render time would block a CV that is otherwise complete.
       // Same reasoning for `bullets14` in the programmatic builder below.
       .map((g) => (g.evidenceRef && bulletByRef.get(g.evidenceRef)?.bullet) || g.cvBullet || g.originalText || '')
-      .filter(Boolean);
+      .filter(Boolean)
+      // De-dupe: requirement_tailoring is one row per JD requirement, and the
+      // same strong bullet legitimately answers several requirements — so the
+      // same evidence shows up as multiple green rows for one slot. First
+      // exposed 2026-08-07 rendering the real template for the first time
+      // (templateExists() had always been false before then, so this loop had
+      // never actually run against production data) — a lead with 64 green
+      // rows repeated its A1/A2/A3 bullets 3-7x each before this filter.
+      .filter((line) => {
+        const key = line.trim().toLowerCase();
+        if (seenLines.has(key)) return false;
+        seenLines.add(key);
+        return true;
+      });
     if (lines.length === 0) {
       // Fallback so the section isn't blank: curated bank bullets for a project
       // slot, or the position's responsibilities for a role-overview slot.
@@ -903,10 +1026,14 @@ export async function generateCv(
   // is missing or fails to render.
   let cvPath = '';
   const bullets14 = green.map((g) => g.cvBullet ?? g.originalText ?? '').filter(Boolean).slice(0, 14);
+  // Shared by C6 (the .docx) and C7 (the ATS rating) below — Education/Languages
+  // always appear on the CV regardless of Keep status, so C7 needs to see them
+  // too, or it judges the CV blind to facts (e.g. language fluency) that are
+  // genuinely printed on it.
+  const eduRows = await db.select().from(education).where(eq(education.ownerId, effectiveOwnerId));
+  const langRows = await db.select().from(languages).where(eq(languages.ownerId, effectiveOwnerId));
   {
     const t = Date.now();
-    const eduRows = await db.select().from(education).where(eq(education.ownerId, effectiveOwnerId));
-    const langRows = await db.select().from(languages).where(eq(languages.ownerId, effectiveOwnerId));
     const model: CvModel = {
       name: profile?.name ?? 'Candidate',
       contact: [profile?.location, profile?.email, profile?.citizenship, profile?.relocation, profile?.travel]
@@ -927,7 +1054,7 @@ export async function generateCv(
     try {
       if (!templateExists()) throw new Error('template not found');
       if (!templateFits(green)) throw new Error('Keep set has evidence outside the template slots');
-      buf = buildCvFromTemplate(await templateSlotData(effectiveOwnerId, green, bulletByRef, profileText, profile));
+      buf = buildCvFromTemplate(await templateSlotData(effectiveOwnerId, green, bulletByRef, profileText, profile, lead, skillsModel));
       how = 'real template';
     } catch (e) {
       buf = await buildCv(model);
@@ -950,6 +1077,11 @@ export async function generateCv(
         `JOB REQUIREMENTS:\n${reqs.map((q, i) => `${i + 1}. [${q.rank}] ${q.requirement}`).join('\n')}\n\n` +
         `TAILORED CV\nProfile: ${profileText}\n\nSkills: ${skillsModel.map((s) => `${s.category}: ${s.items.join(', ')}`).join(' | ')}\n\n` +
         `Experience bullets:\n${bullets14.map((b) => `- ${b}`).join('\n')}\n\n` +
+        // Education/Languages always appear on the CV regardless of Keep status
+        // (see C6 above) — without these, C7 has previously marked language
+        // fluency "unverified" even when it's plainly printed on the CV.
+        `Education: ${eduRows.map((e) => e.qualification).filter(Boolean).join(', ')}\n\n` +
+        `Languages: ${langRows.map((l) => `${l.language} (${l.displayLevel ?? l.cefrLevel ?? ''})`).join(', ')}\n\n` +
         `Rate how well this CV addresses the requirements through an ATS lens.`,
       tool: C7.tool,
       zod: C7.zod,
