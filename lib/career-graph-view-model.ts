@@ -19,12 +19,18 @@
  * Situation/Task text, competence/attribute descriptions, position seniority/location,
  * and free-text bullet source citations that produced real bullet→evidence edges. None
  * of those columns exist in `lib/db/schema.ts` today, so this live version omits them
- * rather than inventing them. CV Bullets link to a position only when `cvPosition`
- * text-matches a position title, and to a skill only when one of the bullet's `tags`
- * exactly matches a skill name — both called out in `GRAPH_FOOTNOTE` below so the UI
- * stays honest about what's a stored relationship vs. a best-effort text match.
+ * rather than inventing them. CV Bullets link via `cvPosition`, which holds a `CV_SLOTS`
+ * slot code (`lib/cv-slots.ts`), not a position title: a project-slot bullet (A1, B2, ...)
+ * links to its specific STAR via a hardcoded, human-confirmed slot→STAR mapping
+ * (`CV_SLOT_STAR_REF`), and a role-overview bullet (A0, B0, ...) links to every
+ * Responsibility under that slot letter's position — a rollup, not a single-project link.
+ * A bullet also links to a skill when one of its `tags` exactly matches a skill name.
+ * None of this is a stored foreign key (`bullet_bank` has no evidence-source column); both
+ * are called out in `GRAPH_FOOTNOTE` below so the UI stays honest about what's real data vs.
+ * an inference. See `[[Fix CV Bullet Evidence Linking in the Career Graph]]` (2026-08-06).
  */
 import type { CareerGraph } from './career-graph';
+import { normalizeCvPosition, slotCode } from './cv-slots';
 
 export type NodeType = 'position' | 'star' | 'action' | 'result' | 'responsibility' | 'competence' | 'attribute' | 'skill' | 'bullet';
 
@@ -81,6 +87,14 @@ export type GraphViewModel = {
    * parsing free-text shorthand ("STAR 4", "All STARs", "All senior STARs"). Built once
    * here so the side panel doesn't have to re-derive it from raw `starEvidence` text. */
   starsBySkillId: Map<string, CareerGraph['stars']>;
+  /** A project-slot bullet's (A1, B2, ...) resolved STAR, keyed by bullet id — built once
+   * here, alongside the `bullet-slot` link itself, so the side panel reads the same
+   * resolution the graph draws instead of re-deriving it (and drifting) from `cvPosition`
+   * text a second time. */
+  starByBulletId: Map<string, CareerGraph['stars'][number]>;
+  /** A role-overview bullet's (A0, B0, ...) resolved Responsibilities, keyed by bullet id —
+   * same one-parsing-path rationale as starByBulletId above. */
+  respByBulletId: Map<string, CareerGraph['responsibilities']>;
   positionById: Map<string, CareerGraph['positions'][number]>;
   starById: Map<string, CareerGraph['stars'][number]>;
 };
@@ -139,6 +153,22 @@ export function resolveStarEvidenceRef(raw: string, allStarRefCodes: string[], s
   const m = s.match(/^stars?\s+(.+)$/i); // strip a leading "STAR"/"STARs" word, e.g. "STAR 4" → "4"
   return [m ? m[1] : s];
 }
+
+// Confirmed against the live `stars` table on 2026-08-06 — see [[Fix CV Bullet Evidence
+// Linking in the Career Graph]]. Hardcoded rather than fuzzy-matched at render time:
+// CV_SLOTS (lib/cv-slots.ts) is already a small, profile-specific, hardcoded list, so its
+// mapping to real STARs should be too. (A keyword matcher would misfire on cases like
+// A2 below — "Governance Transformation Project" vs. a STAR titled "Transforming
+// Governance Process" shares only one exact token.)
+const CV_SLOT_STAR_REF: Record<string, string> = {
+  A1: '5', // Outsourcing Framework Development and Rollout
+  A2: '6', // Transforming Governance Process
+  A3: '7', // Wind Down of BBAG
+  B1: '3', // Construction of Accounting Correction Layer and Controlling Dashboards
+  B2: '4', // Transfer Pricing — Master File Implementation
+  C1: '2', // Merger of BBSA Branches with its European Subsidiary (BBAG)
+  D1: '1', // Establishment of a Servicing Center in Portugal
+};
 
 export function buildGraphViewModel(g: CareerGraph): GraphViewModel {
   const nodes: GraphNode[] = [];
@@ -246,17 +276,69 @@ export function buildGraphViewModel(g: CareerGraph): GraphViewModel {
     }
   }
 
-  // Bullets — overlay layer, hidden by default. Position link only when `cvPosition`
-  // text-matches a position title (best-effort, not a stored FK). Skill link only when
+  // respByPositionId is built here (ahead of the bullets loop below, unlike the other
+  // by-id lookup maps further down) because role-overview bullets need it.
+  const respByPositionId = new Map<string, CareerGraph['responsibilities']>();
+  for (const r of g.responsibilities) {
+    const p = r.positionRef ? posByRefCode.get(normRef(r.positionRef)) : undefined;
+    if (!p) continue;
+    if (!respByPositionId.has(p.id)) respByPositionId.set(p.id, []);
+    respByPositionId.get(p.id)!.push(r);
+  }
+
+  // A/B/C/D → position id, derived from each letter's resolved project STAR's own
+  // `positionRef` (never the bullet's own ref-code prefix letter, and never assumed
+  // from CV_SLOTS' letter matching a position's own refCode — coincidental in this
+  // profile's data, not a rule). If a letter's own slots ever disagreed on position,
+  // that's a real data problem worth surfacing loudly, not silently picking one.
+  const CV_SLOT_LETTER_POSITION = new Map<string, string>();
+  for (const [code, starRef] of Object.entries(CV_SLOT_STAR_REF)) {
+    const s = starByRefCode.get(normRef(starRef));
+    const p = s?.positionRef ? posByRefCode.get(normRef(s.positionRef)) : undefined;
+    if (!p) continue;
+    const letter = code[0];
+    const existing = CV_SLOT_LETTER_POSITION.get(letter);
+    if (existing && existing !== p.id) {
+      throw new Error(
+        `Career Graph: CV slot letter "${letter}" resolves to two different positions via its STARs ` +
+          `(${existing} vs ${p.id}) — check CV_SLOT_STAR_REF in lib/career-graph-view-model.ts.`
+      );
+    }
+    CV_SLOT_LETTER_POSITION.set(letter, p.id);
+  }
+
+  // Bullets — overlay layer, hidden by default. `cvPosition` holds a CV_SLOTS slot code
+  // (never a position title), so a project-slot bullet (A1, B2, ...) links to its
+  // specific STAR via the hardcoded CV_SLOT_STAR_REF mapping, and a role-overview bullet
+  // (A0, B0, ...) links to every Responsibility under that slot letter's position — a
+  // rollup, since a role-overview bullet isn't tied to one project. Skill link only when
   // a bullet tag exactly matches a skill name — an inference from the bracketed C3 tag,
   // not a stored source reference.
-  const posByTitle = new Map(g.positions.filter((p) => p.title).map((p) => [norm(p.title), p]));
   const skillByName = new Map(g.skills.filter((s) => s.skill).map((s) => [norm(s.skill), s]));
+  const starByBulletId = new Map<string, CareerGraph['stars'][number]>();
+  const respByBulletId = new Map<string, CareerGraph['responsibilities']>();
   for (const b of g.bullets) {
     const id = `bullet-${b.id}`;
     nodes.push({ id, type: 'bullet', label: b.text ?? 'CV bullet', data: b });
-    const matchedPos = b.cvPosition ? posByTitle.get(norm(b.cvPosition)) : undefined;
-    if (matchedPos) links.push({ source: `pos-${matchedPos.id}`, target: id, kind: 'bullet-slot' });
+
+    const fullSlot = b.cvPosition ? normalizeCvPosition(b.cvPosition) : null;
+    const code = fullSlot ? slotCode(fullSlot) : null;
+    if (code) {
+      const starRef = CV_SLOT_STAR_REF[code];
+      if (starRef) {
+        const s = starByRefCode.get(normRef(starRef));
+        if (s) {
+          links.push({ source: `star-${s.id}`, target: id, kind: 'bullet-slot' });
+          starByBulletId.set(b.id, s);
+        }
+      } else {
+        const posId = CV_SLOT_LETTER_POSITION.get(code[0]);
+        const resps = posId ? respByPositionId.get(posId) ?? [] : [];
+        if (resps.length) respByBulletId.set(b.id, resps);
+        for (const r of resps) links.push({ source: `resp-${r.id}`, target: id, kind: 'bullet-slot' });
+      }
+    }
+
     const seenSkills = new Set<string>();
     for (const tag of b.tags ?? []) {
       const sk = skillByName.get(norm(tag));
@@ -275,13 +357,6 @@ export function buildGraphViewModel(g: CareerGraph): GraphViewModel {
     if (!p) continue;
     if (!starsByPositionId.has(p.id)) starsByPositionId.set(p.id, []);
     starsByPositionId.get(p.id)!.push(s);
-  }
-  const respByPositionId = new Map<string, CareerGraph['responsibilities']>();
-  for (const r of g.responsibilities) {
-    const p = r.positionRef ? posByRefCode.get(normRef(r.positionRef)) : undefined;
-    if (!p) continue;
-    if (!respByPositionId.has(p.id)) respByPositionId.set(p.id, []);
-    respByPositionId.get(p.id)!.push(r);
   }
   const actionsByStarId = new Map<string, CareerGraph['actions']>();
   for (const a of g.actions) {
@@ -328,10 +403,12 @@ export function buildGraphViewModel(g: CareerGraph): GraphViewModel {
     attributesByStarId,
     skillsByStarId,
     starsBySkillId,
+    starByBulletId,
+    respByBulletId,
     positionById,
     starById,
   };
 }
 
 export const GRAPH_FOOTNOTE =
-  "Hierarchy: Position→STAR, STAR→Action, STAR→Result and Position→Responsibility (all one-to-many). Competences, attributes and skills are recorded at the STAR level — not tied to one specific action or result — so a competence or attribute that recurs under the same name across stories (e.g. “Innovativeness” on three STARs) is collapsed into one node with a link to each story, the same pattern skills already use via their star evidence list. CV Bullets (hidden until toggled in the legend) link to a position only when their CV-slot text matches a position title, and to a skill only when one of the bullet's tags exactly matches a skill name — both best-effort text matches, not stored references, since this profile's data doesn't yet record a bullet's specific source evidence. Layout is force-directed and settles on load — drag any node to rearrange, scroll to zoom.";
+  "Hierarchy: Position→STAR, STAR→Action, STAR→Result and Position→Responsibility (all one-to-many). Competences, attributes and skills are recorded at the STAR level — not tied to one specific action or result — so a competence or attribute that recurs under the same name across stories (e.g. “Innovativeness” on three STARs) is collapsed into one node with a link to each story, the same pattern skills already use via their star evidence list. CV Bullets (hidden until toggled in the legend) hold a CV-slot code, not a position title: a project-slot bullet links to its specific STAR via a hardcoded, human-confirmed mapping, and a role-overview bullet links to every Responsibility under that slot's position. A bullet also links to a skill when one of its tags exactly matches a skill name. None of this is a stored reference — this profile's data doesn't yet record a bullet's specific source evidence — but it's a real, confirmed mapping, not a text-matching guess. Layout is force-directed and settles on load — drag any node to rearrange, scroll to zoom.";
