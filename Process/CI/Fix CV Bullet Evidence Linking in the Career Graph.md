@@ -348,3 +348,15 @@ a footnote here: `[[CV Header, Skills & Professional Experience - Data-Driven Te
 same day), plus three parked Ideas it surfaced (`[[C4 Skills Selection Produces Unreadable Overflow]]`,
 `[[Generalize CV_SLOTS Beyond a Single Profile]]`, `[[Areas of Expertise and JD Groups - Persistent Data
 Model]]`). This CI's own scope and delivered status are unaffected — noted here only for the cross-link.
+
+### 2026-08-07 · Superseded in spirit, not in fact, by `[[Real Bullet Evidence Provenance in the Career Graph]]`
+
+The owner's own hand-drawn data-model diagram, produced while reviewing this CI and CI-039 as closed,
+surfaced that `CV_SLOT_STAR_REF` (§2.2 above) answers a slot-level question ("which STAR does this project
+belong to"), not the bullet-level one a real Evidence Picker needs ("which exact evidence row was *this*
+bullet written from"). This CI's fix and acceptance criteria stand — the graph now links to something real
+instead of nothing — but "something real" and "the right thing" turned out to be different bars. The
+bullet-level fix is scoped as its own CI rather than reopening this one, since `CV_SLOT_STAR_REF`'s
+slot→CV placement relationship stays valid and unchanged regardless of how the evidence-provenance question
+gets answered — see that CI for the full analysis, including empirical confirmation that a real bullet can
+be built from more than one evidence row.
