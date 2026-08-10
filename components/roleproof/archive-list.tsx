@@ -108,7 +108,7 @@ export function ArchiveList({ rows }: { rows: MonitoredApplication[] }) {
                 <span className="text-ink-subtle">—</span>
               )}
               <span className="text-ink-subtle/50">·</span>
-              <ArchiveReplyButton company={row.company} title={row.title} />
+              <ArchiveReplyButton company={row.company} title={row.title} contactEmail={row.contactEmail} />
             </div>
             <Link
               href={`/roleproof/leads/${row.leadId}`}

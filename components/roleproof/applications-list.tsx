@@ -79,28 +79,34 @@ type ManualForm = { leadId: string; kind: 'decline' | 'interview' };
 export function ApplicationsList({ rows }: { rows: MonitoredRow[] }) {
   const router = useRouter();
   const [manual, setManual] = useState<ManualForm | null>(null);
-  const [decline, setDecline] = useState<{ company: string | null; title: string } | null>(null);
+  const [decline, setDecline] = useState<{ company: string | null; title: string; senderEmail: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function recordDecline(row: MonitoredRow, link: string | null, at?: Date) {
+  async function recordDecline(row: MonitoredRow, link: string | null, at?: Date, contactEmail?: string | null) {
     setError(null);
     try {
-      await logDeclineAction(row.leadId, { outcomeEmailLink: link, outcomeAt: at });
+      await logDeclineAction(row.leadId, { outcomeEmailLink: link, outcomeAt: at, contactEmail });
       setManual(null);
       // The status change and the Archive move already happened, with no extra
       // click. The pop-up is purely the reply assist — dismissing it reverts
       // nothing (§2.2.E).
-      setDecline({ company: row.company, title: row.title });
+      setDecline({ company: row.company, title: row.title, senderEmail: contactEmail ?? null });
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not record that.');
     }
   }
 
-  async function recordInterview(row: MonitoredRow, link: string | null, at?: Date, interviewAt?: Date | null) {
+  async function recordInterview(
+    row: MonitoredRow,
+    link: string | null,
+    at?: Date,
+    interviewAt?: Date | null,
+    contactEmail?: string | null
+  ) {
     setError(null);
     try {
-      await logInterviewScheduledAction(row.leadId, { outcomeEmailLink: link, outcomeAt: at, interviewAt });
+      await logInterviewScheduledAction(row.leadId, { outcomeEmailLink: link, outcomeAt: at, interviewAt, contactEmail });
       setManual(null);
       router.refresh();
     } catch (e) {
@@ -207,7 +213,9 @@ export function ApplicationsList({ rows }: { rows: MonitoredRow[] }) {
                     leadId={row.leadId}
                     kind="interview"
                     label="Interview invited"
-                    onCaptured={(link) => recordInterview(row, link)}
+                    onCaptured={(link, emailDate, senderEmail) =>
+                      recordInterview(row, link, emailDate ? new Date(emailDate) : undefined, undefined, senderEmail)
+                    }
                     onManual={() => setManual({ leadId: row.leadId, kind: 'interview' })}
                   />
                 )}
@@ -218,7 +226,9 @@ export function ApplicationsList({ rows }: { rows: MonitoredRow[] }) {
                   kind="decline"
                   tone="drop"
                   label="Declined"
-                  onCaptured={(link) => recordDecline(row, link)}
+                  onCaptured={(link, emailDate, senderEmail) =>
+                    recordDecline(row, link, emailDate ? new Date(emailDate) : undefined, senderEmail)
+                  }
                   onManual={() => setManual({ leadId: row.leadId, kind: 'decline' })}
                 />
                 {isInterview && <InterviewAtField leadId={row.leadId} value={row.interviewAt} />}
@@ -244,6 +254,7 @@ export function ApplicationsList({ rows }: { rows: MonitoredRow[] }) {
         <DeclinePopup
           company={decline.company}
           title={decline.title}
+          senderEmail={decline.senderEmail}
           onClose={() => setDecline(null)}
         />
       )}

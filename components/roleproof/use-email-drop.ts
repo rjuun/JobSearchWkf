@@ -21,8 +21,13 @@ import { classifyEmailDrop, type EmailArtifactKind } from '@/lib/applications';
 import { uploadEmailArtifactAction } from '@/app/actions/monitoring';
 
 export type DropResult =
-  /** A file (or a link) was captured and stored — `link` goes in the DB column. */
-  | { kind: 'captured'; link: string }
+  /**
+   * A file (or a link) was captured and stored — `link` goes in the DB column.
+   * `emailDate`/`senderEmail` are only ever populated for a real dropped file
+   * (lib/email-parse.ts read them out of it); a dropped text/uri-list link has
+   * no file to parse, so both stay null.
+   */
+  | { kind: 'captured'; link: string; emailDate: string | null; senderEmail: string | null }
   /** Nothing usable landed: the caller opens its manual form instead. */
   | { kind: 'manual' };
 
@@ -90,7 +95,8 @@ export function useEmailDrop({
         return;
       }
       if (drop.kind === 'link') {
-        void finish({ kind: 'captured', link: drop.url });
+        // A dragged hyperlink has no file to parse — no date/sender to extract.
+        void finish({ kind: 'captured', link: drop.url, emailDate: null, senderEmail: null });
         return;
       }
 
@@ -99,8 +105,8 @@ export function useEmailDrop({
       try {
         const form = new FormData();
         form.append('file', drop.file);
-        const link = await uploadEmailArtifactAction(leadId, kind, form);
-        await onResult({ kind: 'captured', link });
+        const { link, emailDate, senderEmail } = await uploadEmailArtifactAction(leadId, kind, form);
+        await onResult({ kind: 'captured', link, emailDate, senderEmail });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'That file could not be saved.');
       } finally {

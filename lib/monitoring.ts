@@ -19,6 +19,7 @@ import { recordActivity } from './activity';
 import { recordUxEvent } from './ux-events';
 import { writeBuffer } from './storage';
 import { emailArtifactLink, emailArtifactObjectName, emailArtifactPath, type EmailArtifactKind } from './applications';
+import { parseEmailArtifact } from './email-parse';
 
 export type OwnedLead = { id: string; title: string; company: string | null };
 
@@ -32,17 +33,27 @@ export async function requireLead(owner: string, leadId: string): Promise<OwnedL
   return lead;
 }
 
-/** Stores a dropped email and returns the href to put in the link column. */
+export type StoredEmailArtifact = { link: string; emailDate: Date | null; senderEmail: string | null };
+
+/**
+ * Stores a dropped email and returns the href to put in the link column, plus
+ * whatever `lib/email-parse.ts` could pull from the file itself — the sent/
+ * received date and the sender's address. The CI (§2.0) deferred this
+ * extraction to "phase 2"; built once the today-stamped default made the
+ * Archive's "Process Closed" dates visibly wrong in practice.
+ */
 export async function storeEmailArtifact(
   owner: string,
   leadId: string,
   kind: EmailArtifactKind,
   file: { name: string; arrayBuffer: () => Promise<ArrayBuffer> }
-): Promise<string> {
+): Promise<StoredEmailArtifact> {
   await requireLead(owner, leadId);
   const objectName = emailArtifactObjectName(kind, file.name);
-  await writeBuffer(emailArtifactPath(leadId, objectName), Buffer.from(await file.arrayBuffer()));
-  return emailArtifactLink(leadId, objectName);
+  const buf = Buffer.from(await file.arrayBuffer());
+  await writeBuffer(emailArtifactPath(leadId, objectName), buf);
+  const { date, senderEmail } = parseEmailArtifact(buf, file.name);
+  return { link: emailArtifactLink(leadId, objectName), emailDate: date, senderEmail };
 }
 
 /**
@@ -92,11 +103,12 @@ export async function applicationSent(
 export async function decline(
   owner: string,
   leadId: string,
-  input: { outcomeEmailLink?: string | null; outcomeAt?: Date } = {}
+  input: { outcomeEmailLink?: string | null; outcomeAt?: Date; contactEmail?: string | null } = {}
 ): Promise<void> {
   const lead = await requireLead(owner, leadId);
   const link = input.outcomeEmailLink ?? null;
   const at = input.outcomeAt ?? new Date();
+  const contact = input.contactEmail ?? null;
   await db
     .insert(applications)
     .values({
@@ -106,6 +118,7 @@ export async function decline(
       status: 'screened_out',
       outcomeEmailLink: link,
       outcomeAt: at,
+      contactEmail: contact,
     })
     .onConflictDoUpdate({
       target: [applications.ownerId, applications.jobLeadId],
@@ -115,6 +128,7 @@ export async function decline(
         outcomeAt: at,
         updatedAt: new Date(),
         ...(link ? { outcomeEmailLink: link } : {}),
+        ...(contact ? { contactEmail: contact } : {}),
       },
     });
   await recordActivity(owner, 'outcome', { leadId, summary: `Application stopped · “${lead.title}”` });
@@ -129,11 +143,12 @@ export async function decline(
 export async function interviewScheduled(
   owner: string,
   leadId: string,
-  input: { outcomeEmailLink?: string | null; outcomeAt?: Date; interviewAt?: Date | null } = {}
+  input: { outcomeEmailLink?: string | null; outcomeAt?: Date; interviewAt?: Date | null; contactEmail?: string | null } = {}
 ): Promise<void> {
   const lead = await requireLead(owner, leadId);
   const link = input.outcomeEmailLink ?? null;
   const at = input.outcomeAt ?? new Date();
+  const contact = input.contactEmail ?? null;
   await db
     .insert(applications)
     .values({
@@ -144,6 +159,7 @@ export async function interviewScheduled(
       outcomeEmailLink: link,
       outcomeAt: at,
       interviewAt: input.interviewAt ?? null,
+      contactEmail: contact,
     })
     .onConflictDoUpdate({
       target: [applications.ownerId, applications.jobLeadId],
@@ -154,6 +170,7 @@ export async function interviewScheduled(
         updatedAt: new Date(),
         ...(link ? { outcomeEmailLink: link } : {}),
         ...(input.interviewAt !== undefined ? { interviewAt: input.interviewAt } : {}),
+        ...(contact ? { contactEmail: contact } : {}),
       },
     });
   await recordActivity(owner, 'outcome', { leadId, summary: `Interview scheduled · “${lead.title}”` });

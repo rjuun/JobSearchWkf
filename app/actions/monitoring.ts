@@ -97,16 +97,23 @@ function revalidateMonitoring(leadId: string): void {
   revalidatePath('/dashboard');
 }
 
-/** Stores an email dragged out of Outlook; returns the link for the DB column. */
+/** What a dropped email resolves to for the client: the link, plus whatever
+ * lib/email-parse.ts could read out of the file itself (ISO string — Dates
+ * don't cross the server-action boundary reliably from here, same reasoning
+ * applications-list.tsx already documents for its own props). */
+export type UploadedEmailArtifact = { link: string; emailDate: string | null; senderEmail: string | null };
+
+/** Stores an email dragged out of Outlook; returns the link plus its own date/sender, if parseable. */
 export async function uploadEmailArtifactAction(
   leadId: string,
   kind: EmailArtifactKind,
   form: FormData
-): Promise<string> {
+): Promise<UploadedEmailArtifact> {
   const owner = await currentOwnerId();
   const file = form.get('file');
   if (!(file instanceof File) || file.size === 0) throw new Error('No file was dropped.');
-  return monitoring.storeEmailArtifact(owner, leadId, kind, file);
+  const { link, emailDate, senderEmail } = await monitoring.storeEmailArtifact(owner, leadId, kind, file);
+  return { link, emailDate: emailDate ? emailDate.toISOString() : null, senderEmail };
 }
 
 export async function logApplicationSentAction(
@@ -119,7 +126,7 @@ export async function logApplicationSentAction(
 
 export async function logDeclineAction(
   leadId: string,
-  input: { outcomeEmailLink?: string | null; outcomeAt?: Date } = {}
+  input: { outcomeEmailLink?: string | null; outcomeAt?: Date; contactEmail?: string | null } = {}
 ): Promise<void> {
   await monitoring.decline(await currentOwnerId(), leadId, input);
   revalidateMonitoring(leadId);
@@ -127,7 +134,7 @@ export async function logDeclineAction(
 
 export async function logInterviewScheduledAction(
   leadId: string,
-  input: { outcomeEmailLink?: string | null; outcomeAt?: Date; interviewAt?: Date | null } = {}
+  input: { outcomeEmailLink?: string | null; outcomeAt?: Date; interviewAt?: Date | null; contactEmail?: string | null } = {}
 ): Promise<void> {
   await monitoring.interviewScheduled(await currentOwnerId(), leadId, input);
   revalidateMonitoring(leadId);

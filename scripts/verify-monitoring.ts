@@ -38,6 +38,7 @@ import {
   setInterviewAt,
   storeEmailArtifact,
 } from '../lib/monitoring';
+import { parseEmailArtifact } from '../lib/email-parse';
 
 const OWNER = '00000000-0000-0000-0000-0000000ffff2'; // throwaway, not DEMO_OWNER_ID
 
@@ -118,9 +119,55 @@ async function checkLabelsAndStale(): Promise<void> {
   check('an interview row is never stale', !isStaleApplication({ status: 'interview', appliedAt: old, updatedAt: old }));
 }
 
+/**
+ * The extraction that used to be phase-2 (§2.0) — a decline/interview drop
+ * now reads its own date and sender out of the file instead of defaulting to
+ * "today, no address". Two things worth getting wrong here: a garbage-content
+ * `.msg` (real header, fake body — `droppedMsg` below) must fail *silently*,
+ * not throw and break the whole drop; a real `.eml` must actually parse.
+ */
+function checkEmailParsing(): void {
+  console.log('\n· email-date/sender extraction (lib/email-parse.ts)');
+
+  const garbageMsg = Buffer.concat([Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]), Buffer.alloc(64, 3)]);
+  const fromGarbage = parseEmailArtifact(garbageMsg, 'Absage.msg');
+  check('a malformed .msg parses to nulls, not a throw', fromGarbage.date === null && fromGarbage.senderEmail === null);
+
+  const eml = [
+    'From: "Hoerbiger HR" <system@successfactors.eu>',
+    'To: candidate@example.com',
+    'Subject: Your application',
+    'Date: Wed, 22 Oct 2025 14:03:00 +0200',
+    '',
+    'We have decided to proceed with other candidates.',
+  ].join('\r\n');
+  const fromEml = parseEmailArtifact(Buffer.from(eml, 'utf8'), 'Absage.eml');
+  check('.eml sender is the address, not the display name', fromEml.senderEmail === 'system@successfactors.eu', String(fromEml.senderEmail));
+  check(
+    '.eml date is the email\'s own Date header, not today',
+    fromEml.date?.toISOString() === new Date('2025-10-22T12:03:00Z').toISOString(),
+    fromEml.date?.toISOString()
+  );
+
+  const unknownExt = parseEmailArtifact(Buffer.from('irrelevant'), 'Absage.pdf');
+  check('an unparseable extension yields nulls, not a guess', unknownExt.date === null && unknownExt.senderEmail === null);
+}
+
 /** A stand-in for the browser's File — same two members storeEmailArtifact uses. */
 function droppedMsg(name: string) {
   const bytes = Buffer.concat([Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]), Buffer.alloc(64, 3)]);
+  return {
+    name,
+    arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+  };
+}
+
+/** A real, parseable dropped email — proves the end-to-end path, not just the parser in isolation. */
+function droppedEml(name: string, dateHeader: string, from: string) {
+  const text = [`From: ${from}`, 'To: candidate@example.com', 'Subject: Your application', `Date: ${dateHeader}`, '', 'Body.'].join(
+    '\r\n'
+  );
+  const bytes = Buffer.from(text, 'utf8');
   return {
     name,
     arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
@@ -139,7 +186,7 @@ async function appRow(leadId: string) {
 async function checkApplicationSent(): Promise<void> {
   console.log('\n§2.4 · dropping a confirmation email');
   const leadId = await makeLead('Sent by drop');
-  const link = await storeEmailArtifact(OWNER, leadId, 'confirmation', droppedMsg('Bestätigung.msg'));
+  const { link } = await storeEmailArtifact(OWNER, leadId, 'confirmation', droppedMsg('Bestätigung.msg'));
   await applicationSent(OWNER, leadId, { confirmationEmailLink: link });
 
   const row = await appRow(leadId);
@@ -161,7 +208,7 @@ async function checkApplicationSent(): Promise<void> {
 
   // A second drop must correct the row, not duplicate it (unique index + upsert).
   const firstSentAt = row?.appliedAt?.getTime();
-  const link2 = await storeEmailArtifact(OWNER, leadId, 'confirmation', droppedMsg('Bestätigung-korrigiert.msg'));
+  const { link: link2 } = await storeEmailArtifact(OWNER, leadId, 'confirmation', droppedMsg('Bestätigung-korrigiert.msg'));
   await applicationSent(OWNER, leadId, { confirmationEmailLink: link2 });
   const rows = await db
     .select()
@@ -177,7 +224,7 @@ async function checkDecline(): Promise<void> {
   console.log('\n§2.4 · dropping a decline');
   const leadId = await makeLead('Declined');
   await applicationSent(OWNER, leadId, {});
-  const link = await storeEmailArtifact(OWNER, leadId, 'decline', droppedMsg('Absage.msg'));
+  const { link } = await storeEmailArtifact(OWNER, leadId, 'decline', droppedMsg('Absage.msg'));
   const at = new Date('2026-07-20T09:00:00Z');
   await decline(OWNER, leadId, { outcomeEmailLink: link, outcomeAt: at });
 
@@ -191,6 +238,30 @@ async function checkDecline(): Promise<void> {
   const archived = await archivedRows();
   check('it left the Applications list immediately', !open.some((r) => r.jobLeadId === leadId));
   check('…and appears in the Archive', archived.some((r) => r.jobLeadId === leadId));
+
+  // The gap this session closed: a real dropped email's own date/sender must
+  // land on the row, not "today, no address" (the pre-existing §2.0 default).
+  const leadId2 = await makeLead('Declined, real email');
+  await applicationSent(OWNER, leadId2, {});
+  const dropped = await storeEmailArtifact(
+    OWNER,
+    leadId2,
+    'decline',
+    droppedEml('Absage.eml', 'Mon, 03 Aug 2026 09:15:00 +0200', '"Hoerbiger HR" <system@successfactors.eu>')
+  );
+  check('storeEmailArtifact reads the date out of the file', dropped.emailDate?.toISOString() === new Date('2026-08-03T07:15:00Z').toISOString());
+  check('storeEmailArtifact reads the sender out of the file', dropped.senderEmail === 'system@successfactors.eu');
+  await decline(OWNER, leadId2, {
+    outcomeEmailLink: dropped.link,
+    outcomeAt: dropped.emailDate ?? undefined,
+    contactEmail: dropped.senderEmail,
+  });
+  const row2 = await appRow(leadId2);
+  check(
+    "Process Closed is the email's own date, not the drop date",
+    row2?.outcomeAt?.toISOString() === new Date('2026-08-03T07:15:00Z').toISOString()
+  );
+  check('the Email address column is populated from the drop', row2?.contactEmail === 'system@successfactors.eu');
 }
 
 /** §2.4 — interview drop, then the manually typed interview date. */
@@ -198,7 +269,7 @@ async function checkInterview(): Promise<void> {
   console.log('\n§2.4 · dropping an interview invite');
   const leadId = await makeLead('Interviewing');
   await applicationSent(OWNER, leadId, {});
-  const link = await storeEmailArtifact(OWNER, leadId, 'interview', droppedMsg('Einladung.msg'));
+  const { link } = await storeEmailArtifact(OWNER, leadId, 'interview', droppedMsg('Einladung.msg'));
   const at = new Date('2026-07-24T11:30:00Z');
   await interviewScheduled(OWNER, leadId, { outcomeEmailLink: link, outcomeAt: at });
 
@@ -268,6 +339,7 @@ async function main(): Promise<void> {
   try {
     await checkStoragePrefix();
     await checkLabelsAndStale();
+    checkEmailParsing();
     await checkApplicationSent();
     await checkDecline();
     await checkInterview();

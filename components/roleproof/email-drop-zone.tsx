@@ -37,14 +37,18 @@ export function EmailDropZone({
   label: string;
   tone?: 'neutral' | 'drop';
   className?: string;
-  /** A file or link landed — `link` is what goes in the DB column. */
-  onCaptured: (link: string) => void | Promise<void>;
+  /**
+   * A file or link landed — `link` is what goes in the DB column. `emailDate`/
+   * `senderEmail` are whatever lib/email-parse.ts could read out of a real
+   * dropped file (null for a dragged link, which has nothing to parse).
+   */
+  onCaptured: (link: string, emailDate: string | null, senderEmail: string | null) => void | Promise<void>;
   /** Nothing usable landed (or it was clicked): open the manual form instead. */
   onManual: () => void;
 }) {
   const onResult = useCallback(
     async (result: DropResult) => {
-      if (result.kind === 'captured') await onCaptured(result.link);
+      if (result.kind === 'captured') await onCaptured(result.link, result.emailDate, result.senderEmail);
       else onManual();
     },
     [onCaptured, onManual]

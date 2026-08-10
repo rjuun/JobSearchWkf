@@ -8,10 +8,11 @@
  * in the Archive — this only offers the reply. Skipping it undoes nothing.
  *
  * "Open in email" is a mailto: handoff to the user's own mail client. RoleProof
- * has no send integration and this CI does not add one (§2.0). There's no
- * recipient either: extracting the sender would mean parsing the dropped .msg,
- * which is explicitly out of scope — the mail client's own reply is one click
- * away from the message that's still sitting in Absagen.
+ * has no send integration and this CI does not add one (§2.0). The recipient
+ * is pre-filled when available — lib/email-parse.ts now reads the sender's
+ * address straight out of the dropped .msg, closing the gap this comment used
+ * to describe as out of scope. Still null for a manually-recorded decline or a
+ * dropped link (nothing to parse), in which case the field is just left blank.
  */
 import { useEffect, useRef, useState } from 'react';
 import { declineReplyText } from '@/lib/applications';
@@ -19,10 +20,12 @@ import { declineReplyText } from '@/lib/applications';
 export function DeclinePopup({
   company,
   title,
+  senderEmail,
   onClose,
 }: {
   company: string | null;
   title: string;
+  senderEmail?: string | null;
   onClose: () => void;
 }) {
   const body = declineReplyText(company);
@@ -48,7 +51,7 @@ export function DeclinePopup({
     }
   }
 
-  const mailto = `mailto:?subject=${encodeURIComponent(`Re: ${title}`)}&body=${encodeURIComponent(body)}`;
+  const mailto = `mailto:${senderEmail ?? ''}?subject=${encodeURIComponent(`Re: ${title}`)}&body=${encodeURIComponent(body)}`;
 
   return (
     <div

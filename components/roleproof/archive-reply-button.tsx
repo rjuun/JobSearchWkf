@@ -21,7 +21,15 @@
 import { useState } from 'react';
 import { DeclinePopup } from './decline-popup';
 
-export function ArchiveReplyButton({ company, title }: { company: string | null; title: string }) {
+export function ArchiveReplyButton({
+  company,
+  title,
+  contactEmail,
+}: {
+  company: string | null;
+  title: string;
+  contactEmail?: string | null;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -33,7 +41,9 @@ export function ArchiveReplyButton({ company, title }: { company: string | null;
       >
         Reply
       </button>
-      {open && <DeclinePopup company={company} title={title} onClose={() => setOpen(false)} />}
+      {open && (
+        <DeclinePopup company={company} title={title} senderEmail={contactEmail} onClose={() => setOpen(false)} />
+      )}
     </>
   );
 }
