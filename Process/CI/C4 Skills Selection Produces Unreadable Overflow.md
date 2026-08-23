@@ -131,6 +131,10 @@ Two further findings that reframed the fix:
 - `lib/llm/schemas.ts` — `mySkills` on `C2.zod` and the `emit_evidence_map` tool schema.
 - `scripts/audit-c4-skills-density.ts` — read-only before/after probe over every lead with Keep rows.
 - [[Requirement Skills vs My Skills - Two-Column Redesign (Epic)]] — §2 target design, §5 Q3.
+- Follow-ons opened from this CI: [[Skill Name Treatment in the C4 Skills Section]] (what the printed
+  names read like) and [[Split cv_bullet_skills from requirement_skills]] (`requirement_skills` is
+  written by C2 and then overwritten by C3, so the column means two different things at two different
+  times — splitting it makes "which Requirement Skills did this bullet actually evidence" computable).
 - `[[CV Header, Skills & Professional Experience — Data-Driven Template Wiring]]` — where the cap was added
   and where this was first surfaced; that note's progress log has the exact reproduction (lead id, counts).
 - Memory: `c4-skills-overflow-bug.md` (auto-memory) — the same finding, saved for cross-session recall.
