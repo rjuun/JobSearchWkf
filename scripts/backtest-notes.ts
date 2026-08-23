@@ -64,7 +64,8 @@ import {
   gatherB6Evidence,
   type B6Evidence,
 } from '../lib/pipeline/screening';
-import { c2UserMessage, gatherEvidence, CORE_AND_IMPORTANT, type Evidence } from '../lib/pipeline/tailoring';
+import { c2UserMessage, gatherEvidence, gatherSkillVocabulary, CORE_AND_IMPORTANT, type Evidence } from '../lib/pipeline/tailoring';
+import type { VocabEntry } from '../lib/pipeline/skills';
 import { readValuesSummary } from '../lib/profile-context';
 import { overallFit, requirementAlignment, recommendationFor } from '../lib/scoring';
 import { isLiveLlm, env } from '../lib/env';
@@ -222,11 +223,12 @@ type LeadCtx = {
   title: string;
   company: string | null;
   city: string | null;
-  requirements: { id: string; rank: string | null; requirement: string; description: string | null; requirementOrder: number | null }[];
+  requirements: { id: string; rank: string | null; requirement: string; description: string | null; requirementOrder: number | null; skills: string[] | null }[];
   b6Evidence: B6Evidence[];
   b6Refs: Set<string>;
   c2Evidence: Evidence[];
   c2Refs: Set<string>;
+  c2Vocabulary: VocabEntry[];
   values: string;
 };
 
@@ -241,6 +243,10 @@ async function loadLeadCtx(leadId: string): Promise<LeadCtx> {
     .where(and(eq(jobRequirements.jobLeadId, leadId), eq(jobRequirements.ownerId, owner)));
   const { items: b6Evidence } = await gatherB6Evidence(owner);
   const c2Evidence = await gatherEvidence(owner);
+  // Production sends the curated vocabulary as a second cached block and each
+  // requirement's own Requirement Skills; a backtest that omits them certifies
+  // a prompt production never sends (this file's whole premise).
+  const c2Vocabulary = await gatherSkillVocabulary(owner);
   return {
     id: leadId,
     ownerId: owner,
@@ -255,11 +261,13 @@ async function loadLeadCtx(leadId: string): Promise<LeadCtx> {
       requirement: q.requirement,
       description: q.description,
       requirementOrder: q.requirementOrder,
+      skills: q.skills ?? null,
     })),
     b6Evidence,
     b6Refs: new Set(b6Evidence.map((e) => e.ref)),
     c2Evidence,
     c2Refs: new Set(c2Evidence.map((e) => e.ref)),
+    c2Vocabulary,
     values: readValuesSummary(),
   };
 }
@@ -296,12 +304,14 @@ async function callStep(step: StepCode, variant: Variant, ctx: LeadCtx, note: st
       });
     case 'C2': {
       const coreImp = ctx.requirements.filter((r) => CORE_AND_IMPORTANT.includes(r.rank ?? ''));
-      const numbered = coreImp.map((q, i) => [q.requirementOrder ?? i + 1, q] as [number, { rank: string | null; requirement: string }]);
+      const numbered = coreImp.map(
+        (q, i) => [q.requirementOrder ?? i + 1, q] as [number, { rank: string | null; requirement: string; skills: string[] | null }]
+      );
       return runStructured({
         ...common,
         model: 'opus',
         step: tag,
-        user: c2UserMessage(ctx.c2Evidence, ctx.title, ctx.company, numbered) as UserContentBlock[],
+        user: c2UserMessage(ctx.c2Evidence, ctx.title, ctx.company, numbered, null, ctx.c2Vocabulary) as UserContentBlock[],
         tool: C2.tool,
         zod: C2.zod,
         mock: () => ({ links: [], gaps: [] }),

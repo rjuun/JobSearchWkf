@@ -40,6 +40,7 @@ import { evidenceNeedsCvSlot } from '../cv-slots';
 import { recordGapTips } from '../ci';
 import { matchStrengthToScore } from '../scoring';
 import { candidateFactsSummary } from '../profile-context';
+import { buildVocabIndex, resolveVocab, buildSkillsSection, type VocabEntry } from './skills';
 
 export const CORE_AND_IMPORTANT: string[] = ['Core', 'Important'];
 
@@ -74,18 +75,38 @@ export type Evidence = { ref: string; kind: string; text: string; skills: string
  * screen's own evidence for that requirement, so a `Good`-tier ask reads as
  * "beat this if you can" rather than starting blind — the anchoring is the
  * targeting signal, not a contaminant (§2.1).
+ *
+ * CI · C4 Skills Selection Produces Unreadable Overflow — two additions, both
+ * following the owner's framing that a requirement and its Requirement Skills
+ * are one mutually-explaining pair:
+ *
+ *  - each requirement now carries its own B2 `skills` (the JD's language for
+ *    what it is asking for). C2 was previously sent only the requirement
+ *    label, so half the pair it is meant to match against was never supplied.
+ *  - the owner's curated vocabulary gets its own cached block, so C2 can name
+ *    which of the candidate's OWN skills/competences/attributes the evidence
+ *    demonstrates (epic Q3, answered: all three tables). Same 1h breakpoint as
+ *    the evidence graph — both are owner-wide and lead-independent.
  */
 export function c2UserMessage(
   evidence: Evidence[],
   leadTitle: string,
   company: string | null,
-  numberedReqs: [number, { rank: string | null; requirement: string; b6Pick?: string | null }][],
-  candidateFacts?: string | null
+  numberedReqs: [number, { rank: string | null; requirement: string; skills?: string[] | null; b6Pick?: string | null }][],
+  candidateFacts?: string | null,
+  vocabulary: readonly VocabEntry[] = []
 ): UserContentBlock[] {
   return [
     {
       type: 'text',
-      text: `CANDIDATE EVIDENCE (cite by exact ref code):\n` + evidence.map((e) => `[${e.ref}] (${e.kind}) ${e.text}`).join('\n'),
+      text:
+        `CANDIDATE EVIDENCE (cite by exact ref code):\n` +
+        evidence.map((e) => `[${e.ref}] (${e.kind}) ${e.text}`).join('\n') +
+        (vocabulary.length
+          ? `\n\nCANDIDATE SKILLS, COMPETENCES & ATTRIBUTES (the candidate's own vocabulary — name these in mySkills, ` +
+            `copied exactly; these are NOT citable as evidenceRef):\n` +
+            vocabulary.map((v) => `- ${v.name}${v.proficiency ? ` (${v.proficiency})` : ''}`).join('\n')
+          : ''),
       cache_control: { type: 'ephemeral', ttl: '1h' },
     },
     {
@@ -94,14 +115,22 @@ export function c2UserMessage(
         (candidateFacts ? `CANDIDATE FACTS (fixed, not skill evidence — weigh for eligibility-type requirements):\n${candidateFacts}\n\n` : '') +
         `ROLE: ${leadTitle}${company ? ` · ${company}` : ''}\n\n` +
         `REQUIREMENTS (map each by its number) — this is only the subset the initial screen rated Good, Weak or ` +
-        `No Match; anything already rated Excellent or Very Strong is carried forward untouched and not sent here:\n` +
+        `No Match; anything already rated Excellent or Very Strong is carried forward untouched and not sent here. ` +
+        `Each requirement's "asking for" line is its Requirement Skills, the JD's own language for what it wants — ` +
+        `read the two together, they explain each other:\n` +
         numberedReqs
-          .map(([n, q]) => `${n}. [${q.rank}] ${q.requirement}` + (q.b6Pick ? `\n   Initial screen found: ${q.b6Pick} — only report a link here if you can genuinely beat it.` : ''))
+          .map(
+            ([n, q]) =>
+              `${n}. [${q.rank}] ${q.requirement}` +
+              (q.skills?.length ? `\n   asking for: ${q.skills.join(', ')}` : '') +
+              (q.b6Pick ? `\n   Initial screen found: ${q.b6Pick} — only report a link here if you can genuinely beat it.` : '')
+          )
           .join('\n') +
         `\n\nCV POSITION SLOTS — set each link's cvPosition to the best-matching label:\n` +
         CV_SLOTS.map((s) => `- ${s}`).join('\n') +
         `\n\nFor each requirement, list every genuinely strongest piece of evidence — one link per ref, several where ` +
-        `several honestly apply, ranked strongest first — and assign each its own cvPosition slot. If none honestly fits, list it under gaps.`,
+        `several honestly apply, ranked strongest first — assign each its own cvPosition slot, and set mySkills from the ` +
+        `candidate's own vocabulary above. If none honestly fits, list it under gaps.`,
     },
   ];
 }
@@ -313,6 +342,31 @@ export async function gatherEvidence(ownerId: string): Promise<Evidence[]> {
   return out;
 }
 
+/**
+ * The owner's curated skill vocabulary — every name My Skills is allowed to
+ * take, and the only names that may reach the CV's Skills section.
+ *
+ * Epic Q3, answered on CI · C4 Skills Selection Produces Unreadable Overflow:
+ * all three tables count. A Job Description doesn't distinguish a skill from a
+ * competence from an attribute, even though the profile tables do.
+ *
+ * `skills_master` is loaded first on purpose — `buildVocabIndex` keeps the
+ * first writer for a name, and only skills_master rows carry a proficiency and
+ * ATS keyword variants worth preserving.
+ */
+export async function gatherSkillVocabulary(ownerId: string): Promise<VocabEntry[]> {
+  const [skills, competences, attributes] = await Promise.all([
+    db.select().from(skillsMaster).where(eq(skillsMaster.ownerId, ownerId)),
+    db.select().from(starCompetences).where(eq(starCompetences.ownerId, ownerId)),
+    db.select().from(starAttributes).where(eq(starAttributes.ownerId, ownerId)),
+  ]);
+  const out: VocabEntry[] = [];
+  for (const s of skills) if (s.skill) out.push({ name: s.skill, source: 'skill', proficiency: s.proficiency, variants: s.atsKeywordVariants ?? [] });
+  for (const c of competences) if (c.competence) out.push({ name: c.competence, source: 'competence', proficiency: null, variants: [] });
+  for (const a of attributes) if (a.attribute) out.push({ name: a.attribute, source: 'attribute', proficiency: null, variants: [] });
+  return out;
+}
+
 /** Whether the real Word template can faithfully represent this Keep set —
  *  i.e. every Kept row that NEEDS one of the 11 fixed slots has one. Education/
  *  Language rows are exempt (`evidenceNeedsCvSlot`) — they render from the
@@ -387,29 +441,20 @@ async function templateSlotData(
     const dates = [p.startDate, p.endDate].filter(Boolean).join(' — ');
     if (dates) data[`Position ${letter} Dates`] = dates;
   }
-  // C4 already computes this per-tailoring (own-vocabulary skills, Keep-consistent,
-  // grouped into categories) for the programmatic builder's CvModel — reused here
-  // so the real template shows the same tailored skills, not a static block.
+  // C4 already computes this per-tailoring (the Keep rows' Requirement Skills,
+  // ordered Core → Important → Nice-to-Have) for the programmatic builder's
+  // CvModel — reused here so the real template shows the same tailored skills,
+  // not a static block.
   //
-  // Display-layer cap only — C4's own selection is untouched (its "every Keep
-  // bullet's tag must appear" consistency rule is deliberately uncapped; see C4's
-  // comment above). This just bounds what actually prints, because a large Keep
-  // set can produce a skills list too dense to be a real CV line (one lead with
-  // 30 Keep rows produced 67 skill names in a single line 2026-08-07 — that count
-  // itself means something upstream tagged far more granularly than C4's own
-  // "3–5 categories × 4–8 skills" target ever intended; capping here hides the
-  // symptom, not the cause — see the CI note for the actual investigation).
+  // The 24-item display cap that used to sit here is gone. It was added
+  // 2026-08-07 as an explicit stopgap over the 67-skill overflow, and this CI
+  // removed the cause: C4 no longer prints raw graph tags, and bounds its own
+  // output to C4 §B.1's envelope (`SKILLS_ENVELOPE`), shedding Nice-to-Have
+  // first. A renderer silently truncating a section it doesn't own was hiding
+  // the symptom — if the list is ever too long again, that belongs in C4's
+  // selection and its step report, where it is visible.
   if (skillsModel?.length) {
-    const SKILLS_CAP = 24;
-    let remaining = SKILLS_CAP;
-    const capped = skillsModel
-      .map((g) => {
-        const items = g.items.slice(0, Math.max(0, remaining));
-        remaining -= items.length;
-        return { category: g.category, items };
-      })
-      .filter((g) => g.items.length > 0);
-    if (capped.length) data['Skills'] = capped.map((g) => `${g.category}: ${g.items.join(' · ')}`).join('\n');
+    data['Skills'] = skillsModel.map((g) => `${g.category}: ${g.items.join(' · ')}`).join('\n');
   }
   if (profile?.name) data['Name'] = profile.name;
   if (profile?.location) data['Location'] = profile.location;
@@ -539,6 +584,10 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
   {
     const evidence = await gatherEvidence(effectiveOwnerId);
     const byRef = new Map(evidence.map((e) => [e.ref, e]));
+    // CI · C4 Skills overflow — the gate every My Skills value now passes
+    // through, on both the model path and the carry-forward path.
+    const vocabulary = await gatherSkillVocabulary(effectiveOwnerId);
+    const vocabIndex = buildVocabIndex(vocabulary);
     const reqById = new Map(reqs.map((q) => [q.id, q]));
     const [c2Profile] = await db.select().from(profiles).where(eq(profiles.ownerId, effectiveOwnerId)).limit(1);
     const candidateFacts = candidateFactsSummary(c2Profile);
@@ -590,7 +639,13 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
           // the graph rather than throwing on a stale citation.
           evidenceText: ev?.text ?? row.evidenceText ?? '',
           evidenceKind: ev?.kind ?? row.evidenceKind ?? null,
-          mySkills: ev?.skills ?? [],
+          // No model call runs on this path, so there is no C2 selection to
+          // take. The evidence node's own tags are resolved against the curated
+          // vocabulary instead — an exact hit yields the profile's canonical
+          // spelling, and free-text graph vocabulary ("general assembly",
+          // "data reliability") resolves to nothing and is dropped, exactly as
+          // it would be if the model had proposed it.
+          mySkills: resolveVocab(ev?.skills ?? [], vocabIndex),
           provSource: provFromSource(ev?.source ?? null),
         });
       }
@@ -625,16 +680,17 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
           lead.title,
           lead.company ?? null,
           targeted.map(
-            ([n, q]): [number, { rank: string | null; requirement: string; b6Pick: string | null }] => [
+            ([n, q]): [number, { rank: string | null; requirement: string; skills: string[] | null; b6Pick: string | null }] => [
               n,
-              { rank: q.rank, requirement: q.requirement, b6Pick: b6PickText(q) },
+              { rank: q.rank, requirement: q.requirement, skills: q.skills ?? null, b6Pick: b6PickText(q) },
             ]
           ),
-          candidateFacts
+          candidateFacts,
+          vocabulary
         ),
         tool: C2.tool,
         zod: C2.zod,
-        mock: () => mockEvidenceMap(targeted, evidence),
+        mock: () => mockEvidenceMap(targeted, evidence, vocabulary),
         leadId,
         ownerId: effectiveOwnerId,
       });
@@ -654,7 +710,13 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
           cvPosition: normalizeCvPosition(link.cvPosition || ev.cvPosition),
           evidenceText: ev.text,
           evidenceKind: ev.kind,
-          mySkills: ev.skills,
+          // C2's own selection from the curated vocabulary — this is the line
+          // the epic specified and the build never shipped (it wrote
+          // `ev.skills`, the graph's free text, instead). Validated the same
+          // way a ref code is: a name that isn't really in the vocabulary is
+          // dropped rather than trusted. Falling back to `ev.skills` when the
+          // model names nothing would reopen the exact hole this closes.
+          mySkills: resolveVocab(link.mySkills ?? [], vocabIndex),
           provSource: provFromSource(ev.source),
         });
       }
@@ -699,9 +761,14 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
             originalText: link.evidenceText,
             evidenceKind: link.evidenceKind,
             cvPosition: link.cvPosition,
-            // My Skills: the evidence's own vocabulary. Requirement Skills: the
-            // matched requirement's JD-language skills (B5 output) — CI · Requirement
-            // Skills vs My Skills. Never conflate either with B4's AoE codes (A–Q).
+            // My Skills: the candidate's own vocabulary — C2's selection from
+            // `skills_master` / `star_competences` / `star_attributes`, already
+            // validated against them. Requirement Skills: the matched
+            // requirement's JD-language skills, written by B2 (`screening.ts`,
+            // the `emit_requirements` insert — B5 never touches
+            // `job_requirements.skills`) and overwritten by C3 below with the
+            // bracketed tag it actually wrote. CI · Requirement Skills vs My
+            // Skills. Never conflate either with B4's AoE codes (A–Q).
             mySkills: link.mySkills,
             requirementSkills: req.skills ?? [],
             provSource: link.provSource,
@@ -888,10 +955,17 @@ export async function generateCv(
       // the floor above deliberately does not cover. For every ref-bearing row
       // `matched` is now guaranteed non-blank, so this is a backstop, not a path.
       const rewritten = matched?.bullet || row.originalText || '';
+      const bulletSkills = matched?.skills ?? row.requirementSkills ?? [];
       await db
         .update(requirementTailoring)
-        .set({ cvBullet: rewritten, requirementSkills: matched?.skills ?? row.requirementSkills ?? [] })
+        .set({ cvBullet: rewritten, requirementSkills: bulletSkills })
         .where(and(eq(requirementTailoring.id, row.id), eq(requirementTailoring.ownerId, effectiveOwnerId)));
+      // C4 below builds the Skills section from exactly these values, so the
+      // in-memory row has to carry what was just written — otherwise C4 reads
+      // the pre-C3 Requirement Skills and the CV's Skills header disagrees with
+      // its own bullets' bracketed tags, which is the one thing the consistency
+      // rule exists to prevent.
+      row.requirementSkills = bulletSkills;
     }
     // Past the floor every ref-bearing Keep row has a real bullet, so this count
     // is now a fact rather than `r.data.bullets.length`, which reported whatever
@@ -899,61 +973,38 @@ export async function generateCv(
     reports.push(await recordStep(leadId, { step: 'C3', label: 'Draft CV bullets', model: r.model, summary: `${refsWanted.size} Keep item(s) rewritten`, output: { count: refsWanted.size }, ms: r.ms }, effectiveOwnerId));
   }
 
-  // C4 — skills section. CI · Requirement Skills vs My Skills: the primary
-  // source is now the Keep-gated rows' My Skills (single source of truth +
-  // consistency rule — every skill a Keep bullet is tagged with goes in,
-  // unconditionally), topped up with a requirement-overlap ranking across the
-  // profile's Skills, STAR Competences and STAR Attributes tables. All three
-  // count as "Skills" on the CV — Job Descriptions don't distinguish them,
-  // even though the profile tables do (per Reggie's clarification on this CI).
+  // C4 — skills section. CI · C4 Skills Selection Produces Unreadable Overflow.
+  //
+  // What this used to do, and why it broke: it took every My Skills value on
+  // every Keep row, unconditionally and uncapped, and printed it. My Skills was
+  // then a verbatim copy of the evidence node's own free-text graph tags — 246
+  // distinct names across the profile, 180 used exactly once — so a 64-Keep-row
+  // lead printed 67 of them, all in one bucket, because the proficiency lookup
+  // that decided the category recognised almost none of them.
+  //
+  // What it does now, per the owner's decision on this CI: the section is the
+  // Requirement Skills carried by the Keep-gated rows — the skills genuinely
+  // associated with the tailored bullets (bracketed or bolded inline; both
+  // resolve to this one column), and only for requirements that actually have
+  // matched evidence. Keep-gated rows ARE that restriction. Ordered Core →
+  // Important → Nice-to-Have per C4 §B.3. Same lead: 16 skills, no cap needed.
+  //
+  // My Skills has not gone anywhere — it is now C2's validated selection from
+  // the curated vocabulary and remains the traceability chain back to the
+  // profile (C3 §B.5), which is what it was always described as. It is simply
+  // no longer what the CV's Skills header prints.
   let skillsModel: CvModel['skills'] = [];
   {
     const t = Date.now();
-    const reqTokens = tokens(reqs.map((r) => `${r.requirement} ${(r.skills ?? []).join(' ')}`).join(' '));
-    const [skills, competences, attributes] = await Promise.all([
-      db.select().from(skillsMaster).where(eq(skillsMaster.ownerId, effectiveOwnerId)),
-      db.select().from(starCompetences).where(eq(starCompetences.ownerId, effectiveOwnerId)),
-      db.select().from(starAttributes).where(eq(starAttributes.ownerId, effectiveOwnerId)),
-    ]);
-    // Unified candidate vocabulary (name → proficiency + ATS variants, when
-    // known) so ranking/categorisation works the same regardless of which
-    // profile table a name came from.
-    type Candidate = { name: string; proficiency: string | null; atsTokens: string };
-    const known = new Map<string, Candidate>();
-    for (const s of skills) if (s.skill) known.set(s.skill.toLowerCase(), { name: s.skill, proficiency: s.proficiency, atsTokens: (s.atsKeywordVariants ?? []).join(' ') });
-    for (const c of competences) if (c.competence && !known.has(c.competence.toLowerCase())) known.set(c.competence.toLowerCase(), { name: c.competence, proficiency: null, atsTokens: '' });
-    for (const a of attributes) if (a.attribute && !known.has(a.attribute.toLowerCase())) known.set(a.attribute.toLowerCase(), { name: a.attribute, proficiency: null, atsTokens: '' });
-
-    const byCat = new Map<string, string[]>();
-    const inList = new Set<string>();
-    const push = (cat: string, name: string) => {
-      const key = name.toLowerCase();
-      if (inList.has(key)) return;
-      if (!byCat.has(cat)) byCat.set(cat, []);
-      byCat.get(cat)!.push(name);
-      inList.add(key);
-    };
-    const catFor = (name: string) => ((known.get(name.toLowerCase())?.proficiency ?? '').toLowerCase().includes('expert') ? 'Expert' : 'Proficient');
-
-    // Consistency rule (mandatory, uncapped): every My Skills tag on a Keep row
-    // must appear in the top Skills List.
-    for (const g of green) for (const name of g.mySkills ?? []) push(catFor(name), name);
-
-    // Top up with a requirement-overlap ranking across the known vocabulary,
-    // capped so the section stays scannable (Process/C4...md: 3–5 categories
-    // × 4–8 skills).
-    const TARGET = 12;
-    const ranked = [...known.values()]
-      .filter((c) => !inList.has(c.name.toLowerCase()))
-      .map((c) => ({ c, score: overlap(reqTokens, tokens(`${c.name} ${c.atsTokens}`)) }))
-      .sort((a, b) => b.score - a.score);
-    for (const { c } of ranked) {
-      if (inList.size >= TARGET) break;
-      push(catFor(c.name), c.name);
-    }
-
-    skillsModel = [...byCat.entries()].map(([category, items]) => ({ category, items }));
-    reports.push(await recordStep(leadId, { step: 'C4', label: 'Skills section', model: 'code', summary: `${inList.size} skills · ${skillsModel.length} groups`, output: { groups: skillsModel.length }, ms: Date.now() - t }, effectiveOwnerId));
+    const rankByReqId = new Map(reqs.map((r) => [r.id, r.rank]));
+    skillsModel = buildSkillsSection(
+      green.map((g) => ({
+        rank: (g.requirementId && rankByReqId.get(g.requirementId)) ?? null,
+        requirementSkills: g.requirementSkills ?? [],
+      }))
+    );
+    const count = skillsModel.reduce((n, s) => n + s.items.length, 0);
+    reports.push(await recordStep(leadId, { step: 'C4', label: 'Skills section', model: 'code', summary: `${count} skills · ${skillsModel.length} groups`, output: { groups: skillsModel.length, skills: count }, ms: Date.now() - t }, effectiveOwnerId));
   }
 
   // C5 — tailored profile (4–7 lines, supportable by the evidence)
@@ -1122,11 +1173,25 @@ export async function generateCv(
 // CI · Make C2 Build on B6 §2.7 — must cope with a TIERED, targeted requirement
 // set (only what `runEvidenceMapping` actually sends it) and return several
 // ranked links per requirement, on the same 5-band scale B6 uses.
-function mockEvidenceMap(reqEntries: [number, { requirement: string; rank: string | null; skills: string[] | null }][], evidence: Evidence[]) {
-  const links: { order: number; evidenceRef: string; matchStrength: string; connection: string; cvPosition: string | null }[] = [];
+function mockEvidenceMap(
+  reqEntries: [number, { requirement: string; rank: string | null; skills: string[] | null }][],
+  evidence: Evidence[],
+  // CI · C4 Skills overflow — the mock stands in for a HEALTHY call, and a
+  // healthy C2 call now names My Skills from the curated vocabulary. Emitting
+  // none would make mock mode the one path that still produces skill-less rows.
+  vocabulary: readonly VocabEntry[] = []
+) {
+  const links: { order: number; evidenceRef: string; matchStrength: string; connection: string; cvPosition: string | null; mySkills: string[] }[] = [];
   const gaps: { order: number; requirement: string; note: string }[] = [];
+  const vocabTokens = vocabulary.map((v) => ({ v, t: tokens(`${v.name} ${v.variants.join(' ')}`) }));
   for (const [order, req] of reqEntries) {
     const rt = tokens(`${req.requirement} ${(req.skills ?? []).join(' ')}`);
+    const mySkills = vocabTokens
+      .map(({ v, t }) => ({ v, score: overlap(rt, t) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map((x) => x.v.name);
     const ranked = evidence
       .map((e) => ({ e, score: overlap(rt, tokens(`${e.text} ${e.skills.join(' ')}`)) }))
       .filter((x) => x.score > 0)
@@ -1143,6 +1208,7 @@ function mockEvidenceMap(reqEntries: [number, { requirement: string; rank: strin
         matchStrength: score >= 5 ? 'Excellent' : score >= 3 ? 'Very Strong' : score >= 2 ? 'Good' : 'Weak',
         connection: `Shared focus on ${[...tokens(req.requirement)].slice(0, 3).join(', ')}`,
         cvPosition: e.cvPosition,
+        mySkills,
       });
     }
   }

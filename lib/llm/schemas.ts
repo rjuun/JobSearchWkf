@@ -489,6 +489,12 @@ export const C2 = {
           // prompt, but evidence that fits none must still map (it falls back to
           // the programmatic CV), so we never reject the call over a slot label.
           cvPosition: z.string().nullable().optional(),
+          // CI · C4 Skills Selection Produces Unreadable Overflow. My Skills is
+          // C2's own selection from the owner's curated vocabulary, not a copy
+          // of whatever free text sits on the evidence node — that copy is what
+          // produced 67 skills in one CV line. Unrecognised names are dropped at
+          // the write path, so a hallucinated skill costs nothing.
+          mySkills: z.array(z.string()).default([]),
         })
       )
       .default([]),
@@ -500,7 +506,7 @@ export const C2 = {
     name: 'emit_evidence_map',
     strict: true,
     description:
-      'For each requirement, list every genuinely strongest piece of evidence from the candidate list by its exact ref code — one entry per ref, ranked strongest first when several apply. Rate each match honestly and note the connection. If no honest match exists, omit the requirement from links and record it under gaps instead — never force a weak link or invent evidence.',
+      'For each requirement, list every genuinely strongest piece of evidence from the candidate list by its exact ref code — one entry per ref, ranked strongest first when several apply. Rate each match honestly and note the connection, and name which of the candidate\'s own skills/competences/attributes that evidence demonstrates for this requirement. If no honest match exists, omit the requirement from links and record it under gaps instead — never force a weak link or invent evidence.',
     input_schema: {
       type: 'object', additionalProperties: false,
       properties: {
@@ -519,6 +525,12 @@ export const C2 = {
               description:
                 'Best-matching CV slot label if one fits; otherwise leave empty. Emit ONLY a slot label — never the evidence text, which the app already resolves from evidenceRef.',
             },
+            mySkills: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                'My Skills: which of the candidate\'s OWN skills, competences or attributes this evidence demonstrates in answer to this requirement. Copy names EXACTLY from the CANDIDATE SKILLS, COMPETENCES & ATTRIBUTES list — a name that is not on that list is dropped. This is the candidate\'s own vocabulary, the counterpart to the requirement\'s JD-language skills; never restate the JD wording here. Empty array if the list holds nothing this evidence honestly demonstrates.',
+            },
           },
           // Every property is listed — see the B2 note above. Measured on this
           // step: with `connection` and `cvPosition` declared but not required,
@@ -526,7 +538,7 @@ export const C2 = {
           // ~90 output tokens instead of 11-14 links and ~1500, and one run
           // appended evidence prose into `cvPosition` — the two omitted fields
           // were exactly the two that misbehaved.
-          required: ['order', 'evidenceRef', 'matchStrength', 'connection', 'cvPosition'],
+          required: ['order', 'evidenceRef', 'matchStrength', 'connection', 'cvPosition', 'mySkills'],
         }),
         gaps: arr({
           type: 'object', additionalProperties: false,
