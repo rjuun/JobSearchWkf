@@ -13,7 +13,7 @@ pr-target:
 
 ---
 ```simple-time-tracker
-{"entries":[{"name":"Segment 1","startTime":"2026-07-07T09:53:57.556Z","endTime":"2026-07-07T09:58:15.468Z"}]}
+{"entries":[{"name":"Draft","startTime":"2026-07-07T09:53:57.000Z","endTime":"2026-07-07T09:58:15.000Z"},{"name":"Draft","startTime":"2026-08-05T10:50:21.000Z","endTime":"2026-08-05T10:57:22.000Z"}]}
 ```
 ---
 
@@ -24,12 +24,26 @@ There are always so many ideas on how to search for jobs and sometimes we do not
 
 ## 2. What would the improvement look like?
 
-The idea is to introduce a column in job leads which properly tracks which kind of lead we're pursuing of course that column must be attached to a description of the job campaign is
 
+First, there must be a kind of Campaigns table:
+- Campaign Name
+- Begin Date
+- End Date
+- Description
+- Notes (observations of what is working and what is not working during the campaign)
+
+%% Ask for Salesforce example %%
+
+Examples of Job Search Campaigns
 - Transformation in finance:
 - Pratikant campaign:
 - Consulting Positions in Brazil
 - International Institutions in Europe
+
+The a column needs to be introduced on the Job Lead to accumulate "tags", that is a Job Lead can belong to more than one campaign. This column properly tracks which kind of lead we're pursuing.
+
+At the end, a report must be produced in the Dashboard
+
 
 ## 3. Resources or references
 

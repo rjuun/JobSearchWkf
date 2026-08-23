@@ -5,7 +5,7 @@ ci-title: Real Bullet Evidence Provenance in the Career Graph
 ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-07
-ci-estimated-time:
+ci-estimated-time: "3"
 ci-time-spent: 4
 pr-source: "[[Fix CV Bullet Evidence Linking in the Career Graph]]"
 pr-target: claude/ci-044-bullet-evidence-provenance-ede19c
