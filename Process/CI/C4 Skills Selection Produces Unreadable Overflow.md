@@ -116,8 +116,10 @@ Two further findings that reframed the fix:
   no longer reach the CV. Nothing depends on cleaning them now.
 - **Requirement Skills content quality.** The 16 that now print include "Fluency in German and
   English" and "MS Office Proficiency" (requirement labels rather than skills), and the near-duplicate
-  pair "Decision Documents Preparation" / "Communications & Decision Documents Preparation". That is
-  B2 extraction and C3 tag wording, not C4 selection — worth its own CI.
+  pair "Decision Documents Preparation" / "Communications & Decision Documents Preparation". Split out
+  as [[Skill Name Treatment in the C4 Skills Section]] — note that CI reopens the "not C4 selection"
+  framing, since C4 is the only step that sees the assembled set and therefore the only one that can
+  detect a near-duplicate at all.
 
 ## 3. Resources or references
 
