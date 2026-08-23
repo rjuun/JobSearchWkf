@@ -2,7 +2,7 @@
 ci-area: Screening / B6 · Requirement-Evidence Map
 ci-roadmap:
 ci-title: B6 never receives the Master Bullet Bank — evidence lanes cannot fill
-ci-status: 2 - In Progress
+ci-status: 9 - LLM Run Required
 ci-priority: high
 ci-date: 2026-08-01
 ci-estimated-time: 8
@@ -498,3 +498,19 @@ about the Map.
 **Not done, deliberately:** the back-catalogue re-run. §2.4's gate still holds —
 `[[Complete Required Lists on the Remaining Strict Tool Schemas]]` has not landed, and re-running 157 leads
 through the remaining nine partial schemas would buy a third pass.
+
+### 2026-08-07 · Status corrected to `9 - LLM Run Required`
+
+`2 - In Progress` was never a canonical value and was read as "still under development," which this isn't
+— every acceptance criterion but one is code-complete and plumbing-verified (see the checklist above).
+`2 - Testing` doesn't fit either, per `[[++ Continuous Improvement Procedure]]`'s definition: it implies
+verification is actively in progress, and this one is stalled, not in progress — nobody has run it against
+a lead with a genuine hard gap yet. The one open criterion, "`No Match` with a stated reason," is blocked
+purely on someone spending an Opus call against the right lead (an SAP or CFA posting, per the note above),
+which is exactly what `9 - LLM Run Required` is for.
+
+Note for whoever picks this up: this is **not** the same gate `[[Re-run Screening Across the Back
+Catalogue]]` is parked on. That CI depends on this one (and on
+`[[Complete Required Lists on the Remaining Strict Tool Schemas]]`) reaching `3 - Delivered` — the
+dependency runs that direction, not the reverse. This CI's own remaining gap is the single-lead `No Match`
+check above; it does not need the back-catalogue re-run to happen first.
