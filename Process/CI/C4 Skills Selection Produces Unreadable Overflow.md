@@ -103,10 +103,23 @@ Two further findings that reframed the fix:
 - [x] No raw graph tag can reach the CV — every My Skills value is validated against the vocabulary.
 - [x] `npm run typecheck` clean; 226 tests pass, 17 of them new (`lib/__tests__/c4-skills.test.ts`).
 - [x] Strict-schema audit clean after the `emit_evidence_map` change.
-- [ ] **Live verification pending — needs a paid C2 re-run.** Stored `my_skills` on already-mapped
-      leads is still the old free-text tags; it is rewritten the next time C2 runs for that lead.
-      Nothing reads it for display any more, so this is not blocking the CV output, but the new
-      selection path itself hasn't been exercised against a real Opus call.
+- [ ] **Live verification pending — needs a paid run.** The new C2 selection path has not been
+      exercised against a real Opus call.
+- [ ] **Already-mapped leads keep stale `my_skills`, and a C2 re-run does NOT fix them.** Corrected
+      2026-08-23 after initially claiming the opposite. `planMerge` only writes `my_skills` on the
+      `toReplace` path (new evidence scoring *strictly* higher, which also resets the row to
+      `pending` and costs the approval). Rows that merely match again land in `unchanged` and are
+      not touched at all; `toRefresh` patches `evidence_kind` only. The Allianz lead's 64 green rows
+      were carried forward at their requirement's own `initialMatchStrength`, so a re-run proposes
+      identical refs at identical strengths — every row is `unchanged`, and its 68 free-text tags
+      persist indefinitely.
+      **Consequence:** the CV is correct (C4 no longer reads `my_skills`), but the workspace's "My
+      Skills" badges keep showing the old tags, which reads as "nothing changed". Only a *new* lead
+      exercises the corrected C2 path end to end.
+      **Options:** a deterministic backfill script (resolve stored `my_skills` through
+      `buildVocabIndex`/`resolveVocab` and rewrite — no LLM, no approval reset; would take Allianz's
+      68 tags to its 11 recognised names), or accept the staleness on historical leads and verify on
+      a new one.
 
 ### 2.4 · Deliberately out of scope
 
