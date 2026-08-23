@@ -185,14 +185,14 @@ The schema is `owner_id`-scoped throughout; the work was auth + replacing Excel:
 Sequenced so the graph becomes first-class, then bootstrapped, then enriched, then opened to others.
 The owner can **dogfood O1–O3 single-user** before multi-tenant.
 
-| Phase | Outcome | Notes |
-| --- | --- | --- |
-| **(this) Plan** | This document + the onboarding spec + review HTML | — |
-| **O1 · Career Graph, first-class** | A `/profile` section: view + manual CRUD editors over the existing evidence tables | No AI; immediate value; makes the asset real & editable |
-| **O2 · Import & extract (bootstrap)** | CV/LinkedIn upload → AI-drafted graph → **curation gate** → committed evidence | The "import" half of hybrid; reuses `runStructured` + the C2 muscle |
-| **O3 · Coach & enrich** | Completeness/strength meter, AI coaching interview, gap→enrich prompts from screening, provenance surfaced in the CV | The "coach" half; closes the enrichment loop |
-| **O4 · Multi-tenant (P7)** | Supabase Auth + RLS + per-user onboarding | The wizard replaces Excel for everyone |
-| *parallel / after* | Live LLM (P6), Apply/track (D) + outcome→B6 calibration, CV provenance polish | — |
+| Phase                                 | Outcome                                                                                                              | Notes                                                               |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| **(this) Plan**                       | This document + the onboarding spec + review HTML                                                                    | —                                                                   |
+| **O1 · Career Graph, first-class**    | A `/profile` section: view + manual CRUD editors over the existing evidence tables                                   | No AI; immediate value; makes the asset real & editable             |
+| **O2 · Import & extract (bootstrap)** | CV/LinkedIn upload → AI-drafted graph → **curation gate** → committed evidence                                       | The "import" half of hybrid; reuses `runStructured` + the C2 muscle |
+| **O3 · Coach & enrich**               | Completeness/strength meter, AI coaching interview, gap→enrich prompts from screening, provenance surfaced in the CV | The "coach" half; closes the enrichment loop                        |
+| **O4 · Multi-tenant (P7)**            | Supabase Auth + RLS + per-user onboarding                                                                            | The wizard replaces Excel for everyone                              |
+| *parallel / after*                    | Live LLM (P6), Apply/track (D) + outcome→B6 calibration, CV provenance polish                                        | —                                                                   |
 
 ---
 
