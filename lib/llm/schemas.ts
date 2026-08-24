@@ -558,6 +558,14 @@ export const C2 = {
 };
 
 // ── C3 · Transform Keep evidence into CV bullets ─────────────────────────────
+// CI · C3 Writes CV-Grade Skill Tags §2.3.2 — `skills` was described here, and
+// instructed in C3 §B.5, as Job-Lead-facing language: "the bracketed tag carries
+// JD-compatible language". That is why the CV printed "Work Autonomously". The
+// tag is what the Skills section shows, so it is CANDIDATE-facing and belongs in
+// the candidate's own register; the JD's wording keeps its own column
+// (`requirement_skills`, B2's, never overwritten) and its own job, ATS matching
+// at C2. Knowingly overturns the Requirement Skills vs My Skills epic's ruling
+// on this point.
 export const C3 = {
   zod: z.object({
     bullets: z
@@ -568,7 +576,7 @@ export const C3 = {
     name: 'emit_cv_bullets',
     strict: true,
     description:
-      'Rewrite each Keep evidence item into ONE tight CV bullet: lead with a strong past-tense verb, keep every claim supportable by the original text, weave in JD keywords only where genuinely supported, and tag the Requirement Skills demonstrated — the Job-Lead-facing skill language this bullet proves (the bracketed tag), not the candidate\'s own vocabulary for the evidence. Never invent a metric or outcome not present in the original text.',
+      'Rewrite each Keep evidence item into ONE tight CV bullet: lead with a strong past-tense verb, keep every claim supportable by the original text, weave in JD keywords only where genuinely supported. Then tag the bullet with the skills it demonstrates, named at CV grade in the candidate\'s own register (the bracketed tag, and what the CV\'s Skills section prints) — NOT the job posting\'s wording. Never invent a metric or outcome not present in the original text.',
     input_schema: {
       type: 'object', additionalProperties: false,
       properties: {
@@ -579,7 +587,8 @@ export const C3 = {
             bullet: { type: 'string', description: 'The rewritten CV bullet (no leading dash).' },
             skills: arr({
               type: 'string',
-              description: 'A Requirement Skill this bullet demonstrates, in Job-Lead language (not the candidate\'s own skill vocabulary).',
+              description:
+                'One capability this bullet demonstrates, named at CV grade: a compound entry covering the whole capability rather than one facet of it, stating the seniority, scale or scope it was exercised at (e.g. "Transfer Pricing & Cost Optimization", "Senior Stakeholder Management", "Corporate Governance & Regulatory Compliance (EBA)"). Never a phrase lifted whole from the posting, never table-stakes tooling, never a language.',
             }),
           },
           // Every property is listed — see the B2 note above. An array satisfies

@@ -2,11 +2,11 @@
 ci-area: CV Tailoring (C3 / C4)
 ci-roadmap:
 ci-title: C3 Writes CV-Grade Skill Tags
-ci-status: 0 - Idea
+ci-status: 2 - Testing
 ci-priority: high
 ci-date: 2026-08-24
 ci-estimated-time: 4
-ci-time-spent: 0
+ci-time-spent: 2
 pr-source: "[[C4 Skills Selection Produces Unreadable Overflow]]"
 pr-target: "[[C3. Transform Evidence into CV Bullets]], [[C4. Build and Manage the Skills Section]]"
 ---
@@ -221,6 +221,93 @@ skills), and twice a correction accepted and then re-made in a new form (rank la
 lookups). **When a correction lands here, check whether the next proposal is the same mistake wearing
 different clothes.**
 
+
+### 2026-08-24 · Built — all four items of §2.3
+
+Shipped on `claude/c3-cv-grade-skill-tags-55d342`. `npm run typecheck` clean; `npx vitest run`
+275 tests, 272 passing. The 3 failures are `capture-enrich.test.ts` reading `.storage/jd-captures`
+fixtures, which is gitignored and therefore absent from this worktree — not a regression, and they
+pass in the main checkout where the directory exists.
+
+**§2.3.1 — the register reaches C3.** `c3UserMessage` is now a named exported builder beside
+`c2UserMessage` (it was inline in `generateCv`, which is why nothing could pin it). Two blocks,
+mirroring C2's split: `skills_master` names + ATS variants as an owner-wide 1h-cached block, then the
+per-lead role and rows. `skills_master` only — `gatherSkillVocabulary` returns all three tables and
+C3 filters to `source === 'skill'`, per §2.2. The block says in as many words that it is a register to
+write in and not a list to choose from, and that coining is expected; four tests pin that, because
+"built as a lookup" is the documented way to get this CI wrong.
+
+**§2.3.2 and §2.3.3 — §B.5 reversed, the style rules written in.** `Process/C3…md` §B.5 gains
+*Naming the tag — the register*: the five rules (consolidate, state the level, parenthetical anchors,
+no table-stakes tooling, nothing lifted from the posting or from Languages), the re-expression
+mechanism with the owner's own four examples, and the exemplar-not-lookup framing. Three superseded
+notes record what was reversed and why, including that this knowingly overturns the Requirement Skills
+vs My Skills epic. §B.1's "use Requirement Skills … especially for the tag" and §D's "Language
+alignment" bullet both pointed the tag at the JD too and are corrected. The `emit_cv_bullets` tool
+description said the same thing and is rewritten. **The dev server caches `Process/*.md` per process —
+restart it before testing.**
+
+Two stale claims in `Process/C4…md` are corrected in passing: §A's note called `cv_bullet_skills`
+"the JD's own language", and §B.2's rationale credited the consistency rule to "sourcing from
+`Requirement Skills`". Neither is true after this change; the word-for-word agreement is, and it comes
+from the two sections reading one column.
+
+**§2.3.4 — the guard.** Built once in `lib/pipeline/skills.ts`, as §2.4 and the reconciliation note
+require. `auditBulletTags` per row: support drops orphans, coverage counts what did not come through.
+`subsumedSkills` is the C4-side half, and `reconcileSkillGroups` now uses it. 18 new tests.
+
+#### Two corrections to this CI's own premises
+
+**§2.4's first sentence is not right, and the difference matters for where the guard went.**
+`reconcileSkillGroups`'s identity check compares C4's proposal against `selected` — and `selected` is
+built from `cv_bullet_skills`, i.e. from C3's own tags. A name C3 coins is therefore already in
+`selected` and identity accepts it trivially. That guard never constrained C3; it constrains C4
+against rewording and inventing. So C3 was not protected by the thing this CI proposed to remove — it
+had **no** guard on its tags at all, and reversing §B.5 unbounds a column that was previously bounded
+by the JD's vocabulary. `auditBulletTags` is that missing floor, and it is new work rather than a
+replacement.
+
+The reconcile relaxation is still built here, exactly as the reconciliation note asks, and it is
+**inert until the consolidation CI turns it on**: C4's prompt still says copy every skill verbatim, so
+nothing today proposes a merged name. What the relaxed rule adds is that when a merged name does
+arrive it prints, provided it contains selected skills whole — and it consumes them, so a merge can
+never print beside its own parts. Atomisation is rejected in the same move: "Governance" does not
+contain "Corporate Governance", so dropping a qualifier the row earned still cannot reach the CV.
+
+**Coverage cannot be a drop-gate, and support cannot be stricter than it is.** Two things fell out of
+building it:
+
+- Dropping a tag makes coverage *worse*, never better, so the only honest implementation of "cannot
+  silently vanish" is visibility. The count is summed across the Keep set and lands in the C3 step
+  report (`N My Skill(s) not carried into a tag`), beside the orphan count. It is not a floor and does
+  not fail a run — the re-ask loop would fire on every legitimate re-expression if it were.
+- Any support rule stronger than "shares one identifying word with the row" rejects the benchmark
+  itself. `Confidentiality & Trust` → "Confidentiality & Discretion" and `Tolerance for Stress` →
+  "Composure Under Pressure" are the owner's own CV, and neither is derivable from its source by a
+  lexical rule; re-expression uses words that are not in the source. So support is an orphan floor and
+  nothing more — it catches a tag about something the row is not about, which is the shape a
+  fabricated capability takes, and leaves the judgement where §2.4 puts it, with Opus. Generic words
+  ("management", "leadership") are excluded from anchoring, or a bullet mentioning a Management Board
+  would vouch for anything ending in "Management".
+
+#### Left deliberately alone
+
+`SKILLS_ENVELOPE` stays at 40. §2.7 wants 16–20 entries, and the way to get there is fewer, wider
+entries — C3 consolidating within a bullet now, C4 consolidating across the set next. Tightening the
+cut instead would shed real capabilities to hit a number, which is the atomising failure wearing
+different clothes.
+
+§2.6 (surfacing C3's coinages as `skills_master` candidates) is not built, per its own "do not let it
+block". The C3 step report now carries `orphanTags` and `uncovered` in its output, which is the
+measurement that work would start from.
+
+#### What is left to verify
+
+Everything that needs a model. Generate CV on `69bc2e13` (ALDI) — restart the dev server first — and
+read the Skills section against §2.7: register, 16–20 entries, no near-duplicates, C7 not below the
+88/100 baseline. The C3 step report line is the fast read on the guard: a large orphan count means the
+tags drifted off their bullets, a large uncovered count means the re-registering is losing
+capabilities rather than re-expressing them.
 ## 5. Session state at handover (2026-08-24)
 
 **Shipped and merged to `main`, migrations applied.** Nothing is in flight; the tree is clean.

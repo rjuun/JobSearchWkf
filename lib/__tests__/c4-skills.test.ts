@@ -12,6 +12,7 @@ import {
   reconcileSkillGroups,
   ungroupedSkills,
   dropLanguageSkills,
+  auditBulletTags,
   SKILLS_ENVELOPE,
   type VocabEntry,
 } from '../pipeline/skills';
@@ -201,5 +202,127 @@ describe('C4 §B.1 · reconcileSkillGroups decides what they print UNDER', () =>
   it('falls back to one honest bucket when nothing was proposed', () => {
     expect(ungroupedSkills(['A', 'B'])).toEqual([{ category: 'Core Competencies', items: ['A', 'B'] }]);
     expect(ungroupedSkills([])).toEqual([]);
+  });
+});
+
+describe('CV-grade tags · support (§2.4), which replaces the identity guard', () => {
+  // One row's worth of material: the tailored bullet, plus what C3 was handed.
+  const MATERIAL = [
+    'Led the transfer pricing review across 14 entities, cutting allocated cost by 12%.',
+    'Reported quarterly to the Management Board on regulatory compliance under the EBA framework.',
+    'Cost Allocation',
+    'Corporate Governance',
+  ];
+
+  it('keeps a coined compound the row supports — the whole point of this CI', () => {
+    // Not in any table, not in `selected`, and rejected by the identity guard
+    // this replaces. It is the benchmark's own wording.
+    expect(auditBulletTags(['Transfer Pricing & Cost Optimization'], MATERIAL, []).kept).toEqual([
+      'Transfer Pricing & Cost Optimization',
+    ]);
+  });
+
+  it('keeps a parenthetical anchor the evidence carries', () => {
+    expect(auditBulletTags(['Corporate Governance & Regulatory Compliance (EBA)'], MATERIAL, []).dropped).toEqual([]);
+  });
+
+  it('drops the orphan — a capability the row is not about at all', () => {
+    const out = auditBulletTags(['Nuclear Engineering'], MATERIAL, []);
+    expect(out.kept).toEqual([]);
+    expect(out.dropped).toEqual(['Nuclear Engineering']);
+  });
+
+  it('does not let a generic word do the anchoring', () => {
+    // "Management" appears on the row (Management Board) and proves nothing —
+    // this is the shape a fabricated capability takes when it borrows a filler
+    // word from the evidence.
+    expect(auditBulletTags(['Nuclear Safety Management'], MATERIAL, []).dropped).toEqual(['Nuclear Safety Management']);
+  });
+
+  it('anchors across a spelling or inflection difference', () => {
+    expect(auditBulletTags(['Regulatory Compliance Reporting'], MATERIAL, []).kept).toHaveLength(1);
+    expect(auditBulletTags(['Cost Optimisation'], MATERIAL, []).kept).toHaveLength(1);
+  });
+
+  it('keeps re-expression, which no stricter lexical rule could', () => {
+    // The owner's own CV: the curated `Confidentiality & Trust` printed as
+    // "Confidentiality & Discretion". "Discretion" is in no source on the row.
+    const out = auditBulletTags(
+      ['Confidentiality & Discretion'],
+      ['Handled board papers in strict confidentiality.', 'Confidentiality & Trust'],
+      ['Confidentiality & Trust']
+    );
+    expect(out.kept).toEqual(['Confidentiality & Discretion']);
+    expect(out.uncovered).toEqual([]);
+  });
+
+  it('collapses a tag repeated in two spellings', () => {
+    const out = auditBulletTags(['Cost Allocation', 'cost   ALLOCATION', '', '  '], MATERIAL, []);
+    expect(out.kept).toEqual(['Cost Allocation']);
+  });
+});
+
+describe('CV-grade tags · coverage (§2.4), so a capability cannot vanish silently', () => {
+  it('reports a My Skill no surviving tag recognises', () => {
+    // `Resilience` + `Tolerance for Stress` → "Resilience & Composure Under
+    // Pressure" is the owner's own re-expression. Resilience came through by
+    // name; Tolerance for Stress came through by meaning only, and that is what
+    // this counter is sensitive to. Reported, never dropped.
+    const out = auditBulletTags(
+      ['Resilience & Composure Under Pressure'],
+      ['Held the programme together through two reorganisations.', 'Resilience', 'Tolerance for Stress'],
+      ['Resilience', 'Tolerance for Stress']
+    );
+    expect(out.kept).toHaveLength(1);
+    expect(out.uncovered).toEqual(['Tolerance for Stress']);
+  });
+
+  it('counts a My Skill against the surviving tags, not the proposed ones', () => {
+    const out = auditBulletTags(['Nuclear Engineering'], ['Chaired the audit committee.'], ['Audit Coordination']);
+    expect(out.dropped).toEqual(['Nuclear Engineering']);
+    expect(out.uncovered).toEqual(['Audit Coordination']);
+  });
+
+  it('is silent when every My Skill is carried through', () => {
+    expect(auditBulletTags(['Corporate Governance'], ['Ran the governance calendar.'], ['Corporate Governance']).uncovered).toEqual([]);
+  });
+});
+
+describe('C4 §B.1 · reconcileSkillGroups accepts a supported compound (§2.4)', () => {
+  const SELECTED = ['Cost Allocation', 'Cost Optimization', 'Corporate Governance'];
+
+  it('prints a merged name that contains a selected skill, and consumes it', () => {
+    const out = reconcileSkillGroups(SELECTED, [
+      { category: 'Cost & Commercial', skills: ['Transfer Pricing & Cost Optimization'] },
+      { category: 'Governance', skills: ['Corporate Governance'] },
+    ]);
+    expect(out[0].items).toEqual(['Transfer Pricing & Cost Optimization']);
+    // Consumed, so the merge does not print beside the atom it absorbed.
+    expect(out.flatMap((g) => g.items)).not.toContain('Cost Optimization');
+    // The seam the consolidation CI meets: an atom the compound does not
+    // literally contain is still owed a home.
+    expect(out.at(-1)).toEqual({ category: 'Additional Skills', items: ['Cost Allocation'] });
+  });
+
+  it('refuses to print a merge beside a part it already placed', () => {
+    const out = reconcileSkillGroups(SELECTED, [
+      { category: 'A', skills: ['Cost Optimization'] },
+      { category: 'B', skills: ['Transfer Pricing & Cost Optimization'] },
+    ]);
+    expect(JSON.stringify(out)).not.toContain('Transfer Pricing');
+  });
+
+  it('rejects atomisation — a name that drops a qualifier the row earned', () => {
+    // "Governance" for the selected "Corporate Governance" is the failure this
+    // CI exists to end, and it arrives looking exactly like a merge.
+    const out = reconcileSkillGroups(['Corporate Governance'], [{ category: 'G', skills: ['Governance'] }]);
+    expect(out).toEqual([{ category: 'Additional Skills', items: ['Corporate Governance'] }]);
+  });
+
+  it('still prints the selected spelling when the model merely respells one', () => {
+    const out = reconcileSkillGroups(['Audit & Compliance Coordination'], [
+      { category: 'G', skills: ['Audit and Compliance Coordination'] },
+    ]);
+    expect(out).toEqual([{ category: 'G', items: ['Audit & Compliance Coordination'] }]);
   });
 });
