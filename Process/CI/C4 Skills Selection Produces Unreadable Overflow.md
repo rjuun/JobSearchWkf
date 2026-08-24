@@ -2,7 +2,7 @@
 ci-area: CV Tailoring
 ci-roadmap:
 ci-title: C4 Skills Selection Produces Unreadable Overflow
-ci-status: 2 - Testing
+ci-status: 1 - Development
 ci-priority: high
 ci-date: 2026-08-07
 ci-estimated-time:
@@ -26,7 +26,7 @@ tagged far more densely or far more often than C4's design ever intended.
 **A display-layer cap of 24 items was added the same day as a stopgap** (`templateSlotData`,
 `lib/pipeline/tailoring.ts`) so the CV itself stays readable. It does not touch C4's selection logic, its
 categorisation (`Expert`/`Proficient` by proficiency only — the thematic categories a real CV shows, e.g.
-"Governance & Compliance", don't exist as data; tracked separately as ROADMAP P6), or the deliberately
+"Governance & Compliance", believed at the time not to exist as data — see §2.11, that was wrong), or the deliberately
 uncapped "every Keep bullet's tag must appear" consistency rule that produced the 67 in the first place.
 **The cap hides the symptom. The cause is still open.**
 
@@ -100,6 +100,9 @@ Two further findings that reframed the fix:
 ### 2.3 · Acceptance
 
 - [x] The Allianz lead's Skills section is readable: **68 → 16**, one category, all Core.
+- [ ] **3–5 thematic categories per C4 §B.1 — NOT MET.** Shipped rank labels instead; reopened as
+      §2.11. "One category, all Core" above is itself the evidence: a single bucket cannot deliver the
+      vertical readability §B.1 exists for.
 - [x] No raw graph tag can reach the CV — every My Skills value is validated against the vocabulary.
 - [x] `npm run typecheck` clean; 226 tests pass, 17 of them new (`lib/__tests__/c4-skills.test.ts`).
 - [x] Strict-schema audit clean after the `emit_evidence_map` change.
@@ -121,10 +124,89 @@ Two further findings that reframed the fix:
       68 tags to its 11 recognised names), or accept the staleness on historical leads and verify on
       a new one.
 
+### 2.11 · REOPENED 2026-08-24 — the categorisation half was never built
+
+The owner, on seeing the shipped Skills section:
+
+> *"C4 procedure was always about constructing the skills section, first by creating meaningful skill
+> groups (3 to 5) to facilitate the vertical reading of the skills section, and then by limiting the
+> amount of skills by prioritizing skills connected to Core and Important Requirements. CI-041 text
+> explicitly sets the Thematic Categories as out-of-the-scope and groups them as Core, Supporting and
+> Additional skills, which is not what I want."*
+
+He is right, and the deferral rested on a claim that was simply false.
+
+**The false claim.** This note said the thematic categories *"don't exist as data; tracked separately
+as ROADMAP P6"*. It was written into §1 on 2026-08-07 and then repeated — without anyone opening
+`docs/ROADMAP.md` — into `lib/pipeline/skills.ts`, `Process/C4…md` §B.3, §2.4 below, and
+[[Skill Name Treatment in the C4 Skills Section]]. **ROADMAP P6 contains two entries: renaming the
+`approval_status` enum, and per-tenant CV templates/slots. It says nothing about skills.** There was
+never a blocker, and never a contradiction for the owner to find — which is exactly why he could not
+find one.
+
+**The taxonomy also already exists — twice over.** `jd_groups` holds six named capability areas, and
+their names are the same shape as C4 §B.1's own examples:
+
+| Code | Name |
+| --- | --- |
+| SCD | Strategy & Corporate Development |
+| CSEO | Chief of Staff & Executive Office |
+| OSS | Operations & Shared Services |
+| CFPA | Controlling, FP&A & Finance |
+| TPM | Transformation & Project Management |
+| POESG | Procurement, Outsourcing & ESG |
+
+And B5 rates every lead against a **17-dimension A–Q framework** (1 = Central, 2 = Contributing,
+3 = Peripheral) — Strategic Planning, Corporate Governance, Controlling, Project Management, Process
+Management, Change/Transformation, Leadership & People Management, Regulatory & Compliance, and so on.
+The Julius Baer lead carries `jdGroupPrimary: Chief of Staff & Executive Office`,
+`jdGroupSecondary: Transformation & Project Management`, and A/D/F/L/O rated Central.
+
+**What C4 §B.1 actually asks for, against what shipped:**
+
+| §B.1 says | Shipped |
+| --- | --- |
+| 3–5 **logical categories** reflecting "the main capability areas relevant to the Job Lead" | Core Competencies / Supporting Expertise / Additional Skills |
+| Most relevant (Core-aligned) categories at the top | ✅ rank order |
+| 4–8 skills per category | ✗ — 16 in one category on the reference lead |
+
+Core/Supporting/Additional is a **prioritisation label wearing a category's clothes**. It implements
+§B.3 (prioritisation) and leaves §B.1 (categorisation) unimplemented — and because everything lands in
+one bucket, it does not even deliver the "vertical reading" §B.1 exists for. The selection half of this
+CI is sound and stays; the grouping half has to be rebuilt.
+
+**Status moved back to `1 - Development`.** Per `[[++ Continuous Improvement Procedure]]`'s Rescoping
+rule, this is a scope correction rather than a fresh CI: §1 of this very note already named the
+categorisation defect (*"C4 groups skills by proficiency level only… not the thematic categories a real
+CV shows"*). It was in scope from the beginning and was wrongly deferred.
+
+### 2.12 · The open question for the rebuild
+
+Neither existing taxonomy categorises a **skill** — both are per-*lead*. `jd_groups` is assigned to the
+lead as primary/secondary; A–Q is rated for the lead. Nothing says which theme a given skill belongs to.
+
+And the obvious static fix does not reach: C4 prints `cv_bullet_skills`, which are **JD-language tags**
+("Governance Process Ownership", "Decision Documents Preparation"), not `skills_master` rows. So adding
+a category column to `skills_master`'s 25 rows would not categorise most of what actually prints.
+
+Three routes, to be decided before building:
+
+1. **A small model call in C4.** Give it this lead's selected skills plus the `jd_groups` names and the
+   lead's Central A–Q dimensions as preferred vocabulary; ask for 3–5 named groups. Directly matches
+   §B.1's "relevant to the Job Lead" — which is inherently per-lead and judgement-shaped. Cheapest in
+   code, and adaptive. **Cost: C4 stops being a pure-code step**, which is a real change in character
+   for a step that has never made a model call.
+2. **Categorise the curated vocabulary and map through it.** Tag each `skills_master` row with an A–Q
+   dimension, then group. Deterministic and stable — but see above: it misses the JD-language tags,
+   which are most of the printed set.
+3. **Group by the lead's Central A–Q dimensions**, assigning each printed skill to the nearest. Needs a
+   matcher, and this CI already rejected fuzzy matching once for good reason (it mapped "Leadership"
+   onto "Change Management").
+
 ### 2.4 · Deliberately out of scope
 
-- **Thematic categories** ("Governance & Compliance", "Process & Transformation") — ROADMAP P6. The
-  headings shipped here are rank-derived, which is the only taxonomy that exists as data today.
+- ~~**Thematic categories** — ROADMAP P6.~~ **Withdrawn 2026-08-24 — the premise was false.** See
+  §2.11. This is live work, not deferred work.
 - **Curating the 246 graph tags.** They stay as graph provenance, which is what they are; they simply
   no longer reach the CV. Nothing depends on cleaning them now.
 - **Requirement Skills content quality.** The 16 that now print include "Fluency in German and
@@ -159,6 +241,16 @@ Two further findings that reframed the fix:
 Surfaced while verifying the Skills tag wiring end-to-end against a real lead. The user explicitly asked
 this be tracked as unresolved rather than considered closed by the display cap, and set it as the highest
 priority of the three Ideas opened the same day.
+
+### 2026-08-24 · Reopened — categorisation half was deferred on a false premise
+
+The owner reported that the shipped grouping is not what C4 asks for, and asked what contradiction in
+ROADMAP P6 was blocking thematic categories. There is none: P6 covers the `approval_status` rename and
+per-tenant CV templates and never mentions skills. The claim entered this note on 2026-08-07 and was
+propagated into code and three other documents without anyone checking the roadmap — including by me,
+repeatedly. Corrected at every site. See §2.11 and §2.12.
+
+The selection half stands and is still under test; only the grouping is back in development.
 
 ### 2026-08-23 · Root-caused and built
 

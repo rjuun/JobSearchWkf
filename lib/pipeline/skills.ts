@@ -112,7 +112,18 @@ export const SKILLS_ENVELOPE = 40;
 /** Rank → the heading it prints under, in priority order (C4 §B.3 — Core and
  *  Important first, Nice-to-Have last). The headings are CV language, not the
  *  JD-internal rank labels; the thematic taxonomy a real CV shows
- *  ("Governance & Compliance", …) doesn't exist as data yet — ROADMAP P6. */
+ *  ("Governance & Compliance", …) is NOT yet built.
+ *
+ *  Correction, 2026-08-24: earlier revisions of this comment said that taxonomy
+ *  "doesn't exist as data yet — ROADMAP P6". Both halves were wrong. ROADMAP P6
+ *  has two entries — renaming the `approval_status` enum and per-tenant CV
+ *  templates — and says nothing about skills. And a taxonomy DOES exist:
+ *  `jd_groups` holds six named capability areas (Strategy & Corporate
+ *  Development, Chief of Staff & Executive Office, Operations & Shared Services,
+ *  Controlling/FP&A & Finance, Transformation & Project Management, Procurement/
+ *  Outsourcing & ESG), and B5 rates every lead against a 17-dimension A–Q
+ *  framework. The rank headings below are a stand-in that C4 §B.1 does not ask
+ *  for; see CI · C4 Skills Selection Produces Unreadable Overflow §2.11. */
 const RANK_HEADINGS: [rank: string, heading: string][] = [
   ['core', 'Core Competencies'],
   ['important', 'Supporting Expertise'],

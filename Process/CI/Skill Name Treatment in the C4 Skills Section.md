@@ -96,7 +96,9 @@ may already exist. Sequence:
 
 **Explicitly out of scope:** re-opening where C4 sources from, or its rank-based grouping — both were
 settled on [[C4 Skills Selection Produces Unreadable Overflow]]. Also out of scope: thematic categories
-("Governance & Compliance", "Process & Transformation"), which are ROADMAP P6.
+("Governance & Compliance", "Process & Transformation") — those belong to
+[[C4 Skills Selection Produces Unreadable Overflow]] §2.11, which is live work rather than the ROADMAP
+P6 item an earlier draft of this note wrongly cited.
 
 ## 3. Resources or references
 
