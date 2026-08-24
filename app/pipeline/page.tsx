@@ -27,7 +27,7 @@ const STAGES: Stage[] = [
   {
     letter: 'C',
     name: 'Tailor',
-    range: 'C1–C7',
+    range: 'C1–C8',
     items: TAILOR_STEPS.map((s) => ({
       code: s.id,
       label: s.label,

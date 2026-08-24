@@ -2,9 +2,9 @@
  * CI · C3 Writes CV-Grade Skill Tags — before/after probe.
  *
  * Read-only. Dumps the Keep-gated `requirement_tailoring` rows for one or more
- * leads: the bullet, the tag C3 wrote (`cv_bullet_skills`), the curated My
+ * leads: the bullet, the tag C4 wrote (`cv_bullet_skills`), the curated My
  * Skills behind it, and the JD's own asks (`requirement_skills`) — then the set
- * C4 would print from them today, after prioritisation and the language strike.
+ * C5 would print from them today, after prioritisation and the language strike.
  *
  * Exists because Generate CV overwrites `cv_bullet` and `cv_bullet_skills` in
  * place. What this CI changes is the REGISTER of those tags, so the only way to
@@ -51,7 +51,7 @@ async function snapshot(leadId: string) {
     console.log(`  requirement_sk. : ${list(r.requirementSkills)}`);
   }
 
-  // Exactly what generateCv does between C3 and the C4 grouping call.
+  // Exactly what generateCv does between C4 and the C5 grouping call.
   const selected = dropLanguageSkills(
     prioritiseSkills(
       rows.map((r) => ({ rank: (r.requirementId && rankById.get(r.requirementId)) ?? null, cvBulletSkills: r.cvBulletSkills ?? [] })),
@@ -61,7 +61,7 @@ async function snapshot(leadId: string) {
   ).slice(0, SKILLS_ENVELOPE);
 
   console.log(`\n${'-'.repeat(100)}`);
-  console.log(`WHAT C4 WOULD PRINT — ${selected.length} entries, before categorisation`);
+  console.log(`WHAT C5 WOULD PRINT — ${selected.length} entries, before categorisation`);
   console.log('-'.repeat(100));
   selected.forEach((s, i) => console.log(`  ${String(i + 1).padStart(2)}. ${s}`));
 }

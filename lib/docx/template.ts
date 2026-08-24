@@ -1,9 +1,9 @@
 /**
- * C6 (high-fidelity path): fill the owner's real 2-page Word template
+ * C7 (high-fidelity path): fill the owner's real 2-page Word template
  * (Group CVs/CV_Template.docx) with docxtemplater instead of rebuilding the
  * layout programmatically. The template carries 11 `<<Professional Experience -
  * … >>` placeholders keyed to the methodology's cv_position values, plus a
- * `<<Profile>>` placeholder filled by the tailored C5 profile. Skills, education
+ * `<<Profile>>` placeholder filled by the tailored C6 profile. Skills, education
  * and languages are filled from real data too — see `templateSlotData`.
  *
  * Correction, 2026-08-24: this comment used to say those three were "the

@@ -3,7 +3,7 @@
  * production path is docxtemplater filling the owner's existing template; for
  * the prototype we generate programmatically with `docx` — fully reliable, no
  * binary template to re-tag. The 2-page constraint is enforced as a content
- * budget upstream (C6), not by measuring pages.
+ * budget upstream (C7), not by measuring pages.
  */
 import { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle } from 'docx';
 

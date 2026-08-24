@@ -8,7 +8,7 @@ ci-date: 2026-08-23
 ci-estimated-time:
 ci-time-spent: 0
 pr-source: "[[C4 Skills Selection Produces Unreadable Overflow]]"
-pr-target: "[[C4. Build and Manage the Skills Section]]"
+pr-target: "[[C5. Build and Manage the Skills Section]]"
 ---
 
 ---
@@ -170,11 +170,11 @@ sparser. "Corporate Governance & Regulatory Compliance (EBA)" carries three matc
   belong here.
 - `scripts/audit-c4-skills-density.ts` — read-only; prints the current Skills section for every lead
   with Keep rows. Run this first to see whether the three problems generalise beyond the one lead.
-- `Process/C4. Build and Manage the Skills Section.md` — §B.4 Formatting Guidelines, §D Quality &
+- `Process/C5. Build and Manage the Skills Section.md` — §B.4 Formatting Guidelines, §D Quality &
   Consistency Rules. The two places a rule would live.
 - `Process/C1. Overall Application Content and Format Guidance.md` — check here first for the existing
   treatment the owner expects to find.
-- `Process/C3. Transform Evidence into CV Bullets.md` §B.5 — "Consistency of Bracketed Tags" already
+- `Process/C4. Transform Evidence into CV Bullets.md` §B.5 — "Consistency of Bracketed Tags" already
   asks for short, consistent tags across bullets; inconsistent tags are the direct upstream cause of (a).
 - `Process/B2. Extract Requirements from Job Description.md` §3.6 — why the names carry JD language.
 - [[C4 Skills Selection Produces Unreadable Overflow]] §2.4 — where this was logged as out of scope.

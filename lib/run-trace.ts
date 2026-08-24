@@ -41,7 +41,7 @@ function newestFirst(a: RunTraceEntry, b: RunTraceEntry): number {
 }
 
 /**
- * `steps` fixes the display order, so the trace reads B1→B6 (or C1→C7) rather
+ * `steps` fixes the display order, so the trace reads B1→B6 (or C1→C8) rather
  * than in whatever order the runs happen to arrive. Steps with no run at all are
  * omitted — "not run yet" is the absence of a line, as before.
  *

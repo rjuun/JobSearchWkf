@@ -2,13 +2,13 @@
 ci-area: CV Tailoring (C-Phase)
 ci-roadmap:
 ci-title: Renumber the C-Phase to Seat Evidence Selection at C3
-ci-status: 0 - Idea
+ci-status: 2 - Testing
 ci-priority: high
 ci-date: 2026-08-24
 ci-estimated-time: 3
-ci-time-spent: 0
+ci-time-spent: 3
 pr-source: "[[C3 Writes CV-Grade Skill Tags]]"
-pr-target: "[[C3. Transform Evidence into CV Bullets]], [[C4. Build and Manage the Skills Section]], [[C5. Drafting CV Profile (Per Job Lead)]], [[C6. Compile Complete CV Document]], [[C7. Run Reviewed ATS Matching Rating]]"
+pr-target: "[[C4. Transform Evidence into CV Bullets]], [[C5. Build and Manage the Skills Section]], [[C6. Drafting CV Profile (Per Job Lead)]], [[C7. Compile Complete CV Document]], [[C8. Run Reviewed ATS Matching Rating]]"
 ---
 
 ---
@@ -162,3 +162,105 @@ Split out of the design conversation that produced [[C3 Selects the CV Evidence 
 on the CI Procedure's own test — atomic, actionable, independently trackable — and because it carries
 a risk (§2.3) that would be a footnote inside a note about maximisation instead of a section with a
 mitigation.
+
+### 2026-08-25 · Implemented
+
+Renumber done as specified, with four departures from §2 — the first of which changed the acceptance
+criterion itself.
+
+**§2.5's hash criterion and §2.4's step 2 cannot both hold, and §2.5 was wrong.** The loaded step
+notes cross-reference each other by step code: B2 (1 line), C2 (4), old-C3 (14), old-C4 (16),
+old-C5 (6), old-C7 (1) — 42 lines in total, including live wiki-links such as C2 §180's
+`[[C4. Transform Evidence into CV Bullets]]` and old-C4 §104's "inserted into the CV during **C6.
+Compile Complete CV Document**". Renumbering those changes each note's text, so its hash *must* move;
+not renumbering them leaves wiki-links dangling (which §2.5 also forbids) and leaves prompts saying
+C3 writes bullets when C3 is now selection. Put to the owner on 2026-08-25, who chose to sweep the
+references and restate the criterion. What replaced it is strictly stronger for the notes that
+changed: **every changed line in every renamed note differs only by a step code**, verified line by
+line through `git diff`, and the five loaded notes with no C-references (B3, B4, B5, B6, O2-extract)
+are byte-identical to HEAD. Neither hash equality nor `git diff` was weakened anywhere else.
+
+**The baseline in `_step-prompt-baseline.txt` is line-ending sensitive, and that nearly cost the
+verification.** A fresh worktree checkout applies CRLF (`core.autocrlf=true` + `* text=auto`), while
+the main working tree holds LF for notes the owner has edited in Obsidian and CRLF for the rest. The
+committed blobs are LF throughout; the baseline was captured against that mixed working tree, so
+B3/B4/old-C5 carry CRLF hashes and every other note carries LF ones. Before touching anything the
+snapshot reproduced only 8 of 11 hashes, which looked like drift and was not. Normalising the Process
+notes to LF reproduced the baseline exactly — that was the gate, and it passed. The baseline has
+since been recaptured. **A hash from this file is only comparable to one taken in the same working
+tree**; the `git diff` check above does not have that weakness and should be preferred.
+
+**`pr-previous-code`, not `pr-previous`.** §2.4 step 1 says to put the old name in `pr-previous`, but
+that field already means something else here — B6 uses it for `[[B6. Run Initial ATS Matching
+Rating]]`, a `Past Versions/` note. The B-phase reorder used a dedicated `pr-previous-code:` holding
+the bare old code (B2–B5 all carry one). Followed that precedent instead.
+
+**The migration recreates the enum type rather than extending it.** `ALTER TYPE ... ADD VALUE 'C8'`
+plus an `UPDATE` writing `'C8'` cannot share a transaction, and drizzle's migrator runs *all* pending
+migrations inside one (`pg-core/dialect.js` → `session.transaction`), so splitting them across two
+files would not have helped either. `0039_renumber_c_phase_steps.sql` renames the old type, creates
+the new one, and moves every row in a single `CASE` — a type created in the current transaction may
+be used in it freely. `pipeline_runs.step` is the only column of that type, which is what makes the
+swap tractable; `llm_calls.step` is plain `text` and moves with a guarded `UPDATE` that leaves
+`C2-bt-base` / `C2-bt-cand` alone.
+
+**`docs/` was swept too, though §2.4 never lists it.** ARCHITECTURE, PIPELINE, DATA_MODEL, ROADMAP,
+DEPLOYMENT, `bpmn/README` and `design/USER_JOURNEY` describe the live pipeline, and PIPELINE.md's
+step table pointed at the five note filenames that no longer exist. `docs/archive/**` (980 hits) and
+`docs/RETROSPECTIVE.md` were left alone: both are explicitly preserved historical snapshots.
+
+#### The §2.3 hazard, and what the audit found
+
+The hazard is real and it fired twice more than §2.3 anticipated. `lib/llm/schemas.ts` §319 still
+reads *"an exact ref code … (e.g. `C4`, `EDU-2`, `LANG-3`)"* — checked explicitly, untouched. The two
+instances a bare sweep would also have corrupted:
+
+- `lib/__tests__/b6-evidence.test.ts` uses `C1` and `C4` as **evidence ref codes** (`ev('C4')`,
+  `refs: ['C1', 'C4']`), and `'German — C1'` / `'German (C1)'` are **CEFR language levels**.
+- `docs/design/career-graph-visualization.html` holds 27 matches that are all `CompetenceEntry_ID`
+  values from the owner's real profile data — `1-C3`, `3-C4`. `\bC3\b` matches inside `1-C3`,
+  because `-` is not a word character.
+
+Nothing was renamed by bare code. Every surface was renamed by an anchored pattern or edited line by
+line, and the CI-note titles carrying historical step numbers (`C3 Writes CV-Grade Skill Tags`,
+`C4 Skills Selection Produces Unreadable Overflow`, `Skill Name Treatment in the C4 Skills Section`,
+`Improve C3-C4 Skill Association Method`) were placeholder-protected through every sweep and verified
+after it.
+
+The rule applied throughout: **a pointer must resolve; a historical claim keeps its original code.**
+Wiki-links, file paths and `Process/Cn` references were renumbered wherever they appear — CI notes
+included — while prose in historical CI notes recording what happened under the old numbering was
+left as written.
+
+#### Found and deliberately left alone
+
+- **Pre-existing dangling wiki-links**, unchanged: `[[C3. Transform Evidences into CV Bullets]]`
+  (typo'd, ×2, in `Introduce Requirement Skills to Job Requirements List`) and
+  `[[C4. Drafting the CV Profile (Per Job Lead)]]` (an old title, inside what is now the C6 note).
+  55 targets dangled at HEAD and 54 do now — **this change introduced none and resolved one**
+  (`[[C3. Select the CV Evidence Set]]`, which the new stub satisfies).
+- **`+ Job Hunting Master Instructions.md` §58 lists the `STEP_NOTE` keys and is missing one.** It
+  read `C2, C3, C5, C7` — stale since old-C4 joined the map on 2026-08-24. The codes present were
+  renumbered (`C2, C4, C6, C8`); the missing entry for the skills step is still missing.
+- **`workspace.tsx` `STEP_SOURCE` calls the skills step `'code rule'`**, also stale since that step
+  gained a model call. Renumbered in place.
+- **`lib/llm/schemas.ts` §605** carries an orphaned `── C6 · Tailored CV profile ──` header sitting
+  above the *skills* block, while the real profile export below has none. Both renumbered in place;
+  the misplacement survives.
+- **The C6 note still says "C4 is one of the highest-impact steps"** (§122–123), meaning *itself*
+  under a numbering two moves old. Wrong before this CI and wrong after; renumbering it as though it
+  named the skills step would have been a guess.
+- **Test and script filenames keep their historical codes** — `c3-bullet-floor.test.ts`,
+  `c4-skills.test.ts`, `c5-profile-floor.test.ts`, `scripts/audit-c4-skills-density.ts`. Renaming
+  them would have meant rewriting ~14 references inside CI notes that record what was run at the
+  time ("226 tests pass, 17 of them new (`lib/__tests__/c4-skills.test.ts`)"). Their *contents* are
+  renumbered, and the exported symbols they cover moved with the step: `missingC3Refs` →
+  `missingC4Refs`, `c3UserMessage` → `c4UserMessage`, `C3Row`/`C3Bullet` → `C4Row`/`C4Bullet`,
+  `absorbC3Bullets` → `absorbC4Bullets`, `c3HasRun` → `c4HasRun`.
+- **C3 is absent from every step enumeration**, not only `STEP_NOTE`: `TAILOR_STEPS` in
+  `lib/journey.ts`, and the mermaid flow and step table in `docs/PIPELINE.md`, all run C1, C2, C4…C8.
+  A row was drafted and then withdrawn — §2.5 already rules that the `STEP_NOTE` gap "is correct, not
+  an oversight to tidy up", and the same reasoning holds harder for a *display* list: a C3 on the
+  pipeline map that no run trace can ever show is a step the UI claims to run and doesn't. Both lists
+  carry a comment saying the gap is deliberate. **[[C3 Selects the CV Evidence Set]] adds those three
+  entries when it builds the step.**

@@ -75,7 +75,7 @@ The new-user spine — with the **Career Graph as the persistent foundation unde
             ┌──────────────────── Career Graph (the asset, always growing) ───────────────────┐
             │                                                                                  │
   ▶ BUILD ───────▶ SCREEN ───────▶ TAILOR ───────▶ APPLY ───────▶ IMPROVE ──┐
-  (onboard:       (B1–B6,         (C1–C7,          (track          (the loop:  │
+  (onboard:       (B1–B6,         (C1–C8,          (track          (the loop:  │
    import+coach)   honest fit)     human gate)      outcomes)       graph grows)│
             ▲                                                                   │
             └──────────────────── enrichment loop feeds back ───────────────────┘
@@ -111,7 +111,7 @@ Honest role-fit, already built. **New:** when screening surfaces a gap (*"Core: 
 match"*) it becomes an **enrichment prompt** — *"Do you actually have this? Add the evidence."* The
 screen becomes a graph-growth moment.
 
-### Stage C · TAILOR (C1–C7 · the human gate)
+### Stage C · TAILOR (C1–C8 · the human gate)
 Already redesigned. Strengthen:
 - **Provenance in the CV** — every bullet traces to the approved evidence node. The user can trust
   and verify every line.

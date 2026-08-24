@@ -13,6 +13,12 @@ import { ciGuidanceFor } from './ci';
  * and its filename must always name the same step, or a step silently loads
  * another step's procedure as its system prompt and still returns a valid-looking
  * tool call. When renumbering, move the pair, never one side.
+ *
+ * The C-phase moved the same way on 2026-08-24 (CI · Renumber the C-Phase to Seat
+ * Evidence Selection at C3): bullets are now C4, skills C5, profile C6, compile C7,
+ * ATS rating C8. **C3 and C7 are absent from this map on purpose.** C3 is the new
+ * evidence-selection step, which makes no model call until its own CI builds one;
+ * C7 is the document build, which has never made one. Neither gap is an oversight.
  */
 const STEP_NOTE: Record<string, string> = {
   B2: 'B2. Extract Requirements from Job Description.md',
@@ -21,14 +27,14 @@ const STEP_NOTE: Record<string, string> = {
   B5: 'B5. Translate Requirements to Areas of Expertise and Define JD Groups.md',
   B6: 'B6. Role Fit & Investment Worthiness Score.md',
   C2: 'C2. Map JD Requirements to Supporting Evidence.md',
-  C3: 'C3. Transform Evidence into CV Bullets.md',
-  // C4 joined this map on 2026-08-24, when its §B.1 categorisation became a model
+  C4: 'C4. Transform Evidence into CV Bullets.md',
+  // C5 joined this map on 2026-08-24, when its §B.1 categorisation became a model
   // call. Its note carries the rules the call has to follow (3–5 categories,
   // 4–8 skills, Core-aligned first), so the note IS the prompt — same as every
   // other step here. Selection and prioritisation either side of it stay code.
-  C4: 'C4. Build and Manage the Skills Section.md',
-  C5: 'C5. Drafting CV Profile (Per Job Lead).md',
-  C7: 'C7. Run Reviewed ATS Matching Rating.md',
+  C5: 'C5. Build and Manage the Skills Section.md',
+  C6: 'C6. Drafting CV Profile (Per Job Lead).md',
+  C8: 'C8. Run Reviewed ATS Matching Rating.md',
   'O2-extract': 'Onboarding/O2 Extract Career Graph.md',
 };
 

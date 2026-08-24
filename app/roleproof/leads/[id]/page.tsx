@@ -59,8 +59,8 @@ export default async function RoleProofWorkspacePage({
 
   const cleanedJd = cleanJd(jd);
 
-  // Hydrate the ATS score from the latest C7 run so it survives a page reload
-  // (runs are ordered newest-first). C7 persists its rating in pipeline_runs.output.
+  // Hydrate the ATS score from the latest C8 run so it survives a page reload
+  // (runs are ordered newest-first). C8 persists its rating in pipeline_runs.output.
   const initialAtsRating = atsRatingFromRuns(runTrace);
 
   const greenCount = tailoring.filter((t) => t.approvalStatus === 'green').length;
@@ -204,10 +204,10 @@ const JD_CHROME = [
   /easy apply/i,
   /see how you compare/i,
 ];
-/** Pull the most recent C7 ATS rating out of the pipeline runs (newest-first). */
+/** Pull the most recent C8 ATS rating out of the pipeline runs (newest-first). */
 function atsRatingFromRuns(runs: { step: string; output: unknown }[]): number | null {
-  const c7 = runs.find((r) => r.step === 'C7');
-  const out = c7?.output as { atsRating?: unknown } | null | undefined;
+  const c8 = runs.find((r) => r.step === 'C8');
+  const out = c8?.output as { atsRating?: unknown } | null | undefined;
   return typeof out?.atsRating === 'number' ? out.atsRating : null;
 }
 

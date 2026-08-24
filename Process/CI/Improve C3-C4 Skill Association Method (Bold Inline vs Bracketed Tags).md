@@ -8,7 +8,7 @@ ci-date: 2026-06-22
 ci-estimated-time: 2
 ci-time-spent: 1.25
 pr-source: "[[C4. Associate Skills to CV Bullets]]"
-pr-target: "[[C4. Build and Manage the Skills Section]]"
+pr-target: "[[C5. Build and Manage the Skills Section]]"
 ---
 ---
 ```simple-time-tracker

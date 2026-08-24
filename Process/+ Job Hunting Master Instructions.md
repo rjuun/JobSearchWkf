@@ -55,7 +55,7 @@ within-group counter is `group_rank`).
 #### Step notes
 
 The notes in `Process/` are the step procedures. Ten of them are loaded verbatim as system prompts by
-`lib/prompts.ts` (`STEP_NOTE`): **B2, B3, B4, B5, B6, C2, C3, C5, C7** and **Onboarding/O2**. You do
+`lib/prompts.ts` (`STEP_NOTE`): **B2, B3, B4, B5, B6, C2, C4, C6, C8** and **Onboarding/O2**. You do
 not fetch your own note — the one you are running is already in your context, above this document.
 
 | Step | Note |

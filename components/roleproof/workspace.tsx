@@ -101,7 +101,7 @@ export type RpRow = {
   // requirement_skills. `requirementSkills` is what the JD asks of this
   // requirement (B2, snapshotted at C2 and never rewritten); `mySkills` is the
   // candidate's own vocabulary that answers it (C2's validated selection);
-  // `cvBulletSkills` is what the tailored bullet actually displays (C3's tag).
+  // `cvBulletSkills` is what the tailored bullet actually displays (C4's tag).
   // Never the same list. Asked-for minus displayed is this row's coverage gap.
   mySkills: string[];
   requirementSkills: string[];
@@ -149,7 +149,7 @@ type Props = {
   cvReady: boolean;
   leadTips: { id: string; observation: string }[];
   runTrace: RunTrace[];
-  /** Latest C7 ATS rating from the DB, so the score survives a reload. */
+  /** Latest C8 ATS rating from the DB, so the score survives a reload. */
   initialAtsRating: number | null;
   /** True when an OPEN screening-gap coach prompt actually exists for this lead. */
   coachBridge: boolean;
@@ -440,11 +440,11 @@ const PROMPT_SOURCE: Record<string, string> = {
   B6: 'Process/B6',
   C1: 'code rule',
   C2: 'Process/C2',
-  C3: 'Process/C3',
-  C4: 'code rule',
-  C5: 'Process/C5',
-  C6: 'DOCX template',
-  C7: 'Process/C7',
+  C4: 'Process/C4',
+  C5: 'code rule',
+  C6: 'Process/C6',
+  C7: 'DOCX template',
+  C8: 'Process/C8',
 };
 
 function tracesFor(c: Ctx, steps: readonly string[]): StepTrace[] {
@@ -1791,7 +1791,7 @@ function ApproveMapCard({ c }: { c: Ctx }) {
   );
 }
 
-// Animated progress while the live C-pipeline runs (map: C1–C2, generate: C3–C7).
+// Animated progress while the live C-pipeline runs (map: C1–C2, generate: C4–C8).
 function PipelineProgress({ c }: { c: Ctx }) {
   const steps = c.busyPhase === 'generate' ? GEN_STEPS : MAP_STEPS;
   const title = c.busyPhase === 'generate' ? 'Assembling your CV' : 'Matching your evidence';
@@ -1910,7 +1910,7 @@ function CvCard({ c }: { c: Ctx }) {
           </div>
           <Mach>
             <div className="mt-1 font-mono text-[10px] text-white/70">
-              C3 draft · C4 skills · C5 profile · C6 compile · C7 ATS rating
+              C4 draft · C5 skills · C6 profile · C7 compile · C8 ATS rating
             </div>
           </Mach>
         </div>
@@ -2003,8 +2003,8 @@ function CvCard({ c }: { c: Ctx }) {
                       )}
                       {/* No "not evidenced" badge yet — deliberately. The gap
                           (asked-for minus on-the-bullet) is the whole reason
-                          C3's tag got its own column, but the only honest way to
-                          compute it today is exact string match, and C3 rewords
+                          C4's tag got its own column, but the only honest way to
+                          compute it today is exact string match, and C4 rewords
                           almost every ask ("Stakeholder management" becomes
                           "Stakeholder Management With Senior Leadership"). That
                           scores 48 of 49 asks as missing on the Allianz lead,
@@ -2040,9 +2040,9 @@ function CvCard({ c }: { c: Ctx }) {
           </button>
         )}
       </div>
-      {hasTrace(c, ['C3', 'C4', 'C5', 'C6', 'C7']) && (
+      {hasTrace(c, ['C4', 'C5', 'C6', 'C7', 'C8']) && (
         <div className="border-t border-hairline px-5 py-3">
-          <TraceDisclosure c={c} steps={['C3', 'C4', 'C5', 'C6', 'C7']} />
+          <TraceDisclosure c={c} steps={['C4', 'C5', 'C6', 'C7', 'C8']} />
         </div>
       )}
     </div>

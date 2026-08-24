@@ -112,7 +112,7 @@ them, and nothing in the app has a filesystem to reach them with.
 - **`lead_status`**: `captured` · `screening` · `hold` · `screened` · `promoted` · `tailoring` · `ready` · `applied` · `archived`
 - **`requirement_rank`**: `Core` · `Important` · `Nice-to-Have`  (scoring weights 3 / 2 / 1)
 - **`match_strength`**: `Excellent` (9–10) · `Very Strong` (7–8) · `Good` (5–6) · `Weak` (2–4) · `No Match` (0–1)
-- **`approval_status`**: `pending` · `green` (keep) · `yellow` (reassign) · `red` (drop) — *only `green` flows to C3*
+- **`approval_status`**: `pending` · `green` (keep) · `yellow` (reassign) · `red` (drop) — *only `green` flows to C4*
 - **`recommendation`**: `Proceed` · `Caution` · `Low priority` · `Not recommended`
 - **`cv_position`**: standardized CV-section targets that bind tailoring rows to docx placeholders
   (e.g. `Professional Experience - A1. <Project>`, `Professional Experience - B0. Responsibilities`,
@@ -132,7 +132,7 @@ profiles 1─┬─< positions 1─< stars 1─< star_actions / star_results / s
                   │
                   1─< job_requirements ─┬─< requirement_evidence  (B6, machine-proposed, many-to-many)
                   │                     └─< requirement_tailoring >─ (evidence_ref → star_actions/responsibilities/…)
-                  │                                                     │ approval_status gates → C3 bullets
+                  │                                                     │ approval_status gates → C4 bullets
                   1─< applications >─ cv_variants
 ```
 

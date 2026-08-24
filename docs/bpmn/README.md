@@ -18,7 +18,7 @@ process, not a runtime engine.
 
 The process is already a gated graph:
 
-- **Tasks** = the pipeline steps (A1, B1–B6, C1–C7).
+- **Tasks** = the pipeline steps (A1, B1–B6, C1–C8).
 - **Gateways** = the two real decision gates — B1 (*posting ≥60 days → hold*) and B6 (*fit tier →
   proceed / caution / low / not recommended*).
 - **Human task** = C2's Green/Yellow/Red evidence approval.

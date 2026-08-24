@@ -32,7 +32,7 @@ export const env = {
   anthropicBaseUrl: str('ANTHROPIC_BASE_URL', 'https://api.anthropic.com'),
   // Per-step model tiers (Master Instructions §6.1): Sonnet for extraction /
   // mapping steps, Opus for the truthfulness-critical scoring & CV-substance
-  // steps (B6, C2, C3, C5, C7).
+  // steps (B6, C2, C4, C6, C8).
   anthropicModelSonnet: str('ANTHROPIC_MODEL_SONNET', 'claude-sonnet-5'),
   anthropicModelOpus: str('ANTHROPIC_MODEL_OPUS', 'claude-opus-4-8'),
 

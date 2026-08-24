@@ -78,7 +78,7 @@ incrementality work (`[[Make C2 Build on B6 Instead of Re-Deriving the Map]]`). 
 
 ### 2.1 The floor
 
-`Process/C5. Drafting CV Profile (Per Job Lead).md` and the tool description both specify **4–7 lines,
+`Process/C6. Drafting CV Profile (Per Job Lead).md` and the tool description both specify **4–7 lines,
 70–110 words**. That gives a defensible floor without inventing a threshold:
 
 - **Reject empty or whitespace-only** — unambiguous, no judgement needed.
@@ -140,7 +140,7 @@ so the last attempt either clears the bar or it doesn't.
 - **Parent:** `[[Complete Required Lists on the Remaining Strict Tool Schemas]]` — the mechanism, and the
   C3 guard this copies.
 - **Code:** `lib/pipeline/tailoring.ts` (C5 block, `profileText`) · `lib/llm/schemas.ts` (`C5`) ·
-  `Process/C5. Drafting CV Profile (Per Job Lead).md` (the 4–7 line / 70–110 word spec).
+  `Process/C6. Drafting CV Profile (Per Job Lead).md` (the 4–7 line / 70–110 word spec).
 - **Tests to mirror:** `lib/__tests__/c3-bullet-floor.test.ts`.
 - `next lint` is broken in this repo (pre-existing). Verify with `npx tsc --noEmit` + `npx vitest run`.
 - `scripts/verify-tailoring.ts` is **destructive** — it promotes a real lead and overwrites its tailoring

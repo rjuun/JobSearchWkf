@@ -557,16 +557,16 @@ export const C2 = {
   } satisfies ToolDef,
 };
 
-// ── C3 · Transform Keep evidence into CV bullets ─────────────────────────────
+// ── C4 · Transform Keep evidence into CV bullets ─────────────────────────────
 // CI · C3 Writes CV-Grade Skill Tags §2.3.2 — `skills` was described here, and
-// instructed in C3 §B.5, as Job-Lead-facing language: "the bracketed tag carries
+// instructed in C4 §B.5, as Job-Lead-facing language: "the bracketed tag carries
 // JD-compatible language". That is why the CV printed "Work Autonomously". The
 // tag is what the Skills section shows, so it is CANDIDATE-facing and belongs in
 // the candidate's own register; the JD's wording keeps its own column
 // (`requirement_skills`, B2's, never overwritten) and its own job, ATS matching
 // at C2. Knowingly overturns the Requirement Skills vs My Skills epic's ruling
 // on this point.
-export const C3 = {
+export const C4 = {
   zod: z.object({
     bullets: z
       .array(z.object({ ref: z.string(), bullet: z.string(), skills: z.array(z.string()).default([]) }))
@@ -602,16 +602,16 @@ export const C3 = {
   } satisfies ToolDef,
 };
 
-// ── C5 · Tailored CV profile ─────────────────────────────────────────────────
-// ── C4 · Group the selected skills into the CV's Skills categories ──────────
-// C4 §B.1: 3-5 logical categories reflecting "the main capability areas relevant
+// ── C6 · Tailored CV profile ─────────────────────────────────────────────────
+// ── C5 · Group the selected skills into the CV's Skills categories ──────────
+// C5 §B.1: 3-5 logical categories reflecting "the main capability areas relevant
 // to the Job Lead", 4-8 skills each, most Core-aligned first. This is the one
-// part of C4 a model has to do: naming a category is a judgement over THIS
+// part of C5 a model has to do: naming a category is a judgement over THIS
 // lead's actual skill set, and no lookup produces "Governance, Risk & Compliance"
 // from a list of strings. Selection and prioritisation stay in code either side
 // of it, and the write path re-checks every name the model returns — see
 // `reconcileSkillGroups` in lib/pipeline/skills.ts.
-export const C4 = {
+export const C5 = {
   zod: z.object({
     groups: z
       .array(z.object({ category: z.string(), skills: z.array(z.string()).default([]) }))
@@ -643,7 +643,7 @@ export const C4 = {
   } satisfies ToolDef,
 };
 
-export const C5 = {
+export const C6 = {
   zod: z.object({ profile: z.string() }),
   tool: {
     name: 'emit_profile',
@@ -658,8 +658,8 @@ export const C5 = {
   } satisfies ToolDef,
 };
 
-// ── C7 · Reviewed ATS matching rating ────────────────────────────────────────
-export const C7 = {
+// ── C8 · Reviewed ATS matching rating ────────────────────────────────────────
+export const C8 = {
   zod: z.object({
     overall: z.number().min(0).max(100),
     requirements: z
@@ -694,7 +694,7 @@ export const C7 = {
             gaps: str,
           },
           // Every property is listed — see the B2 note above. Both omitted fields
-          // are columns the C7 note's own ATS Breakdown Table demands, so leaving
+          // are columns the C8 note's own ATS Breakdown Table demands, so leaving
           // them out of `required` risked collapsing the step that produces them.
           required: ['requirement', 'score', 'matchStrength', 'keyStrengths', 'gaps'],
         }),
@@ -706,7 +706,7 @@ export const C7 = {
 };
 
 // ── COACH · structure a coaching answer into a draft evidence node ──────────
-// The same anti-fabrication guard as C2/C3: a metric is emitted ONLY when a
+// The same anti-fabrication guard as C2/C4: a metric is emitted ONLY when a
 // number is explicitly present in the user's own words; otherwise it stays null.
 export const COACH_DRAFT = {
   zod: z.object({
@@ -769,9 +769,9 @@ export const STORY = {
 export type StoryOut = z.infer<typeof STORY.zod>;
 
 export type C2Out = z.infer<typeof C2.zod>;
-export type C3Out = z.infer<typeof C3.zod>;
-export type C5Out = z.infer<typeof C5.zod>;
-export type C7Out = z.infer<typeof C7.zod>;
+export type C4Out = z.infer<typeof C4.zod>;
+export type C6Out = z.infer<typeof C6.zod>;
+export type C8Out = z.infer<typeof C8.zod>;
 
 export type ImportOut = z.infer<typeof IMPORT.zod>;
 

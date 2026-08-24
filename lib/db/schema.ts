@@ -85,6 +85,7 @@ export const pipelineStepEnum = pgEnum('pipeline_step', [
   'C5',
   'C6',
   'C7',
+  'C8',
 ]);
 export const runStatusEnum = pgEnum('run_status', ['pending', 'running', 'done', 'error']);
 
@@ -500,12 +501,12 @@ export const requirementTailoring = pgTable('requirement_tailoring', {
   //   mySkills — the candidate's own vocabulary that answers it. C2's selection
   //     from `skills_master` / `star_competences` / `star_attributes`, validated
   //     against them. Traceability, not a display field.
-  //   cvBulletSkills — what the tailored bullet actually displays: C3's bracketed
+  //   cvBulletSkills — what the tailored bullet actually displays: C4's bracketed
   //     tag (or the skill it bolded inline). This is what the CV's Skills section
   //     prints, and `requirementSkills` minus this is the row's coverage gap —
   //     what the requirement asked for that the bullet did not evidence.
   //
-  // Before this CI, C3 wrote its tag over `requirementSkills`, so one column held
+  // Before this CI, C4 wrote its tag over `requirementSkills`, so one column held
   // two different things at two different times with nothing to tell them apart.
   mySkills: jsonb('my_skills').$type<string[]>().default([]),
   requirementSkills: jsonb('requirement_skills').$type<string[]>().default([]),

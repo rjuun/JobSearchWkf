@@ -1,16 +1,16 @@
 /**
- * C2/C4 skills vocabulary — the two pure decisions this CI exists to correct.
+ * C2/C5 skills vocabulary — the two pure decisions this CI exists to correct.
  *
  * CI · C4 Skills Selection Produces Unreadable Overflow. The
  * [[Requirement Skills vs My Skills — Two-Column Redesign (Epic)]] §2 specified
  * My Skills as "the candidate's own vocabulary for the same evidence — drawn
  * from `skills_master`, and (pending Q3) `star_competences` /
  * `star_attributes`", and §5 flagged Q3 as the one open question to settle
- * *before* the C4 rewrite. Q3 was never answered and the build shipped
+ * *before* the C5 rewrite. Q3 was never answered and the build shipped
  * `mySkills: ev.skills` instead — the evidence node's own free-text tags, a
  * third option the design never listed. Measured on the live profile: 246
  * distinct tags across 104 evidence rows, 180 of them used exactly once, only
- * 8 present in any curated table. C4's uncapped consistency rule then printed
+ * 8 present in any curated table. C5's uncapped consistency rule then printed
  * all of a Keep set's tags verbatim, which is where "67 skills in one line"
  * came from.
  *
@@ -19,7 +19,7 @@
  *  - `buildVocabIndex` / `resolveVocab`: nothing becomes a My Skills value
  *    unless it is a real name in the owner's curated vocabulary. Free-text
  *    graph tags stay on the graph as provenance and never reach the CV.
- *  - `prioritiseSkills` / `reconcileSkillGroups` / `ungroupedSkills`: C4 §A's
+ *  - `prioritiseSkills` / `reconcileSkillGroups` / `ungroupedSkills`: C5 §A's
  *    three moves, in order. Collect every skill the Keep-gated bullets declare
  *    (`cv_bullet_skills`); prioritise Core → Important → Nice-to-Have until the
  *    section is full (§B.3); then group what survived into 3–5 capability areas
@@ -99,18 +99,18 @@ export function resolveVocab(raw: readonly string[], index: Map<string, VocabEnt
   return out;
 }
 
-/** A Keep-gated `requirement_tailoring` row, reduced to what C4 needs. */
+/** A Keep-gated `requirement_tailoring` row, reduced to what C5 needs. */
 export type KeepRowSkills = {
   /** The matched requirement's B2 rank: Core | Important | Nice-to-Have. */
   rank: string | null;
-  /** `requirement_tailoring.cv_bullet_skills` — what C3's tailored bullet
+  /** `requirement_tailoring.cv_bullet_skills` — what C4's tailored bullet
    *  actually displays. Not `requirement_skills`, which is what the JD asked
    *  for and may be broader than the bullet ended up evidencing. */
   cvBulletSkills: readonly string[] | null;
 };
 
 /**
- * How many skills the section can hold: C4 §B.1's own envelope, 3–5 categories
+ * How many skills the section can hold: C5 §B.1's own envelope, 3–5 categories
  * × 4–8 skills. §A's prioritisation exists precisely to fit within it — "as the
  * number of declared skills allows", in the owner's words — so this is the
  * number that decides what gets shed, not a safety cap bolted on afterwards.
@@ -163,7 +163,7 @@ export function prioritiseSkills(rows: readonly KeepRowSkills[], limit = SKILLS_
  * Skills that are really a language — the CV has a Languages section of its own,
  * filled straight from the `languages` table, so printing "Business-Fluent
  * English" under Skills states the same fact twice in two different shapes and
- * spends a Skills slot on it. C4 §B.4: languages are never Skills entries.
+ * spends a Skills slot on it. C5 §B.4: languages are never Skills entries.
  *
  * Matched against the owner's OWN language list rather than a hard-coded set of
  * language names — the profile already knows which languages exist, and a static
@@ -184,7 +184,7 @@ export function dropLanguageSkills(selected: readonly string[], languageNames: r
 
 export type SkillGroup = { category: string; items: string[] };
 
-/** C4 §B.1: "Group skills into 3–5 high-level categories." */
+/** C5 §B.1: "Group skills into 3–5 high-level categories." */
 const MAX_CATEGORIES = 5;
 /** Where skills land that the grouping step failed to place. Should be empty in
  *  a healthy run — the step report surfaces the count so it is visible if not. */
@@ -323,13 +323,13 @@ export function ungroupedSkills(selected: readonly string[]): SkillGroup[] {
  *    word with the row's own material. This does not verify the claim; it
  *    catches the ORPHAN — a tag about something the row is not about at all,
  *    which is the shape a fabricated capability takes. Whether the tag is
- *    genuinely earned by the bullet is a judgement, and it is why C3 runs on
+ *    genuinely earned by the bullet is a judgement, and it is why C4 runs on
  *    Opus.
  *  - **Coverage** (`uncoveredSkills`): every curated My Skill on the row should
  *    be recognisable in some tag, so a capability cannot silently vanish when
- *    C3 re-registers it. Reported, never enforced by dropping — dropping tags
+ *    C4 re-registers it. Reported, never enforced by dropping — dropping tags
  *    makes coverage worse, not better, so the only honest answer to "silently"
- *    is visibility. `generateCv` puts the count in the C3 step report.
+ *    is visibility. `generateCv` puts the count in the C4 step report.
  *
  * Both halves are built once, here, because the consolidation half of this work
  * ([[Skill Name Treatment in the C4 Skills Section]]) needs the same notion of
@@ -443,7 +443,7 @@ export type TagAudit = {
  * The whole guard for one Keep row in one call: drop the orphans, then measure
  * what the survivors failed to carry through. Blank and duplicate tags go too —
  * a tag repeated in two spellings is the near-duplicate this CI exists to stop,
- * and the first spelling is the one C3 chose first.
+ * and the first spelling is the one C4 chose first.
  */
 export function auditBulletTags(
   tags: readonly string[],
@@ -466,7 +466,7 @@ export function auditBulletTags(
 }
 
 /**
- * §2.4 on the C4 side: the same support-plus-coverage test, applied to a name
+ * §2.4 on the C5 side: the same support-plus-coverage test, applied to a name
  * the grouping step proposes that is NOT one of the selected skills.
  *
  * A compound is supported when it CONTAINS a selected skill whole — every

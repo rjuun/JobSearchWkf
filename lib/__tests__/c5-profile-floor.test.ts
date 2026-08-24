@@ -1,13 +1,13 @@
 /**
- * C5's collapse floor.
+ * C6's collapse floor.
  *
- * The defect being guarded: `C5`'s strict schema has `required: ['profile']`
+ * The defect being guarded: `C6`'s strict schema has `required: ['profile']`
  * and `z.string()` accepts `""`, so a degraded call returns `{"profile": ""}`.
  * `runStructured` logs `status='ok'`, `tailoring.ts` did `profileText =
  * r.data.profile.trim()` unconditionally, and the empty string then flowed
  * into the .docx (blank Profile section, unfilled `<<Profile>>` placeholder)
- * and into C7 (rating a CV whose profile section is empty). Structurally the
- * same family as C2's `placeholder` failure and C3's raw-text substitution —
+ * and into C8 (rating a CV whose profile section is empty). Structurally the
+ * same family as C2's `placeholder` failure and C4's raw-text substitution —
  * a complete `required` list makes the key present, it cannot make the VALUE
  * meaningful — which is why this mirrors `c3-bullet-floor.test.ts`.
  */

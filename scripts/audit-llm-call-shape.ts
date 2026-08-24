@@ -119,7 +119,7 @@ async function main() {
 
   // ── Caught vs shipped ──────────────────────────────────────────────────────
   // A short call is NOT by itself a defect. B2's `tooThin`, B6's `unjudged` and
-  // C3's floor all re-ask by calling runStructured again, and each attempt is
+  // C4's floor all re-ask by calling runStructured again, and each attempt is
   // its own `llm_calls` row — so a guard that fires leaves the collapsed attempt
   // behind on purpose. (`attempts` here counts runStructured's internal zod
   // retry, not the guard's re-asks, so it stays 1 through all of this.)

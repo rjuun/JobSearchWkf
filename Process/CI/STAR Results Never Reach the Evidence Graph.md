@@ -8,7 +8,7 @@ ci-date: 2026-08-24
 ci-estimated-time: 1
 ci-time-spent: 0
 pr-source: "[[C3 Writes CV-Grade Skill Tags]]"
-pr-target: "[[C2. Map JD Requirements to Supporting Evidence]], [[C3. Transform Evidence into CV Bullets]]"
+pr-target: "[[C2. Map JD Requirements to Supporting Evidence]], [[C4. Transform Evidence into CV Bullets]]"
 ---
 
 ---

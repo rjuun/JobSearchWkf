@@ -31,7 +31,7 @@ export type StageDef = {
 export const STAGES: StageDef[] = [
   { key: 'capture', label: 'Capture', blurb: 'Job lead saved', steps: 'A1' },
   { key: 'screen', label: 'Screen', blurb: 'Role Fit Score', steps: 'B1–B6' },
-  { key: 'tailor', label: 'Tailor', blurb: 'Evidence → CV', steps: 'C1–C7' },
+  { key: 'tailor', label: 'Tailor', blurb: 'Evidence → CV', steps: 'C1–C8' },
   { key: 'apply', label: 'Apply', blurb: 'Submit & track', steps: 'D' },
 ];
 
@@ -55,15 +55,25 @@ export const SCREEN_STEPS: Array<{ id: string; label: string; hint: string }> = 
   { id: 'B6', label: 'Role fit score', hint: 'Weighted, reproducible 0–10 score' },
 ];
 
-/** Canonical tailoring sub-steps (C1–C7). */
+/**
+ * Canonical tailoring sub-steps (C1–C8).
+ *
+ * Kept in lockstep with the C-phase renumber (CI · Renumber the C-Phase to Seat
+ * Evidence Selection at C3): bullets are now C4, skills C5, profile C6, compile C7,
+ * ATS rating C8. **C3 is absent on purpose** — selecting which evidence reaches the
+ * CV is a real step with a number and a note (`Process/C3. Select the CV Evidence
+ * Set.md`), but nothing runs it yet, and listing it here would put a step on the
+ * pipeline map that no run trace can ever show. Its own CI adds the row when it
+ * builds the step. Same deliberate gap as `STEP_NOTE` in prompts.ts.
+ */
 export const TAILOR_STEPS: Array<{ id: string; label: string; hint: string }> = [
   { id: 'C1', label: 'Format check', hint: 'Detect ATS + structure' },
   { id: 'C2', label: 'Map evidence', hint: 'Link each requirement to profile evidence' },
-  { id: 'C3', label: 'Draft bullets', hint: 'Only Keep evidence' },
-  { id: 'C4', label: 'Skills section', hint: 'Mirror supported JD keywords' },
-  { id: 'C5', label: 'Profile summary', hint: 'Tailored headline + summary' },
-  { id: 'C6', label: 'Compile CV', hint: 'Fill the 2-page template by content budget' },
-  { id: 'C7', label: 'ATS rating', hint: 'Coverage / keyword check' },
+  { id: 'C4', label: 'Draft bullets', hint: 'Only Keep evidence' },
+  { id: 'C5', label: 'Skills section', hint: 'Mirror supported JD keywords' },
+  { id: 'C6', label: 'Profile summary', hint: 'Tailored headline + summary' },
+  { id: 'C7', label: 'Compile CV', hint: 'Fill the 2-page template by content budget' },
+  { id: 'C8', label: 'ATS rating', hint: 'Coverage / keyword check' },
 ];
 
 const STATUS_STAGE: Record<string, StageKey> = {
@@ -208,7 +218,7 @@ function computeNext(
       // this used to send the person into that box; now it's one action.
       return { title: 'Approve the map', detail: 'Approve the whole map in one action — only items with a CV slot are Kept.', cta: 'approve', tone: 'amber', blocked: false };
     }
-    return { title: `Generate the CV`, detail: `${keptCount} item${keptCount === 1 ? '' : 's'} kept. Compile the 2-page CV (C3–C7).`, cta: 'generate', tone: 'green', blocked: false };
+    return { title: `Generate the CV`, detail: `${keptCount} item${keptCount === 1 ? '' : 's'} kept. Compile the 2-page CV (C4–C8).`, cta: 'generate', tone: 'green', blocked: false };
   }
 
   // Screen stage

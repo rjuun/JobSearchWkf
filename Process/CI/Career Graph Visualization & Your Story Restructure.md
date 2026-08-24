@@ -7,7 +7,7 @@ ci-priority: high
 ci-date: 2026-08-05
 ci-estimated-time: 4
 ci-time-spent: 8.5
-pr-source: "[[C3. Transform Evidence into CV Bullets]]"
+pr-source: "[[C4. Transform Evidence into CV Bullets]]"
 pr-target:
 ---
 
@@ -275,7 +275,7 @@ into this sequence.
   here", "move everything below to Your Story", and "add a structured-interviews table on Your Story".
 - [[Your Story - Structure Interview Coach Onboarding]] — the recycled CI for the deferred guided-interview
   flow.
-- [[C3. Transform Evidence into CV Bullets]] — the CV Bullet model context (skill tags, evidence sourcing).
+- [[C4. Transform Evidence into CV Bullets]] — the CV Bullet model context (skill tags, evidence sourcing).
 - `docs/ROADMAP.md`, `docs/archive/RoleProof_Rethink_Completion_Milestones.md` — read to answer the
   Assembled-vs-Meter placement question before deciding where the graph would land.
 - `lib/career-graph.ts`, `lib/db/schema.ts` — the underlying data model (`CareerGraph` type, Drizzle

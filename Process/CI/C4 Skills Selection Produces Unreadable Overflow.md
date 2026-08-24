@@ -8,7 +8,7 @@ ci-date: 2026-08-07
 ci-estimated-time:
 ci-time-spent: 0
 pr-source: "[[CV Header, Skills & Professional Experience — Data-Driven Template Wiring]]"
-pr-target: "[[C2. Map JD Requirements to Supporting Evidence]], [[C3. Transform Evidence into CV Bullets]], [[C4. Build and Manage the Skills Section]]"
+pr-target: "[[C2. Map JD Requirements to Supporting Evidence]], [[C4. Transform Evidence into CV Bullets]], [[C5. Build and Manage the Skills Section]]"
 ---
 
 ---

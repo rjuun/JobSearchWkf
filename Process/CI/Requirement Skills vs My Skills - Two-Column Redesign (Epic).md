@@ -8,7 +8,7 @@ ci-date: 2026-07-22
 ci-estimated-time: 6
 ci-time-spent: 1.5
 pr-source: "[[Introduce Requirement Skills to Job Requirements List]]"
-pr-target: "[[B4. Translate Requirements to Areas of Expertise and Define JD Groups]], [[B5. Extract Requirements from Job Description]], [[C2. Map JD Requirements to Supporting Evidence]], [[C3. Transform Evidence into CV Bullets]], [[C4. Build and Manage the Skills Section]], [[C7. Run Reviewed ATS Matching Rating]]"
+pr-target: "[[B4. Translate Requirements to Areas of Expertise and Define JD Groups]], [[B5. Extract Requirements from Job Description]], [[C2. Map JD Requirements to Supporting Evidence]], [[C4. Transform Evidence into CV Bullets]], [[C5. Build and Manage the Skills Section]], [[C8. Run Reviewed ATS Matching Rating]]"
 ---
 ---
 
@@ -110,5 +110,5 @@ Existing `requirement_tailoring` rows won't have `requirement_skills` populated 
 ## 6. Source notes
 
 - [[Introduce Requirement Skills to Job Requirements List]] — original problem statement + Reggie's clarifications (Q1–Q3 above are lifted from its "topic for discussion" section).
-- [[B4. Translate Requirements to Areas of Expertise and Define JD Groups]], [[B5. Extract Requirements from Job Description]], [[C2. Map JD Requirements to Supporting Evidence]], [[C3. Transform Evidence into CV Bullets]], [[C4. Build and Manage the Skills Section]], [[C7. Run Reviewed ATS Matching Rating]]
+- [[B4. Translate Requirements to Areas of Expertise and Define JD Groups]], [[B5. Extract Requirements from Job Description]], [[C2. Map JD Requirements to Supporting Evidence]], [[C4. Transform Evidence into CV Bullets]], [[C5. Build and Manage the Skills Section]], [[C8. Run Reviewed ATS Matching Rating]]
 - Code verified against: `lib/db/schema.ts`, `lib/pipeline/tailoring.ts`, `lib/pipeline/screening.ts`, `lib/llm/schemas.ts`, `app/roleproof/leads/[id]/page.tsx`, `docs/DATA_MODEL.md`, `docs/PIPELINE.md`.

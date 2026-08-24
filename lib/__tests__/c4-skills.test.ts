@@ -50,7 +50,7 @@ describe('C2 · My Skills is a selection from the curated vocabulary', () => {
   });
 });
 
-describe('C4 §A · prioritiseSkills decides WHICH skills print', () => {
+describe('C5 §A · prioritiseSkills decides WHICH skills print', () => {
   it('orders Core, then Important, then Nice-to-Have', () => {
     expect(
       prioritiseSkills([
@@ -102,7 +102,7 @@ describe('C4 §A · prioritiseSkills decides WHICH skills print', () => {
   });
 });
 
-describe('C4 §B.4 · languages never appear in the Skills section', () => {
+describe('C5 §B.4 · languages never appear in the Skills section', () => {
   const LANGS = ['Portuguese', 'English', 'German', 'Spanish'];
 
   it('strikes the entry that sent a language to the CV twice', () => {
@@ -136,7 +136,7 @@ describe('C4 §B.4 · languages never appear in the Skills section', () => {
   });
 });
 
-describe('C4 §B.1 · reconcileSkillGroups decides what they print UNDER', () => {
+describe('C5 §B.1 · reconcileSkillGroups decides what they print UNDER', () => {
   const SELECTED = ['Corporate Governance', 'Audit & Compliance Coordination', 'Change Management', 'Executive Support'];
 
   it('keeps the proposed categories and their order', () => {
@@ -206,7 +206,7 @@ describe('C4 §B.1 · reconcileSkillGroups decides what they print UNDER', () =>
 });
 
 describe('CV-grade tags · support (§2.4), which replaces the identity guard', () => {
-  // One row's worth of material: the tailored bullet, plus what C3 was handed.
+  // One row's worth of material: the tailored bullet, plus what C4 was handed.
   const MATERIAL = [
     'Led the transfer pricing review across 14 entities, cutting allocated cost by 12%.',
     'Reported quarterly to the Management Board on regulatory compliance under the EBA framework.',
@@ -288,7 +288,7 @@ describe('CV-grade tags · coverage (§2.4), so a capability cannot vanish silen
   });
 });
 
-describe('C4 §B.1 · reconcileSkillGroups accepts a supported compound (§2.4)', () => {
+describe('C5 §B.1 · reconcileSkillGroups accepts a supported compound (§2.4)', () => {
   const SELECTED = ['Cost Allocation', 'Cost Optimization', 'Corporate Governance'];
 
   it('prints a merged name that contains a selected skill, and consumes it', () => {

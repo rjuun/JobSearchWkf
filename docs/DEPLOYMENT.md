@@ -126,7 +126,7 @@ SUPABASE_BUCKET="jobsearch" APP_EMAIL="you@example.com" APP_PASSWORD="<demo-pass
 ## Cost expectations
 
 - **DeepSeek (usage-based) — the only meaningful cost.** Screening one lead ≈ 5 extraction calls + 1
-  scoring B6 call; tailoring ≈ several extraction calls + 1 scoring C7. DeepSeek is inexpensive, so a
+  scoring B6 call; tailoring ≈ several extraction calls + 1 scoring C8. DeepSeek is inexpensive, so a
   fully processed lead is well under a cent to a few cents. A demo (a few live leads + seeded results)
   is **negligible**. Results persist and are **never re-scored on read**.
 - **Supabase:** free tier (500 MB DB, 1 GB storage) comfortably covers ~140 leads + ~10 CVs.

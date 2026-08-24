@@ -8,7 +8,7 @@ ci-date: 2026-08-24
 ci-estimated-time: 4
 ci-time-spent: 2
 pr-source: "[[C4 Skills Selection Produces Unreadable Overflow]]"
-pr-target: "[[C3. Transform Evidence into CV Bullets]], [[C4. Build and Manage the Skills Section]]"
+pr-target: "[[C4. Transform Evidence into CV Bullets]], [[C5. Build and Manage the Skills Section]]"
 ---
 
 ---

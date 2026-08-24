@@ -29,7 +29,7 @@ Browser (LinkedIn)                          Next.js on Vercel
   └─ bookmarklet ──POST JD md──▶ /api/ingest (Route Handler, CORS)
                                      │ store raw md → Storage; insert JobLead(draft)
   React UI (App Router) ◀───────────┤
-   lead board / pipeline console     │ Server Actions: runB1..B6, runC1..C7
+   lead board / pipeline console     │ Server Actions: runB1..B6, runC1..C8
    C2 approve-the-map gate            │   each → llm.runStructured(stepId, {context, schema})
    CV preview + download              │   → validate (Zod) → write entities → pipeline_runs
                                      ▼
@@ -46,7 +46,7 @@ Browser (LinkedIn)                          Next.js on Vercel
   /roleproof                  # board
   /roleproof/capture          # manual paste + signed bookmarklet generator
   /roleproof/scoring-queue    # Queue (flagged leads, inline triage) + Ready to score (batch runner)
-  /roleproof/leads/[id]       # workspace, C2 gate, C6 CV download
+  /roleproof/leads/[id]       # workspace, C2 gate, C7 CV download
   /api/ingest/route.ts        # bookmarklet endpoint (POST, CORS)
 /lib
   /pipeline                   # one module per step (screening.ts, tailoring.ts …)
@@ -67,7 +67,7 @@ Browser (LinkedIn)                          Next.js on Vercel
 A single choke point, `lib/llm/client.ts → runStructured({step, model, …})` (provider is Anthropic):
 
 1. **Selects the model tier** from a per-step map — Sonnet 5 for extraction/mapping (B2–B5, A1,
-   O2, coach, story) and Opus 4.8 for the truthfulness-critical steps (B6, C2, C3, C5, C7, per the
+   O2, coach, story) and Opus 4.8 for the truthfulness-critical steps (B6, C2, C4, C6, C8, per the
    Master Instructions §6.1). Resolve model IDs from env (`ANTHROPIC_MODEL_SONNET` /
    `ANTHROPIC_MODEL_OPUS`) rather than hardcoding.
 2. **Builds the prompt**: the step's `Process/*.md` note as the system prompt + a shared
@@ -127,7 +127,7 @@ Approach:
    loops `{#bullets}…{/bullets}`), keyed to the `cv_position` enum. Verify with a render test on
    day one of phase P3 before building the rest of C.
 2. At compile time, assemble a render model from **Keep** `requirement_tailoring` rows
-   grouped by `cv_position`, plus the C5 profile and C4 skills, applying C6's space rules **in code**
+   grouped by `cv_position`, plus the C6 profile and C5 skills, applying C7's space rules **in code**
    (Profile ≤5 lines; Skills ≤4 categories ×5; only Core/Important bullets; drop a project with no
    Core/Important bullet).
 3. Render → `.docx` → Storage. Optionally render a **PDF preview** via headless LibreOffice
@@ -165,10 +165,10 @@ Approach:
       forward B6's Excellent/Very Strong picks untouched, targets the model only at Good/Weak/No Match,
       merges into what's stored (several evidence rows per requirement allowed, ranked); status='pending'
       → USER approves the whole map in one action (bulk Keep, gated on having a CV slot)
-   C3 CV bullets — ONLY over Keep rows (7 principles)
-   C4 skills section (≤4 cats); C5 profile (≤5 lines)
-   C6 docxtemplater fills CV_Template → cv-output/{lead}/{variant}.docx (+ PDF preview)
-   C7 LLM (scoring tier) → ATS rating (0–100)
+   C4 CV bullets — ONLY over Keep rows (7 principles)
+   C5 skills section (≤4 cats); C6 profile (≤5 lines)
+   C7 docxtemplater fills CV_Template → cv-output/{lead}/{variant}.docx (+ PDF preview)
+   C8 LLM (scoring tier) → ATS rating (0–100)
 7. DOWNLOAD preview PDF in-app, download .docx.
 8. D-MONITOR  "Application sent" — drag the confirmation email out of Outlook onto the board row
    (or the workspace's next-move panel); the file lands in applications/{leadId}/, the link column
@@ -183,7 +183,7 @@ Approach:
 
 | Risk / decision | Resolution |
 | --- | --- |
-| **.docx 2-page fidelity** (highest risk) | `docxtemplater` fills the existing template; enforce 2 pages by content budget (C6 rules) in code, not by measuring. Re-tag template once; render-test on P3 day one. |
+| **.docx 2-page fidelity** (highest risk) | `docxtemplater` fills the existing template; enforce 2 pages by content budget (C7 rules) in code, not by measuring. Re-tag template once; render-test on P3 day one. |
 | **Agent determinism & cost** | Tool-use with forced schema + Zod + one retry; all arithmetic in TS; persist results, never re-score on read; prompt-cache the long step notes; log every call. |
 | **Human-in-the-loop (C2)** | `approval_status` enum on `requirement_tailoring`; the whole Requirement → evidence map is approved in one action (per-row Keep/Maybe/Drop was retired — reviewing each match individually was redundant once the full map is visible below it); only Kept (green) rows flow to C3. |
 | **Prompt management** | `Process/*.md` notes *are* the prompt templates, loaded at runtime. Refining a step = editing markdown, no code change. Keeps the CI "Accuracy Improvement Tips" loop meaningful. |

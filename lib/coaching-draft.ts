@@ -1,6 +1,6 @@
 /**
  * M2 · Structure a coaching answer into a draft evidence node (the question
- * card's "AI draft → your approval" step). Mirrors the C2/C3 anti-fabrication
+ * card's "AI draft → your approval" step). Mirrors the C2/C4 anti-fabrication
  * guard: a metric survives ONLY if a number is actually present in the user's
  * own words — enforced in code here, not just hoped for in the prompt.
  */

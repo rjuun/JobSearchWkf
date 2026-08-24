@@ -393,7 +393,7 @@ export function buildGraphViewModel(g: CareerGraph): GraphViewModel {
   // Responsibilities rollup) so it still draws *something* rather than floating as an
   // orphan — a weaker, visually distinct link kind, since it's a slot guess, not a stored
   // source. Skill link only when a bullet tag exactly matches a skill name — an inference
-  // from the bracketed C3 tag, not a stored source reference either.
+  // from the bracketed C4 tag, not a stored source reference either.
   const skillByRefCode = new Map(g.skills.filter((s) => s.refCode).map((s) => [normRef(s.refCode), s]));
   const skillByName = new Map(g.skills.filter((s) => s.skill).map((s) => [norm(s.skill), s]));
   const evidenceByBulletId = new Map<string, CareerGraph['bulletEvidence']>();

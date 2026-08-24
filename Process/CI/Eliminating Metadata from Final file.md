@@ -7,7 +7,7 @@ ci-priority: medium
 ci-date: 2026-06-29
 ci-estimated-time:
 ci-time-spent:
-pr-source: "[[C6. Compile Complete CV Document]]"
+pr-source: "[[C7. Compile Complete CV Document]]"
 pr-target:
 ---
 

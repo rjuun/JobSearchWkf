@@ -550,7 +550,7 @@ async function shapeDemoTenant(): Promise<void> {
             ) s ORDER BY requirement_line LIMIT ${READY_CV_LINES}
           )`
     );
-    // Compile the .docx + C7 ATS so Download works immediately (mock fixtures when
+    // Compile the .docx + C8 ATS so Download works immediately (mock fixtures when
     // keyless). Guarded — a failure leaves the on-screen ledger intact via the rows.
     try {
       await generateCv(hero.id, DEMO_OWNER_ID);

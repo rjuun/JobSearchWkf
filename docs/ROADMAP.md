@@ -48,7 +48,7 @@ The original plan was sized for **one person building with Claude Code**; each p
 
 - **Goal:** produce a tailored, 2-page `.docx` for a promoted lead.
 - **Deliverables:**
-  - C1–C7 step modules.
+  - C1–C8 step modules.
   - The **C2 Keep/Maybe/Drop gate UI** (the human-in-the-loop centrepiece).
   - `lib/docx` CV compiler: re-tag the template once, then `docxtemplater` fill from Keep bullets;
     PDF preview (best-effort) + `.docx` download.

@@ -2,20 +2,20 @@
  * Backfill `requirement_tailoring.cv_bullet_skills` and restore
  * `requirement_skills` to what B2 actually extracted.
  *
- * CI · Split cv_bullet_skills from requirement_skills. Before that split, C3
+ * CI · Split cv_bullet_skills from requirement_skills. Before that split, C4
  * wrote its bracketed tag straight over `requirement_skills`, so on any row
- * where C3 has run that column holds the BULLET's skills, not the
+ * where C4 has run that column holds the BULLET's skills, not the
  * REQUIREMENT's. Nothing was lost — B2's extraction still sits on
  * `job_requirements.skills` — so both halves are recoverable:
  *
- *   1. rows where C3 has run (`cv_bullet` non-empty): the tag currently in
+ *   1. rows where C4 has run (`cv_bullet` non-empty): the tag currently in
  *      `requirement_skills` moves to `cv_bullet_skills`, where it belongs.
  *   2. every row with a `requirement_id`: `requirement_skills` is restored
- *      from its requirement's own `skills`. Idempotent — on a row C3 never
+ *      from its requirement's own `skills`. Idempotent — on a row C4 never
  *      touched it rewrites the same value it already had.
  *
  * Step 1 is skipped for a row that already has `cv_bullet_skills`, so re-running
- * this after a fresh C3 pass cannot clobber a real tag with a stale one.
+ * this after a fresh C4 pass cannot clobber a real tag with a stale one.
  *
  * Report-only by default; --apply writes.
  *
@@ -45,10 +45,10 @@ async function main() {
 
   for (const row of rows) {
     const stored = row.requirementSkills ?? [];
-    const c3HasRun = !!row.cvBullet?.trim();
+    const c4HasRun = !!row.cvBullet?.trim();
     const alreadyHasTag = (row.cvBulletSkills ?? []).length > 0;
 
-    if (c3HasRun && !alreadyHasTag && stored.length > 0) moves.push({ id: row.id, tag: stored });
+    if (c4HasRun && !alreadyHasTag && stored.length > 0) moves.push({ id: row.id, tag: stored });
     else if (alreadyHasTag) alreadySplit++;
 
     if (!row.requirementId) {

@@ -1,12 +1,12 @@
 /**
- * C1–C7 tailoring. Two human-gated halves:
+ * C1–C8 tailoring. Two human-gated halves:
  *   runEvidenceMapping  → C1 (format) + C2 (requirement→evidence, builds on B6
  *                         rather than re-deriving — CI-034 — pending review)
  *   ── human approves the whole map in one action ──
- *   generateCv          → C3 (bullets, Keep only) → C4 skills → C5 profile →
- *                         C6 .docx → C7 ATS rating
+ *   generateCv          → C4 (bullets, Keep only) → C5 skills → C6 profile →
+ *                         C7 .docx → C8 ATS rating
  *
- * The LLM emits judgments (C2 mapping, C3 bullets, C5 profile, C7 rating); code
+ * The LLM emits judgments (C2 mapping, C4 bullets, C6 profile, C8 rating); code
  * enforces the gate, the content budget and the skills consistency rule. Every
  * LLM step has a deterministic mock so the pipeline still runs without a key.
  */
@@ -34,7 +34,7 @@ import { writeBuffer } from '../storage';
 import { buildCv, type CvModel } from '../docx/cv';
 import { systemPromptFor } from '../prompts';
 import { runStructured, type UserContentBlock } from '../llm/client';
-import { C2, C3, C4, C5, C7 } from '../llm/schemas';
+import { C2, C4, C5, C6, C8 } from '../llm/schemas';
 import { CV_SLOTS, normalizeCvPosition, slotCode, templateExists, buildCvFromTemplate } from '../docx/template';
 import { evidenceNeedsCvSlot } from '../cv-slots';
 import { recordGapTips } from '../ci';
@@ -267,8 +267,8 @@ export function planMerge(
   return { toInsert, toReplace, toRefresh, toDelete, unchanged };
 }
 
-/** One Keep row, reduced to what C3 is given to rewrite. */
-export type C3Row = {
+/** One Keep row, reduced to what C4 is given to rewrite. */
+export type C4Row = {
   evidenceRef: string | null;
   requirementLine: string | null;
   originalText: string | null;
@@ -276,7 +276,7 @@ export type C3Row = {
 };
 
 /**
- * C3's user message, as a pure builder — extracted from `generateCv` for the
+ * C4's user message, as a pure builder — extracted from `generateCv` for the
  * same reason `c2UserMessage` was: the prompt is the deliverable of
  * CI · C3 Writes CV-Grade Skill Tags, and a prompt that can only be read by
  * running the pipeline against Postgres cannot be pinned by a test.
@@ -286,7 +286,7 @@ export type C3Row = {
  * it takes its own 1h cache breakpoint; the per-lead role and rows follow as the
  * varying suffix.
  *
- * **The register block is the substance of this CI (§1.2).** C3 was previously
+ * **The register block is the substance of this CI (§1.2).** C4 was previously
  * sent the role line, each row's requirement, original text and My Skills, and
  * nothing else — it had never seen `skills_master`, not the names and not the
  * ATS variants. It was then instructed (old §B.5) to write the tag in the job
@@ -296,7 +296,7 @@ export type C3Row = {
  * `skills_master` only, not all three tables. C2 matches against skills,
  * competences and attributes and must keep doing so (epic Q3) — a JD asking for
  * discretion is genuinely answered by an attribute. But `skills_master` is the
- * one table written in CV register, and register is what C3 needs. The attribute
+ * one table written in CV register, and register is what C4 needs. The attribute
  * still comes through; it comes through re-expressed, which is exactly what the
  * owner's hand-built CVs do (`Confidentiality & Trust` → "Confidentiality &
  * Discretion").
@@ -307,8 +307,8 @@ export type C3Row = {
  * as a lookup is the way to get it wrong, which is why the block says so in as
  * many words.
  */
-export function c3UserMessage(
-  rows: readonly C3Row[],
+export function c4UserMessage(
+  rows: readonly C4Row[],
   leadTitle: string,
   jdGroup: string | null,
   atsSystem: string | null,
@@ -338,7 +338,7 @@ export function c3UserMessage(
       `ROLE: ${leadTitle}${jdGroup ? ` · ${jdGroup}` : ''}${atsSystem ? ` · ATS: ${atsSystem}` : ''}\n\n` +
       `Rewrite each Keep evidence item into one CV bullet. Keep every claim supportable by the ` +
       `original text.\n\n` +
-      `Then tag each bullet with the skills it demonstrates, written at CV grade (Process/C3 §B.5): ` +
+      `Then tag each bullet with the skills it demonstrates, written at CV grade (Process/C4 §B.5): ` +
       `one compound entry per capability rather than several near-duplicate facets of it; state the ` +
       `level the work was done at; add a parenthetical anchor only where it adds real precision; no ` +
       `table-stakes tooling; no phrase lifted whole from the posting; no languages. Each row's ` +
@@ -356,16 +356,16 @@ export function c3UserMessage(
 }
 
 /**
- * ── C3's collapse floor, as pure functions ──────────────────────────────────
+ * ── C4's collapse floor, as pure functions ──────────────────────────────────
  *
  * Exported and separated from the DB write for the same reason `matchB6Judgments`
  * is: the interesting behaviour is "what counts as an answer", and that has to be
  * testable without Postgres or an API key.
  */
-export type C3Bullet = { ref: string; bullet: string; skills?: string[] };
+export type C4Bullet = { ref: string; bullet: string; skills?: string[] };
 
 /**
- * Fold one C3 reply into the ref→bullet map, accumulating across re-asks so a
+ * Fold one C4 reply into the ref→bullet map, accumulating across re-asks so a
  * second attempt only has to cover what the first missed.
  *
  * A blank `bullet` is deliberately NOT an answer. `bullet` is required in the
@@ -376,7 +376,7 @@ export type C3Bullet = { ref: string; bullet: string; skills?: string[] };
  * Last non-blank answer per ref wins, and that is correct in both directions it
  * happens. ACROSS re-asks it is the point (a second attempt supersedes a weaker
  * first — pinned by a test). WITHIN one reply it looks like a defect and isn't:
- * C3's prompt lists a shared bullet once per Keep row (up to six times for one
+ * C4's prompt lists a shared bullet once per Keep row (up to six times for one
  * ref on the Allianz lead), so a reply may legitimately carry several entries
  * for the same ref. Each is a valid rewrite of the same evidence, one bullet per
  * ref is what the CV can show, and any of them is a real answer — so picking the
@@ -384,9 +384,9 @@ export type C3Bullet = { ref: string; bullet: string; skills?: string[] };
  * from requirement_skills and closed on inspection; noted here so it doesn't get
  * re-filed as a bug.
  */
-export function absorbC3Bullets(
+export function absorbC4Bullets(
   into: Map<string, { bullet: string; skills: string[] }>,
-  bullets: C3Bullet[]
+  bullets: C4Bullet[]
 ): Map<string, { bullet: string; skills: string[] }> {
   for (const b of bullets) {
     if (b.ref && b.bullet && b.bullet.trim()) into.set(b.ref, { bullet: b.bullet.trim(), skills: b.skills ?? [] });
@@ -395,13 +395,13 @@ export function absorbC3Bullets(
 }
 
 /**
- * The Keep rows C3 owes a bullet for and hasn't delivered.
+ * The Keep rows C4 owes a bullet for and hasn't delivered.
  *
- * Rows with no `evidenceRef` are excluded on purpose — C3 is keyed by ref, so it
+ * Rows with no `evidenceRef` are excluded on purpose — C4 is keyed by ref, so it
  * was never given a way to answer them, and counting them would make the floor
  * unsatisfiable rather than strict. Duplicate refs collapse to one.
  */
-export function missingC3Refs(
+export function missingC4Refs(
   green: { evidenceRef: string | null }[],
   have: Map<string, unknown>
 ): string[] {
@@ -410,15 +410,15 @@ export function missingC3Refs(
 }
 
 /**
- * ── C5's collapse floor ──────────────────────────────────────────────────────
+ * ── C6's collapse floor ──────────────────────────────────────────────────────
  *
  * `profile` is required in the strict schema, so a degraded call returns the
  * key holding `""` — schema-valid, `status='ok'`, and from there the empty
- * string reaches the .docx (blank Profile section) and C7 (rating a CV whose
- * profile section says nothing). `Process/C5...md` and the tool description
+ * string reaches the .docx (blank Profile section) and C8 (rating a CV whose
+ * profile section says nothing). `Process/C6...md` and the tool description
  * both specify 4–7 lines / 70–110 words; `MIN_PROFILE_WORDS` sits well under
  * that target so ordinary variation never trips it, while still catching a
- * one-line stub. Unlike C3's floor, a profile is a single value rather than a
+ * one-line stub. Unlike C4's floor, a profile is a single value rather than a
  * set keyed by ref, so nothing needs to accumulate across re-asks — the last
  * attempt either clears the bar or it doesn't.
  */
@@ -481,7 +481,7 @@ export async function gatherSkillVocabulary(ownerId: string): Promise<VocabEntry
  *  Language rows are exempt (`evidenceNeedsCvSlot`) — they render from the
  *  profile tables regardless, never from a slot. If a genuinely slotless row
  *  remains (a STAR action nobody assigned a slot to, or a non-seed tenant whose
- *  roles don't match these slots), C6 falls back to the programmatic builder,
+ *  roles don't match these slots), C7 falls back to the programmatic builder,
  *  which represents any evidence. */
 function templateFits(green: (typeof requirementTailoring.$inferSelect)[]): boolean {
   return (
@@ -530,7 +530,7 @@ async function templateSlotData(
     db.select().from(languages).where(eq(languages.ownerId, ownerId)),
     db.select().from(positions).where(eq(positions.ownerId, ownerId)),
   ]);
-  // The tailored C5 profile fills the template's <<Profile>> placeholder, so the
+  // The tailored C6 profile fills the template's <<Profile>> placeholder, so the
   // .docx leads with role-specific positioning rather than the static scaffold.
   const data: Record<string, string> = {};
   if (profileText) data['Profile'] = profileText;
@@ -550,17 +550,17 @@ async function templateSlotData(
     const dates = [p.startDate, p.endDate].filter(Boolean).join(' — ');
     if (dates) data[`Position ${letter} Dates`] = dates;
   }
-  // C4 already computes this per-tailoring (the Keep rows' Requirement Skills,
+  // C5 already computes this per-tailoring (the Keep rows' Requirement Skills,
   // ordered Core → Important → Nice-to-Have) for the programmatic builder's
   // CvModel — reused here so the real template shows the same tailored skills,
   // not a static block.
   //
   // The 24-item display cap that used to sit here is gone. It was added
   // 2026-08-07 as an explicit stopgap over the 67-skill overflow, and this CI
-  // removed the cause: C4 no longer prints raw graph tags, and bounds its own
-  // output to C4 §B.1's envelope (`SKILLS_ENVELOPE`), shedding Nice-to-Have
+  // removed the cause: C5 no longer prints raw graph tags, and bounds its own
+  // output to C5 §B.1's envelope (`SKILLS_ENVELOPE`), shedding Nice-to-Have
   // first. A renderer silently truncating a section it doesn't own was hiding
-  // the symptom — if the list is ever too long again, that belongs in C4's
+  // the symptom — if the list is ever too long again, that belongs in C5's
   // selection and its step report, where it is visible.
   if (skillsModel?.length) {
     data['Skills'] = skillsModel.map((g) => `${g.category}: ${g.items.join(' · ')}`).join('\n');
@@ -573,7 +573,7 @@ async function templateSlotData(
   if (profile?.relocation) data['Relocation'] = profile.relocation;
   if (profile?.travel) data['Travel'] = profile.travel;
   // Header's "positioning" line is this lead's own B5 classification, not
-  // profiles.headline (which is only ever an internal seed for the C5 prompt
+  // profiles.headline (which is only ever an internal seed for the C6 prompt
   // above) — confirmed against a real generated CV, whose header line matched
   // its lead's JD Group names verbatim, not the profile's stored headline.
   if (lead?.jdGroupPrimary) data['JD Group Primary'] = lead.jdGroupPrimary;
@@ -627,7 +627,7 @@ async function templateSlotData(
         return normalized === slot || (normalized ? slotCode(normalized) === code : false);
       })
       // The `|| g.originalText` tail stays a backstop here on purpose. This is a
-      // RENDER path, not a write path: C3's floor already guarantees a real
+      // RENDER path, not a write path: C4's floor already guarantees a real
       // bullet for every ref-bearing Keep row before anything reaches the .docx,
       // and throwing at render time would block a CV that is otherwise complete.
       // Same reasoning for `bullets14` in the programmatic builder below.
@@ -876,7 +876,7 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
             // requirement's JD-language skills, written by B2 (`screening.ts`,
             // the `emit_requirements` insert — B5 never touches
             // `job_requirements.skills`). Snapshotted here and never written
-            // again: C3's tag has its own column, `cvBulletSkills`, so this one
+            // again: C4's tag has its own column, `cvBulletSkills`, so this one
             // keeps meaning "what the JD asked for" all the way through. CI ·
             // Requirement Skills vs My Skills; CI · Split cv_bullet_skills from
             // requirement_skills. Never conflate either with B4's AoE codes (A–Q).
@@ -949,7 +949,7 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
   return reports;
 }
 
-// ── C3–C7 (Keep evidence only) ───────────────────────────────────────────────
+// ── C4–C8 (Keep evidence only) ───────────────────────────────────────────────
 export async function generateCv(
   leadId: string,
   ownerId?: string | null
@@ -981,13 +981,13 @@ export async function generateCv(
     .where(and(eq(jobRequirements.jobLeadId, leadId), eq(jobRequirements.ownerId, effectiveOwnerId)));
   const coreThemes = reqs.filter((r) => r.rank === 'Core').slice(0, 4).map((r) => r.requirement);
 
-  // C3 — rewrite each Keep evidence item into a tailored CV bullet
+  // C4 — rewrite each Keep evidence item into a tailored CV bullet
   const bulletByRef = new Map<string, { bullet: string; skills: string[] }>();
   {
-    // ── The C3 collapse guard ────────────────────────────────────────────────
+    // ── The C4 collapse guard ────────────────────────────────────────────────
     // This write path used to read `matched?.bullet || row.originalText || ''`,
     // which is the same silent-substitution shape B6 had before its guard
-    // (`j?.score ?? 6`) and B2 had before its floor. When C3 returned no bullet
+    // (`j?.score ?? 6`) and B2 had before its floor. When C4 returned no bullet
     // for a ref — a degraded call, or a ref echoed back in a form that doesn't
     // match — `cv_bullet` was filled with the row's RAW, untailored evidence
     // text. Nothing errors, nothing is empty, the lead shows a complete set of
@@ -1000,28 +1000,28 @@ export async function generateCv(
     // and the count of rows written is never what breaks.
     //
     // The floor is exact rather than proportional, like B6's and unlike C2's:
-    // C3 is handed a known, finite list of Keep rows and told to rewrite each
+    // C4 is handed a known, finite list of Keep rows and told to rewrite each
     // one. There is no legitimate "I decline to rewrite this one" outcome — C2
-    // is the step allowed to record a gap, not C3 — so anything short of one
+    // is the step allowed to record a gap, not C4 — so anything short of one
     // bullet per ref is a misfire. Rows with no `evidenceRef` at all are
-    // excluded: C3 was never given a key to answer them with.
+    // excluded: C4 was never given a key to answer them with.
     const ATTEMPTS = 3;
     const refsWanted = new Set(green.map((g) => g.evidenceRef).filter((ref): ref is string => !!ref));
 
     // CI · C3 Writes CV-Grade Skill Tags §2.3.1 — the register, cached once per
-    // sitting. `skills_master` only: C2 matches against all three tables, C3
-    // names in the one written at CV grade. See `c3UserMessage`.
+    // sitting. `skills_master` only: C2 matches against all three tables, C4
+    // names in the one written at CV grade. See `c4UserMessage`.
     const register = (await gatherSkillVocabulary(effectiveOwnerId)).filter((v) => v.source === 'skill');
 
     const draft = async () =>
       runStructured({
-        step: 'C3',
+        step: 'C4',
         // Truthfulness-critical (Master Instructions §6.1) → Opus tier.
         model: 'opus',
-        system: await systemPromptFor('C3', effectiveOwnerId),
-        user: c3UserMessage(green, lead.title, lead.jdGroupPrimary, lead.atsSystem, register),
-        tool: C3.tool,
-        zod: C3.zod,
+        system: await systemPromptFor('C4', effectiveOwnerId),
+        user: c4UserMessage(green, lead.title, lead.jdGroupPrimary, lead.atsSystem, register),
+        tool: C4.tool,
+        zod: C4.zod,
         // The mock stands in for a HEALTHY call, so it must clear the floor: a
         // row whose `originalText` is null (legacy/seeded data) would otherwise
         // yield a blank bullet and trip the guard with no model involved.
@@ -1029,7 +1029,7 @@ export async function generateCv(
           bullets: green.map((g) => ({
             ref: g.evidenceRef ?? '',
             bullet: g.originalText?.trim() || `Delivered work evidenced by ${g.evidenceRef ?? 'this item'}.`,
-            // The mock stands in for C3's own tag judgement, so it echoes the
+            // The mock stands in for C4's own tag judgement, so it echoes the
             // requirement's asks — the closest honest stand-in available
             // without a model. It lands in `cvBulletSkills`, not over
             // `requirementSkills`.
@@ -1040,22 +1040,22 @@ export async function generateCv(
         ownerId: effectiveOwnerId,
       });
 
-    // r.data.bullets[].skills is C3's judgment of which Job-Lead-facing skills
+    // r.data.bullets[].skills is C4's judgment of which Job-Lead-facing skills
     // this bullet demonstrates — i.e. Requirement Skills, not My Skills (the
-    // bracketed tag per Process/C3...md §B.5). Persist it; previously discarded.
+    // bracketed tag per Process/C4...md §B.5). Persist it; previously discarded.
     //
     // Re-asks accumulate into the same map, so a second attempt only has to
     // cover what the first missed — a partial reply is still worth its refs.
     let r = await draft();
-    absorbC3Bullets(bulletByRef, r.data.bullets);
-    for (let attempt = 2; attempt <= ATTEMPTS && missingC3Refs(green, bulletByRef).length > 0; attempt++) {
+    absorbC4Bullets(bulletByRef, r.data.bullets);
+    for (let attempt = 2; attempt <= ATTEMPTS && missingC4Refs(green, bulletByRef).length > 0; attempt++) {
       r = await draft();
-      absorbC3Bullets(bulletByRef, r.data.bullets);
+      absorbC4Bullets(bulletByRef, r.data.bullets);
     }
-    const short = missingC3Refs(green, bulletByRef);
+    const short = missingC4Refs(green, bulletByRef);
     if (short.length > 0) {
       throw new Error(
-        `C3 returned no bullet for ${short.length} of ${refsWanted.size} Keep evidence item(s) ` +
+        `C4 returned no bullet for ${short.length} of ${refsWanted.size} Keep evidence item(s) ` +
           `after ${ATTEMPTS} attempts (${short.slice(0, 5).join(', ')}${short.length > 5 ? ', …' : ''}) — ` +
           'the model call degraded rather than the evidence genuinely being unusable. Nothing was written; ' +
           're-run Generate CV to retry. Falling back to the raw evidence text here would have produced a ' +
@@ -1074,9 +1074,9 @@ export async function generateCv(
       // the floor above deliberately does not cover. For every ref-bearing row
       // `matched` is now guaranteed non-blank, so this is a backstop, not a path.
       const rewritten = matched?.bullet || row.originalText || '';
-      // CI · Split cv_bullet_skills from requirement_skills — C3's tag now has
+      // CI · Split cv_bullet_skills from requirement_skills — C4's tag now has
       // its own column and stops overwriting B2's asks. `?? []` and not
-      // `?? row.requirementSkills`: a row with no `evidenceRef` is one C3 was
+      // `?? row.requirementSkills`: a row with no `evidenceRef` is one C4 was
       // never given a way to answer (it is keyed by ref), so its bullet is the
       // untailored `originalText` and genuinely carries no bracketed tag.
       // Substituting the requirement's asks there would print, in the CV's
@@ -1101,9 +1101,9 @@ export async function generateCv(
         .update(requirementTailoring)
         .set({ cvBullet: rewritten, cvBulletSkills: bulletSkills })
         .where(and(eq(requirementTailoring.id, row.id), eq(requirementTailoring.ownerId, effectiveOwnerId)));
-      // C4 below builds the Skills section from exactly these values, so the
-      // in-memory row has to carry what was just written — otherwise C4 reads
-      // the pre-C3 column and the CV's Skills header disagrees with its own
+      // C5 below builds the Skills section from exactly these values, so the
+      // in-memory row has to carry what was just written — otherwise C5 reads
+      // the pre-C4 column and the CV's Skills header disagrees with its own
       // bullets' bracketed tags, which is the one thing the consistency rule
       // exists to prevent.
       row.cvBulletSkills = bulletSkills;
@@ -1115,7 +1115,7 @@ export async function generateCv(
       await recordStep(
         leadId,
         {
-          step: 'C3',
+          step: 'C4',
           label: 'Draft CV bullets',
           model: r.model,
           summary:
@@ -1130,9 +1130,9 @@ export async function generateCv(
     );
   }
 
-  // C4 — skills section. CI · C4 Skills Selection Produces Unreadable Overflow.
+  // C5 — skills section. CI · C4 Skills Selection Produces Unreadable Overflow.
   //
-  // C4 §A, in its own three moves. The step used to conflate the middle one with
+  // C5 §A, in its own three moves. The step used to conflate the middle one with
   // the last: it grouped by requirement rank and printed the rank names as
   // headings (Core Competencies / Supporting Expertise / Additional Skills).
   // That implements §B.3's prioritisation and leaves §B.1's categorisation
@@ -1143,7 +1143,7 @@ export async function generateCv(
   //   2. prioritise — Core → Important → Nice-to-Have, cut to what fits (§B.3)
   //   3. categorise — 3–5 capability areas over what survived (§B.1)
   //
-  // Step 3 is the one model call C4 has ever made, and it is here because naming
+  // Step 3 is the one model call C5 has ever made, and it is here because naming
   // "Governance, Risk & Compliance" is a judgement about THIS lead's set that no
   // lookup produces. Sonnet, not Opus: this is presentation, not a truth claim —
   // and it cannot become one, because `reconcileSkillGroups` re-checks every name
@@ -1154,7 +1154,7 @@ export async function generateCv(
     const t = Date.now();
     const rankByReqId = new Map(reqs.map((r) => [r.id, r.rank]));
     // Languages are struck before prioritisation, not after: they must not
-    // occupy a slot that a real skill would otherwise have won. C4 §B.4 — the
+    // occupy a slot that a real skill would otherwise have won. C5 §B.4 — the
     // CV's Languages section already states these, from `languages` itself.
     const langRows = await db.select().from(languages).where(eq(languages.ownerId, effectiveOwnerId));
     const selected = dropLanguageSkills(
@@ -1174,16 +1174,16 @@ export async function generateCv(
       skillsModel = [];
     } else {
       const r = await runStructured({
-        step: 'C4',
+        step: 'C5',
         model: 'sonnet',
-        system: await systemPromptFor('C4', effectiveOwnerId),
+        system: await systemPromptFor('C5', effectiveOwnerId),
         user:
           `ROLE: ${lead.title}${lead.jdGroupPrimary ? ` · ${lead.jdGroupPrimary}` : ''}\n\n` +
           `Group these ${selected.length} skills into 3–5 logical categories for the CV Skills section, ` +
           `most relevant to this role first. Copy each skill exactly; place every one of them.\n\n` +
           selected.map((s) => `- ${s}`).join('\n'),
-        tool: C4.tool,
-        zod: C4.zod,
+        tool: C5.tool,
+        zod: C5.zod,
         // The mock is not a stand-in for the judgement — inventing plausible
         // category names offline would make mock runs look like live ones. It
         // returns the honest ungrouped shape instead.
@@ -1205,7 +1205,7 @@ export async function generateCv(
       await recordStep(
         leadId,
         {
-          step: 'C4',
+          step: 'C5',
           label: 'Skills section',
           model,
           summary: `${count} skills · ${skillsModel.length} categor${skillsModel.length === 1 ? 'y' : 'ies'}${unplaced ? ` · ${unplaced} unplaced` : ''}`,
@@ -1217,41 +1217,41 @@ export async function generateCv(
     );
   }
 
-  // C5 — tailored profile (4–7 lines, supportable by the evidence)
+  // C6 — tailored profile (4–7 lines, supportable by the evidence)
   let profileText = '';
   {
     // `|| g.cvBullet` was missing here, which made this the one read path that
-    // could still feed C5 raw evidence text even when C3 had produced a real
+    // could still feed C6 raw evidence text even when C4 had produced a real
     // bullet for the row — and an untailored bullet here doesn't just degrade
-    // one line, it becomes the basis of the tailored profile. C3's floor above
+    // one line, it becomes the basis of the tailored profile. C4's floor above
     // now guarantees a bullet for every ref-bearing row, so the `originalText`
     // tail is a backstop for ref-less rows rather than a substitution path.
     const keptBullets = green
       .map((g) => (g.evidenceRef && bulletByRef.get(g.evidenceRef)?.bullet) || g.cvBullet || g.originalText || '')
       .filter(Boolean);
 
-    // ── The C5 collapse guard ─────────────────────────────────────────────────
-    // Same family as C3's, but simpler: `profile` is a single value, not a set
+    // ── The C6 collapse guard ─────────────────────────────────────────────────
+    // Same family as C4's, but simpler: `profile` is a single value, not a set
     // keyed by ref, so an empty or one-line reply is never a legitimate answer —
     // the honest floor is never "nothing". Re-ask rather than lower the bar
     // (`runStructured`'s own retry can't fire — `""` is schema-valid), and throw
-    // rather than degrade — C6 and C7 both consume `profileText`, and shipping a
+    // rather than degrade — C7 and C8 both consume `profileText`, and shipping a
     // CV with a blank profile and then rating it is worse than failing loudly.
     const ATTEMPTS = 3;
     const draft = async () =>
       runStructured({
-        step: 'C5',
+        step: 'C6',
         // Truthfulness-critical (Master Instructions §6.1) → Opus tier.
         model: 'opus',
-        system: await systemPromptFor('C5', effectiveOwnerId),
+        system: await systemPromptFor('C6', effectiveOwnerId),
         user:
           `ROLE: ${lead.title}${lead.company ? ` · ${lead.company}` : ''}${lead.jdGroupPrimary ? ` · ${lead.jdGroupPrimary}` : ''}\n` +
           `CANDIDATE HEADLINE: ${profile?.headline ?? 'Senior leader'}\n\n` +
           `THIS ROLE'S CORE REQUIREMENTS:\n${coreThemes.map((t) => `- ${t}`).join('\n')}\n\n` +
           `KEEP EVIDENCE (the profile must stay supportable by these):\n${keptBullets.slice(0, 10).map((b) => `- ${b}`).join('\n')}\n\n` +
           `Write the tailored profile.`,
-        tool: C5.tool,
-        zod: C5.zod,
+        tool: C6.tool,
+        zod: C6.zod,
         // The mock stands in for a HEALTHY call, so it must clear the floor on
         // its own — the static tail guarantees enough words regardless of how
         // short `coreThemes`/`headline`/`jdGroupPrimary` happen to be.
@@ -1274,21 +1274,21 @@ export async function generateCv(
     if (isProfileTooShort(r.data.profile)) {
       const words = r.data.profile.trim().split(/\s+/).filter(Boolean).length;
       throw new Error(
-        `C5 returned a ${words}-word profile after ${ATTEMPTS} attempts (target 70–110 words) — the model call ` +
+        `C6 returned a ${words}-word profile after ${ATTEMPTS} attempts (target 70–110 words) — the model call ` +
           'degraded rather than the evidence genuinely being unusable. Nothing was written; re-run Generate CV to retry.'
       );
     }
     profileText = r.data.profile.trim();
-    reports.push(await recordStep(leadId, { step: 'C5', label: 'Tailored profile', model: r.model, summary: `${profileText.split(/\s+/).length} words`, output: { len: profileText.length, profile: profileText }, ms: r.ms }, effectiveOwnerId));
+    reports.push(await recordStep(leadId, { step: 'C6', label: 'Tailored profile', model: r.model, summary: `${profileText.split(/\s+/).length} words`, output: { len: profileText.length, profile: profileText }, ms: r.ms }, effectiveOwnerId));
   }
 
-  // C6 — compile the .docx. Preferred path fills the owner's real 2-page Word
+  // C7 — compile the .docx. Preferred path fills the owner's real 2-page Word
   // template (docxtemplater); programmatic build is the fallback if the template
   // is missing or fails to render.
   let cvPath = '';
   const bullets14 = green.map((g) => g.cvBullet ?? g.originalText ?? '').filter(Boolean).slice(0, 14);
-  // Shared by C6 (the .docx) and C7 (the ATS rating) below — Education/Languages
-  // always appear on the CV regardless of Keep status, so C7 needs to see them
+  // Shared by C7 (the .docx) and C8 (the ATS rating) below — Education/Languages
+  // always appear on the CV regardless of Keep status, so C8 needs to see them
   // too, or it judges the CV blind to facts (e.g. language fluency) that are
   // genuinely printed on it.
   const eduRows = await db.select().from(education).where(eq(education.ownerId, effectiveOwnerId));
@@ -1323,29 +1323,29 @@ export async function generateCv(
     }
     cvPath = `cv-output/${leadId}/tailored.docx`;
     await writeBuffer(cvPath, buf);
-    reports.push(await recordStep(leadId, { step: 'C6', label: 'Compile 2-page CV', model: 'code', summary: `${bullets14.length} Keep bullets · ${how}`, output: { cvPath, how }, ms: Date.now() - t }, effectiveOwnerId));
+    reports.push(await recordStep(leadId, { step: 'C7', label: 'Compile 2-page CV', model: 'code', summary: `${bullets14.length} Keep bullets · ${how}`, output: { cvPath, how }, ms: Date.now() - t }, effectiveOwnerId));
   }
 
-  // C7 — reviewed ATS rating (LLM judgment; code persists)
+  // C8 — reviewed ATS rating (LLM judgment; code persists)
   let atsRating = 0;
   {
     const coreImp = reqs.filter((r) => CORE_AND_IMPORTANT.includes(r.rank ?? ''));
     const r = await runStructured({
-      step: 'C7',
+      step: 'C8',
       model: 'opus',
-      system: await systemPromptFor('C7', effectiveOwnerId),
+      system: await systemPromptFor('C8', effectiveOwnerId),
       user:
         `JOB REQUIREMENTS:\n${reqs.map((q, i) => `${i + 1}. [${q.rank}] ${q.requirement}`).join('\n')}\n\n` +
         `TAILORED CV\nProfile: ${profileText}\n\nSkills: ${skillsModel.map((s) => `${s.category}: ${s.items.join(', ')}`).join(' | ')}\n\n` +
         `Experience bullets:\n${bullets14.map((b) => `- ${b}`).join('\n')}\n\n` +
         // Education/Languages always appear on the CV regardless of Keep status
-        // (see C6 above) — without these, C7 has previously marked language
+        // (see C7 above) — without these, C8 has previously marked language
         // fluency "unverified" even when it's plainly printed on the CV.
         `Education: ${eduRows.map((e) => e.qualification).filter(Boolean).join(', ')}\n\n` +
         `Languages: ${langRows.map((l) => `${l.language} (${l.displayLevel ?? l.cefrLevel ?? ''})`).join(', ')}\n\n` +
         `Rate how well this CV addresses the requirements through an ATS lens.`,
-      tool: C7.tool,
-      zod: C7.zod,
+      tool: C8.tool,
+      zod: C8.zod,
       mock: () => {
         const coverage = Math.min(1, green.length / Math.max(coreImp.length, 1));
         return {
@@ -1359,7 +1359,7 @@ export async function generateCv(
     });
     atsRating = Math.round(r.data.overall);
     await db.update(jobLeads).set({ status: 'ready' }).where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, effectiveOwnerId)));
-    reports.push(await recordStep(leadId, { step: 'C7', label: 'ATS matching rating', model: r.model, summary: `${atsRating} / 100`, output: { atsRating, requirements: r.data.requirements, summary: r.data.summary }, ms: r.ms }, effectiveOwnerId));
+    reports.push(await recordStep(leadId, { step: 'C8', label: 'ATS matching rating', model: r.model, summary: `${atsRating} / 100`, output: { atsRating, requirements: r.data.requirements, summary: r.data.summary }, ms: r.ms }, effectiveOwnerId));
   }
 
   // Materialise the B4 JD-group into the CV-variant catalogue: the generated CV

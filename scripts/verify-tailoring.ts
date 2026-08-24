@@ -1,4 +1,4 @@
-// Smoke-test C1–C7: map evidence → approve → generate a valid 2-page .docx.
+// Smoke-test C1–C8: map evidence → approve → generate a valid 2-page .docx.
 import './_env';
 import { eq } from 'drizzle-orm';
 import { db } from '../lib/db';
