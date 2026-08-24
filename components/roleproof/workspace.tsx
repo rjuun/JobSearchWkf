@@ -16,7 +16,13 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { runScreeningAction, getRescreenImpactAction, promoteLeadAction, toggleTargetAction } from '@/app/actions/pipeline';
+import {
+  runScreeningAction,
+  getRescreenImpactAction,
+  promoteLeadAction,
+  toggleTargetAction,
+  refreshFreshnessAction,
+} from '@/app/actions/pipeline';
 import { markNotPursuedAction } from '@/app/actions/scoring-queue';
 import { mapEvidenceAction, approveAllAction, generateCvAction } from '@/app/actions/tailoring';
 import { addTipAction, resolveTipAction } from '@/app/actions/tips';
@@ -50,6 +56,11 @@ export type RpLead = {
   postedDays: number | null;
   freshnessBand: string | null;
   saturationBand: string | null;
+  // CI · Lead Liveness Re-check. Tri-state: true = open when last read, false =
+  // "No longer accepting applications", null = never checked. Null is not a
+  // weaker "false" — nobody has looked.
+  acceptingApplications: boolean | null;
+  livenessCheckedAt: string | null;
   /** `requirementId` set ⇒ the Map shows a Block chip on that row; unset ⇒ Key Patterns only (§2.5). */
   roadblocks: { dimension: string; detail: string; requirementId?: string }[];
   misalignments: { dimension: string; detail: string }[];
@@ -850,6 +861,8 @@ function JdReader({ c, height }: { c: Ctx; height: number | null }) {
         <span className="ml-auto flex flex-wrap items-center gap-1.5">
           <FreshnessChip c={c} />
           <SaturationChip c={c} />
+          <LivenessChip c={c} />
+          <RecheckPostingButton c={c} />
         </span>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
@@ -889,6 +902,62 @@ const SATURATION_TONE: Record<string, string> = {
   high: 'bg-drop-soft text-drop-deep ring-drop-ring',
 };
 const PENDING_TONE = 'bg-raised text-ink-subtle ring-hairline';
+
+/**
+ * Whether the posting still takes applications — CI · Lead Liveness Re-check.
+ *
+ * Renders nothing at all when `acceptingApplications` is null. That is the
+ * point: "never checked" is not a finding, and a grey "unknown" chip on every
+ * lead would be noise on the ~2/3 that have no URL to re-read.
+ */
+function LivenessChip({ c }: { c: Ctx }) {
+  const accepting = c.lead.acceptingApplications;
+  if (accepting == null) return null;
+  return accepting ? (
+    <MetricChip tone="bg-proof-soft text-proof-deep ring-proof-ring" dot="bg-current">
+      still accepting
+    </MetricChip>
+  ) : (
+    <MetricChip tone="bg-caution-soft text-caution-deep ring-caution-ring" dot="bg-current">
+      <b className="font-bold">no longer accepting applications</b>
+    </MetricChip>
+  );
+}
+
+/**
+ * Re-read the posting: B1 again, against the live page rather than the values
+ * frozen at capture. Shown only when there is a LinkedIn URL to follow — the
+ * host check mirrors `linkedInJobId`, deliberately duplicated rather than
+ * imported, because pulling a server module into this client bundle to test a
+ * hostname would be the more expensive mistake.
+ *
+ * Note this refreshes freshness and liveness but NOT saturation: LinkedIn's
+ * guest fragment carries no applicant count. The button says "posting", not
+ * "everything", for that reason.
+ */
+function RecheckPostingButton({ c }: { c: Ctx }) {
+  const [pending, start] = useTransition();
+  const router = useRouter();
+  const url = c.lead.sourceUrl ?? c.lead.jobPostLink ?? '';
+  const isLinkedIn = /^https?:\/\/([a-z0-9-]+\.)*linkedin\.com\//i.test(url);
+  if (!isLinkedIn) return null;
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() =>
+        start(async () => {
+          await refreshFreshnessAction(c.lead.id);
+          router.refresh();
+        })
+      }
+      className="rounded-full px-2.5 py-1 text-[10.5px] font-semibold text-ink-subtle ring-1 ring-inset ring-hairline transition hover:bg-raised hover:text-ink disabled:opacity-50"
+      title="Re-read the LinkedIn posting: posted date and whether it still accepts applications. Applicant count is not available from the public page."
+    >
+      {pending ? 'checking…' : 're-check posting'}
+    </button>
+  );
+}
 
 function MetricChip({ tone, dot, children }: { tone: string; dot: string; children: React.ReactNode }) {
   return (

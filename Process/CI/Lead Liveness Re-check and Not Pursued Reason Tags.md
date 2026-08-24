@@ -2,13 +2,13 @@
 ci-area: Screening (B1) / Lead lifecycle
 ci-roadmap:
 ci-title: Lead Liveness Re-check and Not Pursued Reason Tags
-ci-status: 0 - Idea
+ci-status: 2 - Testing
 ci-priority: high
 ci-date: 2026-08-23
-ci-estimated-time:
-ci-time-spent: 0
+ci-estimated-time: 4
+ci-time-spent: 2
 pr-source:
-pr-target:
+pr-target: "[[B1. Capture Posting Freshness and Market Saturation]]"
 ---
 
 ---
@@ -17,14 +17,13 @@ pr-target:
 ```
 ---
 
-> [!IMPORTANT] Start here — this note is self-contained
-> Written to be picked up in a **fresh chat with no prior context**. It records an idea, not a design.
+> [!IMPORTANT] Built 2026-08-23 — see §2.8
 > Opened after the owner hit the real case: several leads he genuinely wanted to pursue closed before
-> he applied. "Not Pursued" is the right bucket, but there is no way to say *why* — and marking them
+> he applied. "Not Pursued" is the right bucket, but there was no way to say *why* — and marking them
 > "Not Pursued" flat reads as a decision he made, when in fact the posting closed on him.
 >
-> **Read §1.2 before scoping.** A `refreshFreshnessAction` already exists and already records a B1
-> re-run — but it cannot detect anything new, for a reason that is not obvious from its name.
+> §1 and §2 are kept as written, including the assessment in §2/Q1 that turned out to be **wrong** and
+> the owner's push-back that corrected it. §2.8 records what actually shipped.
 
 ---
 
@@ -197,6 +196,64 @@ for non-LinkedIn ATS hosts. Only 6 leads carry a non-LinkedIn `jobPostLink`, eac
 (Workday, Eightfold, onlyfy, …) — one bespoke parser each, for one lead each. LinkedIn is where the
 volume is.
 
+### 2.8 · What was built (2026-08-23)
+
+- **`lib/pipeline/linkedin-posting.ts`** — new. `linkedInJobId` (URL → job id), `parsePostedDays`
+  ("4 weeks ago" → 28), `parsePosting` (closure marker + posted phrase + title), and
+  `readLinkedInPosting` (the fetch). Parsing is split from fetching so the interesting half is
+  testable; 15 tests in `lib/__tests__/linkedin-posting.test.ts`, fixtures trimmed from the real
+  guest fragments.
+- **Schema** — `job_leads.accepting_applications boolean` + `liveness_checked_at timestamptz`,
+  `drizzle/0038_chief_sebastian_shaw.sql`, applied. Tri-state: NULL means nobody looked, and is
+  **never** collapsed into "closed".
+- **`refreshFreshness`** re-reads the posting when the lead has a LinkedIn URL, rewrites
+  `posted_days` from what the posting says, records the liveness answer, and reports what it actually
+  did. Saturation is explicitly not re-read. A block/timeout/unreadable page writes nothing and says
+  so in the summary.
+- **`setLeadLiveness`** — the manual fallback for leads with no URL. Same two columns.
+- **Not Pursued tags** — `notPursuedReason` → `notPursuedTags`, returning a set:
+  `roadblocked` / `misaligned` / `expired` / `low_fit` (`< 7`) / `not_proceeding`. The first two and
+  `low_fit` are derived exactly as before; only `expired` reads the new column, and only on
+  `=== false`. `not_proceeding` still means "nothing structured to say" and only ever appears alone.
+- **UI** — the lead's chip row gains a liveness chip (rendered only when the answer is known — an
+  "unknown" chip on every lead would be noise) and a **re-check posting** control, shown only when
+  there is a LinkedIn URL to follow. The Not Pursued list's "Why" column is now a tag row, with
+  `expired` toned differently: a role that closed on you is not a shortcoming you found.
+
+**Verified against live data**, three real leads:
+
+| Lead | `posted_days` before → after | Band | Liveness |
+| --- | --- | --- | --- |
+| Siemens Advanta | 3 → **28** | null → Aging | not accepting |
+| frog | 30 → **60** | null → Aging (+ HOLD ≥60d) | not accepting |
+| Austria Wirtschaftsservice | null → **14** | null → Fresh | still accepting |
+
+That first column is §1.4 in practice: Siemens was captured 3 days after publication and had read as
+"3 days old" ever since. The re-check is the first thing that has ever corrected it — and on `frog`
+it moved the lead across the 60-day gate, which had never fired.
+
+**Side effect worth knowing:** those three leads now carry a real liveness answer. That is not the
+back-catalogue backfill the owner declined — it is three rows touched while proving the path works,
+and the values are correct.
+
+### 2.9 · Q2 — settled: explicit click, derived tag
+
+The owner: *"lets keep the 'Not Pursued' as a explicit click."* Read together with his earlier
+*"the 'Not Pursued' button would then be able to automatically capture the 'Expired' reason"*, the
+split is: **the action stays a deliberate click; the tag derives once the lead is in the bucket.**
+Nothing auto-files a lead as Not Pursued because its posting closed. That keeps the 2026-07-30
+derive-don't-store principle and leaves the human gate exactly where it was.
+
+### 2.10 · Not done
+
+- **No back-catalogue backfill**, per the owner: Archive leads were all applied to, and the existing
+  Not Pursued leads already show Roadblocks or Misalignments. Their `accepting_applications` stays
+  NULL, which renders as no `expired` tag — correct, not a gap.
+- **No UI for `setLeadLiveness` yet.** The function exists for the 117 leads with no URL; nothing
+  calls it. Worth a small control on the lead page, but the owner's actual backlog is LinkedIn leads.
+- **No `postedDays`-as-a-date change** (§Q4). The re-check rewrites the integer, which is enough for
+  now.
+
 ## 3. Resources or references
 
 - `lib/pipeline/screening.ts` — `refreshFreshness()`; `freshnessBand` / `saturationBand` /
@@ -215,6 +272,16 @@ volume is.
   body and the schema comment.
 
 ## 4. Notes / Progress log
+
+### 2026-08-23 · Built
+
+Q2 settled (§2.9) and the back-catalogue explicitly left alone, so the build went straight through.
+See §2.8 for what shipped and the live verification.
+
+The one thing worth carrying forward: the re-check turned out to be worth more than the closure flag
+that motivated it. `posted_days` had been frozen at capture on every lead and re-read by nothing —
+Siemens had been claiming "3 days old" for a month. Fixing the freshness signal generally was a side
+effect of asking a much narrower question.
 
 ### 2026-08-23 · Opened as an Idea
 

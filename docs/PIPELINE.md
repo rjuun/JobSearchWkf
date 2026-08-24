@@ -98,7 +98,7 @@ Without it a lead screened before this change would show a `B2` trace meaning "r
 
 | Step | Note | Model | Output (tool schema) |
 | --- | --- | --- | --- |
-| **B1** Freshness & saturation | `B1. Capture Posting Freshness and Market Saturation.md` | **code** | days_since_publication, applicant_count, freshness/saturation bands. **Gate:** ≥60 days → `hold`. |
+| **B1** Freshness & saturation | `B1. Capture Posting Freshness and Market Saturation.md` | **code** | days_since_publication, applicant_count, freshness/saturation bands. **Gate:** ≥60 days → `hold`. Re-runnable via `refreshFreshness`, which for a LinkedIn lead **re-reads the live posting** — rewriting `posted_days` and recording whether it still accepts applications. Saturation is *not* re-read: the public fragment carries no applicant count. |
 | **B2** Extract requirements | `B2. Extract Requirements from Job Description.md` | Sonnet 5 | `job_requirements[]`: order, rank (Core/Important/Nice), requirement, description, **`source_text`** (the verbatim JD sentence — not the paraphrase in `description`), skills |
 | **B3** Roadblocks | `B3. Identify Roadblocks.md` | Sonnet 5 | hard ineligibility across {language, technical, certification, geographic, industry} or `None`, each optionally naming the `requirement_id` it blocks (§2.5) |
 | **B4** Misalignments | `B4. Identify Misalignments.md` | Sonnet 5 | flags (**not blockers**) across {values/culture, city, seniority}. Context: `Values & Motives Summary.md` |

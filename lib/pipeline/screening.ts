@@ -45,6 +45,7 @@ import { bulletBank, education, jobLeads, jobRequirements, languages, profiles, 
 import { recordRun, type StepReport } from './runs';
 import { readValuesSummary, candidateFactsSummary } from '../profile-context';
 import { normalizeCvPosition } from '../cv-slots';
+import { readLinkedInPosting } from './linkedin-posting';
 
 export type { StepReport } from './runs';
 import { systemPromptFor } from '../prompts';
@@ -850,28 +851,88 @@ export async function runScoring(leadId: string, ownerId?: string | null): Promi
 export async function refreshFreshness(leadId: string, ownerId?: string | null): Promise<StepReport> {
   const { lead, effectiveOwnerId } = await loadLead(leadId, ownerId);
   const t = Date.now();
-  const fresh = freshnessBand(lead.postedDays);
+
+  // CI · Lead Liveness Re-check. Until this, "refresh" was a misnomer: it
+  // recomputed bands from `postedDays`/`applicantCount`, which A1 freezes at
+  // capture — so it returned the same answer forever. Worse, NOTHING in the
+  // running app ever wrote those two columns (134 of 172 leads had them null),
+  // so for most leads it recomputed a band from nothing at all. Re-reading the
+  // posting is what makes the name true, and this is the first writer
+  // `postedDays` has ever had.
+  //
+  // LinkedIn only, and only when the lead carries a job URL — see
+  // ./linkedin-posting.ts for why that narrowness is deliberate. Everything
+  // else keeps the old recompute, which is honest for what it is.
+  const live = await readLinkedInPosting(lead.sourceUrl ?? lead.jobPostLink);
+  const postedDays = live.ok && live.read.postedDays != null ? live.read.postedDays : lead.postedDays;
+
+  const fresh = freshnessBand(postedDays);
+  // Saturation is NOT refreshed: `num-applicants__figure` is empty on closed
+  // postings and absent on open ones, so there is nothing to read. Recomputed
+  // from the stored count so the band stays consistent with it, never presented
+  // as newly checked.
   const sat = saturationBand(lead.applicantCount);
-  const hold = shouldHold(lead.postedDays);
+  const hold = shouldHold(postedDays);
 
   const preDecision = lead.status === 'scoring_queue' || lead.status === 'captured' || lead.status === 'hold';
   const nextStatus = hold && preDecision && lead.status !== 'hold' ? ('hold' as const) : null;
 
   await db
     .update(jobLeads)
-    .set({ freshnessBand: fresh, saturationBand: sat, ...(nextStatus ? { status: nextStatus } : {}), updatedAt: new Date() })
+    .set({
+      freshnessBand: fresh,
+      saturationBand: sat,
+      ...(postedDays !== lead.postedDays ? { postedDays } : {}),
+      // Only a successful read may touch the liveness answer. A block, a
+      // timeout or an unrecognised page leaves it exactly as it was: "we could
+      // not look" and "it is closed" are different facts, and conflating them
+      // would retire a live lead on a network blip.
+      ...(live.ok ? { acceptingApplications: !live.read.closed, livenessCheckedAt: new Date() } : {}),
+      ...(nextStatus ? { status: nextStatus } : {}),
+      updatedAt: new Date(),
+    })
     .where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, effectiveOwnerId)));
 
   const ms = Date.now() - t;
-  await recordRun(leadId, 'B1', 'code', { fresh, sat, hold, refreshed: true, statusChanged: nextStatus }, ms, effectiveOwnerId);
+  const liveness = live.ok ? (live.read.closed ? 'closed' : 'open') : live.reason;
+  await recordRun(
+    leadId,
+    'B1',
+    'code',
+    { fresh, sat, hold, refreshed: true, statusChanged: nextStatus, liveness, postedDays },
+    ms,
+    effectiveOwnerId
+  );
+  // The summary says what was actually re-read, so a run that could not reach
+  // LinkedIn doesn't read as a clean check that found nothing wrong.
+  const livenessNote = live.ok
+    ? live.read.closed
+      ? ' · NO LONGER ACCEPTING APPLICATIONS'
+      : ' · still accepting'
+    : live.reason === 'not-linkedin'
+      ? ' · no LinkedIn URL to re-read'
+      : ` · could not re-read posting (${live.reason})`;
   return {
     step: 'B1',
     label: 'Freshness & saturation',
     status: 'done',
     model: 'code',
     ms,
-    summary: `${fresh} · ${sat}${hold ? ' · HOLD (≥60d)' : ''}${nextStatus ? ' · moved to hold' : ''}`,
+    summary: `${fresh} · ${sat}${hold ? ' · HOLD (≥60d)' : ''}${nextStatus ? ' · moved to hold' : ''}${livenessNote}`,
   };
+}
+
+/**
+ * The manual fallback for the ~2/3 of leads with no URL to follow (117 of 172
+ * carry no `sourceUrl` at all). Same two columns, owner-supplied instead of
+ * re-read — the stored fact is identical, only its writer differs.
+ */
+export async function setLeadLiveness(leadId: string, accepting: boolean, ownerId?: string | null): Promise<void> {
+  const { effectiveOwnerId } = await loadLead(leadId, ownerId);
+  await db
+    .update(jobLeads)
+    .set({ acceptingApplications: accepting, livenessCheckedAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, effectiveOwnerId)));
 }
 
 /**

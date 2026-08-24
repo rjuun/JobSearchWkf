@@ -91,6 +91,8 @@ export default async function RoleProofWorkspacePage({
     jobPostLink: lead.jobPostLink,
     overallFitScore: lead.overallFitScore,
     postedDays: lead.postedDays,
+    acceptingApplications: lead.acceptingApplications,
+    livenessCheckedAt: lead.livenessCheckedAt ? lead.livenessCheckedAt.toISOString() : null,
     freshnessBand: lead.freshnessBand,
     saturationBand: lead.saturationBand,
     roadblocks: (lead.roadblocks ?? []) as { dimension: string; detail: string; requirementId?: string }[],

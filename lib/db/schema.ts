@@ -356,6 +356,14 @@ export const jobLeads = pgTable('job_leads', {
   freshnessBand: text('freshness_band'),
   saturationBand: text('saturation_band'),
   analysisDate: text('analysis_date'),
+  // CI · Lead Liveness Re-check. Tri-state on purpose: true = the posting was
+  // still open when last read, false = it showed "No longer accepting
+  // applications", NULL = nobody has looked. "We could not look" must never
+  // collapse into "it is closed" — that would retire a live lead on a network
+  // blip. Written only by refreshFreshness (LinkedIn re-fetch, or the owner's
+  // own answer for the ~2/3 of leads with no URL to follow).
+  acceptingApplications: boolean('accepting_applications'),
+  livenessCheckedAt: timestamp('liveness_checked_at', { withTimezone: true }),
   // B3 (roadblocks) / B4 (misalignments)
   roadblocks: jsonb('roadblocks').$type<Roadblock[]>().default([]),
   misalignments: jsonb('misalignments').$type<Misalignment[]>().default([]),

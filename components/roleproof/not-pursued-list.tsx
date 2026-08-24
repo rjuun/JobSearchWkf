@@ -24,10 +24,25 @@ function fmtDate(d: Date): string {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-const REASON_LABEL: Record<NotPursuedRow['reason']['kind'], string> = {
+// CI · Lead Liveness Re-check — a lead can carry several of these at once, so
+// the "Why" column is a tag row now rather than one label.
+const REASON_LABEL: Record<NotPursuedRow['tags'][number]['kind'], string> = {
   roadblocked: 'Roadblocked',
   misaligned: 'Misaligned',
+  expired: 'Expired',
+  low_fit: 'Low fit',
   not_proceeding: 'Not proceeding',
+};
+
+// `expired` is the one the owner opened this CI for — a role he wanted, that
+// closed before he applied. It reads differently from a shortcoming he found,
+// so it should not look like one.
+const REASON_TONE: Record<NotPursuedRow['tags'][number]['kind'], string> = {
+  roadblocked: 'bg-surface text-ink-subtle ring-hairline',
+  misaligned: 'bg-surface text-ink-subtle ring-hairline',
+  expired: 'bg-caution-soft text-caution-deep ring-caution-ring',
+  low_fit: 'bg-surface text-ink-subtle ring-hairline',
+  not_proceeding: 'bg-surface text-ink-subtle ring-hairline',
 };
 
 const GRID = 'grid-cols-[44px_minmax(0,1.3fr)_112px_minmax(0,1.4fr)_100px]';
@@ -77,11 +92,20 @@ export function NotPursuedList({ rows }: { rows: NotPursuedRow[] }) {
               {fmtDate(row.updatedAt)}
             </div>
             <div className="relative z-[1] min-w-0">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
-                {REASON_LABEL[row.reason.kind]}
+              <span className="flex flex-wrap items-center gap-1">
+                {row.tags.map((tag) => (
+                  <span
+                    key={tag.kind}
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset ${REASON_TONE[tag.kind]}`}
+                  >
+                    {REASON_LABEL[tag.kind]}
+                  </span>
+                ))}
               </span>
-              {row.reason.detail && (
-                <div className="truncate text-[12px] text-ink-muted">{row.reason.detail}</div>
+              {/* One detail line, from the first tag that has one — the column
+                  has room for a sentence, not four. */}
+              {row.tags.find((t) => t.detail)?.detail && (
+                <div className="truncate text-[12px] text-ink-muted">{row.tags.find((t) => t.detail)!.detail}</div>
               )}
             </div>
             <Link

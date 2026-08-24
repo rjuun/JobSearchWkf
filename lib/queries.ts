@@ -778,7 +778,19 @@ export async function flowCounts(): Promise<{
 // sibling of the Archive, not folded into it: these never had an application
 // to stop, so there's no appliedAt/outcomeAt/contactEmail to show — the "why"
 // comes from the row's own roadblocks/misalignments instead.
-export type NotPursuedReason = { kind: 'roadblocked' | 'misaligned' | 'not_proceeding'; detail: string | null };
+/**
+ * CI · Lead Liveness Re-check and Not Pursued Reason Tags — this went from one
+ * reason to a SET, because a lead is routinely several of these at once: a role
+ * can be misaligned AND have closed while you thought about it.
+ *
+ * Three of the four are still derived from data already on the row, which is the
+ * 2026-07-30 principle intact (`leadStatusEnum`: one closed status plus a
+ * reason, not a status per reason). Only `expired` reads new state, because
+ * nothing recorded whether a posting was still open until the liveness re-check
+ * existed.
+ */
+export type NotPursuedTagKind = 'roadblocked' | 'misaligned' | 'expired' | 'low_fit' | 'not_proceeding';
+export type NotPursuedTag = { kind: NotPursuedTagKind; detail: string | null };
 
 export type NotPursuedRow = {
   leadId: string;
@@ -787,20 +799,40 @@ export type NotPursuedRow = {
   city: string | null;
   overallFitScore: number | null;
   updatedAt: Date;
-  reason: NotPursuedReason;
+  tags: NotPursuedTag[];
 };
 
-function notPursuedReason(
-  roadblocks: { dimension: string; detail: string }[] | null,
-  misalignments: { dimension: string; detail: string }[] | null
-): NotPursuedReason {
-  if (roadblocks && roadblocks.length > 0) {
-    return { kind: 'roadblocked', detail: `${roadblocks[0].dimension}: ${roadblocks[0].detail}` };
+/** `< 7` and not `< 8`: this agrees with `recommendationFor`'s existing Proceed
+ *  band (lib/scoring.ts) instead of introducing a second, stricter threshold —
+ *  a `< 8` tag would have called every 7.0–7.9 lead "low fit" while B6 had just
+ *  recommended pursuing it. Owner's call, 2026-08-23. */
+export const LOW_FIT_BELOW = 7;
+
+function notPursuedTags(row: {
+  roadblocks: { dimension: string; detail: string }[] | null;
+  misalignments: { dimension: string; detail: string }[] | null;
+  acceptingApplications: boolean | null;
+  overallFitScore: number | null;
+}): NotPursuedTag[] {
+  const tags: NotPursuedTag[] = [];
+  if (row.roadblocks && row.roadblocks.length > 0) {
+    tags.push({ kind: 'roadblocked', detail: `${row.roadblocks[0].dimension}: ${row.roadblocks[0].detail}` });
   }
-  if (misalignments && misalignments.length > 0) {
-    return { kind: 'misaligned', detail: `${misalignments[0].dimension}: ${misalignments[0].detail}` };
+  if (row.misalignments && row.misalignments.length > 0) {
+    tags.push({ kind: 'misaligned', detail: `${row.misalignments[0].dimension}: ${row.misalignments[0].detail}` });
   }
-  return { kind: 'not_proceeding', detail: null };
+  // Strictly `=== false`. NULL means nobody has looked, which is not the same
+  // claim as "it closed" — see the column comment in lib/db/schema.ts.
+  if (row.acceptingApplications === false) {
+    tags.push({ kind: 'expired', detail: 'No longer accepting applications' });
+  }
+  if (row.overallFitScore != null && row.overallFitScore < LOW_FIT_BELOW) {
+    tags.push({ kind: 'low_fit', detail: `Fit ${row.overallFitScore.toFixed(1)} / 10` });
+  }
+  // Unchanged meaning from 2026-07-30: nothing structured to say. Only ever
+  // alone — it is the absence of the others, not a peer of them.
+  if (tags.length === 0) tags.push({ kind: 'not_proceeding', detail: null });
+  return tags;
 }
 
 export async function listNotPursuedLeads(): Promise<NotPursuedRow[]> {
@@ -815,6 +847,7 @@ export async function listNotPursuedLeads(): Promise<NotPursuedRow[]> {
       updatedAt: jobLeads.updatedAt,
       roadblocks: jobLeads.roadblocks,
       misalignments: jobLeads.misalignments,
+      acceptingApplications: jobLeads.acceptingApplications,
     })
     .from(jobLeads)
     .where(and(eq(jobLeads.ownerId, owner), eq(jobLeads.status, 'not_pursued')))
@@ -827,7 +860,7 @@ export async function listNotPursuedLeads(): Promise<NotPursuedRow[]> {
     city: r.city,
     overallFitScore: r.overallFitScore,
     updatedAt: r.updatedAt,
-    reason: notPursuedReason(r.roadblocks, r.misalignments),
+    tags: notPursuedTags(r),
   }));
 }
 
