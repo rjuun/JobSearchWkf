@@ -27,6 +27,7 @@ import { markNotPursuedAction } from '@/app/actions/scoring-queue';
 import { mapEvidenceAction, approveAllAction, generateCvAction } from '@/app/actions/tailoring';
 import { addTipAction, resolveTipAction } from '@/app/actions/tips';
 import { trackUxAction } from '@/app/actions/ux';
+import { summariseRunTrace, totalRuns, type StepTrace } from '@/lib/run-trace';
 import { rescreenBlocked } from '@/lib/db/types';
 import type { JourneyResult } from '@/lib/journey';
 import { provenanceCoverage } from '@/lib/provenance';
@@ -446,8 +447,8 @@ const PROMPT_SOURCE: Record<string, string> = {
   C7: 'Process/C7',
 };
 
-function tracesFor(c: Ctx, steps: readonly string[]): RunTrace[] {
-  return steps.map((step) => c.runTrace.find((run) => run.step === step)).filter((run): run is RunTrace => !!run);
+function tracesFor(c: Ctx, steps: readonly string[]): StepTrace[] {
+  return summariseRunTrace(c.runTrace, steps);
 }
 
 function hasTrace(c: Ctx, steps: readonly string[]): boolean {
@@ -486,7 +487,12 @@ function TraceDisclosure({ c, steps, dark = false }: { c: Ctx; steps: readonly s
         )}
       >
         <span>Run trace</span>
-        <span className="font-mono text-[10px] opacity-70">{runs.length}/{steps.length}</span>
+        {/* Steps covered, plus the raw run count when any step has repeated —
+            otherwise "6/6" hides a seventh run behind an unchanged number. */}
+        <span className="font-mono text-[10px] opacity-70">
+          {runs.length}/{steps.length}
+          {totalRuns(runs) > runs.length ? ` · ${totalRuns(runs)} runs` : ''}
+        </span>
       </summary>
       <div className="mt-2 space-y-1.5">
         {runs.map((run) => (
@@ -507,6 +513,21 @@ function TraceDisclosure({ c, steps, dark = false }: { c: Ctx; steps: readonly s
             <span className={dark ? 'text-paper/55' : 'text-ink-subtle'}>{PROMPT_SOURCE[run.step] ?? 'prompt'}</span>
             <span className={dark ? 'text-paper/35' : 'text-ink-subtle'}>·</span>
             <span className={dark ? 'text-paper/55' : 'text-ink-subtle'}>{traceTime(run.finishedAt)}</span>
+            {/* The timestamp above is the LATEST run. Without this a re-checked
+                B1 just looks like a step that happened to run later than the
+                rest, and the original run — the one the stored score was built
+                on — is invisible. */}
+            {run.runCount > 1 && (
+              <span
+                className={cn(
+                  'rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold',
+                  dark ? 'bg-white/10 text-paper/75' : 'bg-caution-soft text-caution-deep'
+                )}
+                title={`Run ${run.runCount} times. First run ${traceTime(run.firstAt)}.`}
+              >
+                re-run ×{run.runCount - 1} · first {traceTime(run.firstAt)}
+              </span>
+            )}
           </div>
         ))}
       </div>
