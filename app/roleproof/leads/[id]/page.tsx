@@ -125,6 +125,7 @@ export default async function RoleProofWorkspacePage({
     approvedAt: t.approvedAt ? t.approvedAt.toISOString() : null,
     mySkills: t.mySkills ?? [],
     requirementSkills: t.requirementSkills ?? [],
+    cvBulletSkills: t.cvBulletSkills ?? [],
   }));
 
   const initialEvidenceRp: RpEvidence[] = initialEvidence.map((e) => ({

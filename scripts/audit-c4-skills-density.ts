@@ -3,8 +3,10 @@
  *
  * Read-only. For every lead with Keep-gated rows, prints what C4 USED to
  * produce (every My Skills tag, uncapped) beside what it produces now
- * (`buildSkillsSection` over the Keep rows' Requirement Skills), plus how much
- * of the stored My Skills vocabulary the profile actually recognises.
+ * (`buildSkillsSection` over the Keep rows' `cv_bullet_skills`), how much of
+ * the stored My Skills vocabulary the profile actually recognises, and the
+ * coverage gap the column split makes computable: Requirement Skills the JD
+ * asked for that no Keep bullet ended up displaying.
  *
  * Stored My Skills on leads mapped before this CI are still the old free-text
  * graph tags — they are rewritten the next time C2 runs for that lead.
@@ -41,15 +43,32 @@ async function main() {
     const recognised = resolveVocab([...rawTags], index);
 
     const section = buildSkillsSection(
-      keep.map((g) => ({ rank: (g.requirementId && rankByReqId.get(g.requirementId)) ?? null, requirementSkills: g.requirementSkills ?? [] }))
+      keep.map((g) => ({ rank: (g.requirementId && rankByReqId.get(g.requirementId)) ?? null, cvBulletSkills: g.cvBulletSkills ?? [] }))
     );
     const total = section.reduce((n, g) => n + g.items.length, 0);
 
     console.log(`\n${lead?.company ?? '?'} · ${lead?.title ?? '?'} [${leadId.slice(0, 8)}] — ${keep.length} Keep rows`);
     console.log(`  BEFORE (every My Skills tag, uncapped): ${rawTags.size} items in 1 line`);
     console.log(`  stored My Skills the profile recognises: ${recognised.length} / ${rawTags.size}`);
-    console.log(`  AFTER  (Keep rows' Requirement Skills): ${total} items in ${section.length} categor${section.length === 1 ? 'y' : 'ies'}`);
+    console.log(`  AFTER  (Keep rows' cv_bullet_skills): ${total} items in ${section.length} categor${section.length === 1 ? 'y' : 'ies'}`);
     for (const g of section) console.log(`    ${g.category}: ${g.items.join(' · ')}`);
+
+    // CI · Split cv_bullet_skills from requirement_skills — only computable
+    // once C3's tag stopped overwriting B2's asks.
+    const asked = new Set<string>();
+    const shown = new Set<string>();
+    for (const r of keep) {
+      for (const n of r.requirementSkills ?? []) if (n) asked.add(n.trim().toLowerCase());
+      for (const n of r.cvBulletSkills ?? []) if (n) shown.add(n.trim().toLowerCase());
+    }
+    const gap = [...asked].filter((n) => !shown.has(n));
+    // Exact string match, and it OVER-REPORTS: C3 rewords most asks
+    // ("Stakeholder management" -> "Stakeholder Management With Senior
+    // Leadership"), which scores as a miss here. Read it as "not matched
+    // literally", not "not evidenced" — see CI · Skill Name Treatment in the
+    // C4 Skills Section.
+    console.log(`  NOT MATCHED LITERALLY (exact-string; over-reports where C3 reworded): ${gap.length} of ${asked.size}`);
+    if (gap.length) console.log(`    ${gap.sort().join(' · ')}`);
   }
   process.exit(0);
 }

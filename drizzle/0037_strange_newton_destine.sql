@@ -1,0 +1,1 @@
+ALTER TABLE "requirement_tailoring" ADD COLUMN "cv_bullet_skills" jsonb DEFAULT '[]'::jsonb;

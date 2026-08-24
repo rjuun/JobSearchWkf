@@ -19,10 +19,12 @@
  *  - `buildVocabIndex` / `resolveVocab`: nothing becomes a My Skills value
  *    unless it is a real name in the owner's curated vocabulary. Free-text
  *    graph tags stay on the graph as provenance and never reach the CV.
- *  - `buildSkillsSection`: the CV's Skills section is the Requirement Skills
- *    carried by Keep-gated rows only — i.e. the skills actually associated
- *    with the tailored bullets, for requirements that have matched evidence —
- *    ordered Core → Important → Nice-to-Have per C4 §B.3.
+ *  - `buildSkillsSection`: the CV's Skills section is the `cv_bullet_skills`
+ *    carried by Keep-gated rows only — i.e. the skills actually displayed by
+ *    the tailored bullets, for requirements that have matched evidence —
+ *    ordered Core → Important → Nice-to-Have per C4 §B.3. (CI · Split
+ *    cv_bullet_skills from requirement_skills gave C3's tag its own column;
+ *    this read `requirement_skills` until then.)
  *
  * Pure on purpose: `lib/pipeline/tailoring.ts` is a DB/LLM module that cannot
  * be imported under vitest, and this is the part worth testing directly.
@@ -94,9 +96,10 @@ export function resolveVocab(raw: readonly string[], index: Map<string, VocabEnt
 export type KeepRowSkills = {
   /** The matched requirement's B2 rank: Core | Important | Nice-to-Have. */
   rank: string | null;
-  /** `requirement_tailoring.requirement_skills` — B2's JD-language skills at
-   *  C2 time, overwritten by C3 with the bracketed tag it actually wrote. */
-  requirementSkills: readonly string[] | null;
+  /** `requirement_tailoring.cv_bullet_skills` — what C3's tailored bullet
+   *  actually displays. Not `requirement_skills`, which is what the JD asked
+   *  for and may be broader than the bullet ended up evidencing. */
+  cvBulletSkills: readonly string[] | null;
 };
 
 /** C4 §B.1's outer envelope (3–5 categories × 4–8 skills). Core and Important
@@ -121,14 +124,16 @@ const ADDITIONAL = 'Additional Skills';
 /**
  * Build the CV's Skills section from the Keep-gated rows.
  *
- * Source is `requirement_skills`, not `my_skills` — the owner's decision on
- * this CI: the section prints "the whole list of skills associated with the
+ * Source is `cv_bullet_skills`, not `my_skills` — the owner's decision on the
+ * parent CI: the section prints "the whole list of skills associated with the
  * tailored cv_bullets, either bracketed or integrated", restricted to
  * requirements that actually have matched evidence. Keep-gated rows ARE that
- * restriction, and `requirement_skills` is the only durable record of a
- * bullet's skills: bold-inline integration lives inside the bullet's own text
- * and is never captured separately, so both of C3 §B.5's presentation methods
- * resolve to this one column.
+ * restriction, and `cv_bullet_skills` is the only durable record of a bullet's
+ * skills: bold-inline integration lives inside the bullet's own text and is
+ * never captured separately, so both of C3 §B.5's presentation methods resolve
+ * to this one column. (It read `requirement_skills` until C3's tag was split
+ * into its own column — same values, but that column also held B2's asks
+ * before C3 ran, so it could not say which it was carrying.)
  *
  * A skill claimed by several ranks prints once, under the highest — nothing is
  * duplicated across categories (C4 §D).
@@ -139,7 +144,7 @@ export function buildSkillsSection(rows: readonly KeepRowSkills[]): { category: 
   const claimed = new Set<string>();
 
   const take = (into: string[], row: KeepRowSkills) => {
-    for (const raw of row.requirementSkills ?? []) {
+    for (const raw of row.cvBulletSkills ?? []) {
       const name = (raw ?? '').trim();
       if (!name) continue;
       const key = norm(name);

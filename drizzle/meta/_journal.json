@@ -260,6 +260,13 @@
       "when": 1786140541682,
       "tag": "0036_fearless_hobgoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1787561552327,
+      "tag": "0037_strange_newton_destine",
+      "breakpoints": true
     }
   ]
 }
