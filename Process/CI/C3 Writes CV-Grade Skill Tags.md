@@ -201,8 +201,11 @@ improve itself. Not required for v1; do not let it block.
 - `Process/C3…md` §B.5 — the instruction to reverse. `Process/C4…md` §B.1/§B.3/§B.4 — current rules.
 - `lib/__tests__/c4-skills.test.ts` — 25 tests; the guard tests are the ones §2.4 changes.
 - `scripts/audit-c4-skills-density.ts` — read-only, stops at prioritisation.
-- [[Skill Name Treatment in the C4 Skills Section]] — opened earlier for the same symptom from the
-  C4 side; **this CI probably absorbs it.** Reconcile the two before starting.
+- [[Skill Name Treatment in the C4 Skills Section (Consolidation)]] — **reconciled 2026-08-24, no
+  overlap remains.** That CI is now the consolidation half and nothing else; its language item shipped
+  and its JD-phrasing item moved here. Build this one first (it changes what arrives), then that one.
+  **They share one dependency: the guard replacement in §2.4. Build it once, here, and let the other
+  reuse it.**
 
 ## 4. Notes / Progress log
 

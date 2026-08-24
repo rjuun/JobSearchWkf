@@ -1,14 +1,14 @@
 ---
 ci-area: CV Tailoring
 ci-roadmap:
-ci-title: Skill Name Treatment in the C4 Skills Section
+ci-title: Skill Name Treatment in the C4 Skills Section (Consolidation)
 ci-status: 0 - Idea
-ci-priority: medium
+ci-priority: high
 ci-date: 2026-08-23
 ci-estimated-time:
 ci-time-spent: 0
 pr-source: "[[C4 Skills Selection Produces Unreadable Overflow]]"
-pr-target:
+pr-target: "[[C4. Build and Manage the Skills Section]]"
 ---
 
 ---
@@ -17,11 +17,23 @@ pr-target:
 ```
 ---
 
-> [!IMPORTANT] Start here — this note is self-contained
-> Written to be picked up in a **fresh chat with no prior context**. It records an idea, not a design.
-> The owner's framing when opening it: *"I am pretty sure there is already a treatment defined for such
-> situations, but it is good to have it declared before just letting it slip by."* **So the first job is
-> archaeology, not design** — find the existing rule before writing a new one. §3 lists where to look.
+> [!IMPORTANT] RE-SCOPED 2026-08-24 — this is now the CONSOLIDATION half
+> Opened 2026-08-23 with three problems (§1 a/b/c). Two have since moved:
+>
+> - **(b) languages — SHIPPED.** C4 §B.4 declares it and `dropLanguageSkills` enforces it against the
+>   owner's own `languages` rows. Nothing left to do.
+> - **(c) JD-phrase-shaped names — MOVED** to [[C3 Writes CV-Grade Skill Tags]]. Those names come from
+>   C3's tag, and the fix is a change of register at source, not a rewrite downstream.
+>
+> **What remains, and what this CI now is: (a) consolidation.** Turning
+> "Cost Allocation · Cost Transformation · Cost Optimization · Cost Benefit Management" into
+> "Transfer Pricing & Cost Optimization". That belongs here and can only live here: **C3 is called per
+> evidence ref and never sees the assembled set**, so it cannot merge across bullets. C4 is the only
+> step with whole-set vision.
+>
+> **Sequence it after [[C3 Writes CV-Grade Skill Tags]].** C3 changes what arrives; consolidating the
+> current JD-shaped tags would be tuning against inputs that are about to change. The owner's plan
+> (2026-08-24) is C3 first, then this.
 
 ---
 
@@ -94,11 +106,20 @@ may already exist. Sequence:
 4. **Then** write the rule into `Process/C4...md` and implement it in `lib/pipeline/skills.ts`
    (`buildSkillsSection`), where the parent CI left a single normalised-exact-match dedupe.
 
-**Explicitly out of scope:** re-opening where C4 sources from, or its rank-based grouping — both were
-settled on [[C4 Skills Selection Produces Unreadable Overflow]]. Also out of scope: thematic categories
-("Governance & Compliance", "Process & Transformation") — those belong to
-[[C4 Skills Selection Produces Unreadable Overflow]] §2.11, which is live work rather than the ROADMAP
-P6 item an earlier draft of this note wrongly cited.
+**Explicitly out of scope:** where C4 sources from, and its categorisation — both shipped on
+[[C4 Skills Selection Produces Unreadable Overflow]] (§2.13; the categories are thematic now, built by
+a Sonnet call, not the rank labels an earlier draft of this note described). Also out of scope: the
+*register* of individual names — that is [[C3 Writes CV-Grade Skill Tags]].
+
+**The guard is the shared risk.** Consolidation means printing a name that is not literally one of the
+selected skills, which `reconcileSkillGroups`' identity check currently rejects — the same check
+[[C3 Writes CV-Grade Skill Tags]] §2.4 has to replace. **Do not build two different replacements.**
+Whichever CI lands first should establish support-plus-coverage, and the second should reuse it.
+
+The ATS worry that shaped the original draft turned out to be unfounded, and it is worth not
+re-discovering: consolidating by **joining** rather than substituting is keyword-*denser*, not
+sparser. "Corporate Governance & Regulatory Compliance (EBA)" carries three matchable terms where
+"Governance" carries one. Keep the JD's words inside the compound entry and nothing is lost.
 
 ## 3. Resources or references
 
@@ -118,6 +139,17 @@ P6 item an earlier draft of this note wrongly cited.
 - [[C4 Skills Selection Produces Unreadable Overflow]] §2.4 — where this was logged as out of scope.
 
 ## 4. Notes / Progress log
+
+### 2026-08-24 · Re-scoped to consolidation only
+
+Two of the three original problems moved out (see the callout above). What is left is the one thing
+only C4 can do. Re-prioritised to `high` and sequenced after [[C3 Writes CV-Grade Skill Tags]] on the
+owner's plan: *"My hunch is, to implement: C3 Writes CV-Grade Skill Tags, Skill Name Treatment in C4,
+and continue testing the other CIs."*
+
+The §2 archaeology step is now largely done and its answer was **no pre-existing rule** — C4 §D
+forbade duplication *across* categories and said nothing about duplication *within* one, which is
+exactly the gap. Do not re-run that search from scratch.
 
 ### 2026-08-23 · Opened as an Idea
 
