@@ -26,7 +26,15 @@ async function main() {
   const steps = loadedSteps().sort();
   const rows: string[] = [];
   for (const step of steps) {
-    const note = await loadStepNote(step);
+    // Normalise line endings before hashing. `core.autocrlf=true` + `* text=auto`
+    // means a note's WORKING COPY is CRLF in a fresh checkout and LF wherever the
+    // owner has re-saved it from Obsidian, while the committed blob is always LF.
+    // Without this the same commit hashes differently in two trees — which it did:
+    // the first baseline was captured against a mixed main tree, so 3 of its 11
+    // rows carried CRLF hashes and a linked worktree "failed" 8 of 11 against it
+    // with no content difference at all. Hash the committed content, not the
+    // checkout's accidents.
+    const note = (await loadStepNote(step)).replace(/\r\n/g, '\n');
     // Strip the marker line the renumber legitimately rewrites, so what is
     // hashed is the note text alone.
     const body = composeSystemPrompt(step, note).replace(/--- STEP PROCEDURE \([^)]*\) ---/, '--- STEP PROCEDURE ---');
