@@ -104,7 +104,8 @@ may already exist. Sequence:
    already models exactly this two-names-one-skill idea for the curated vocabulary, and may be the
    right shape here too.
 4. **Then** write the rule into `Process/C4...md` and implement it in `lib/pipeline/skills.ts`
-   (`buildSkillsSection`), where the parent CI left a single normalised-exact-match dedupe.
+   (`prioritiseSkills` collects and dedupes, `reconcileSkillGroups` decides what prints — the parent
+   CI split the old `buildSkillsSection` into those two, and left the dedupe a normalised exact match).
 
 **Explicitly out of scope:** where C4 sources from, and its categorisation — both shipped on
 [[C4 Skills Selection Produces Unreadable Overflow]] (§2.13; the categories are thematic now, built by
@@ -116,6 +117,25 @@ selected skills, which `reconcileSkillGroups`' identity check currently rejects 
 [[C3 Writes CV-Grade Skill Tags]] §2.4 has to replace. **Do not build two different replacements.**
 Whichever CI lands first should establish support-plus-coverage, and the second should reuse it.
 
+> [!IMPORTANT] Landed 2026-08-24 on [[C3 Writes CV-Grade Skill Tags]] — do not rebuild it.
+> `reconcileSkillGroups` now accepts a proposed name that is not in `selected` when it **contains**
+> selected skills whole (`subsumedSkills` in `lib/pipeline/skills.ts`), and **consumes** them, so a
+> merge can never print beside the atoms it absorbed. Containment is directional on purpose:
+> "Governance" does not contain "Corporate Governance", so atomisation is still rejected. A name
+> containing nothing is dropped exactly as before, which is what preserves the 67-skill containment.
+>
+> It is inert today — C4's prompt still says copy every skill verbatim — so **this CI's first job is
+> to change what C4 is asked for**, not to change the guard.
+>
+> One seam it leaves you, and it is the interesting part of this CI: a merge only consumes the atoms
+> it literally contains. "Transfer Pricing & Cost Optimization" consumes "Cost Optimization" and
+> leaves "Cost Allocation", "Cost Transformation" and "Cost Benefit Management" for `Additional
+> Skills` — which reproduces the sprawl in a different bucket. Consuming a sibling it does *not*
+> contain is a claim about meaning, not spelling, and cannot be decided in `reconcileSkillGroups`.
+> The grouping call has to say which skills each entry merged, which means a field on
+> `emit_skill_groups` (`C4.tool` in `lib/llm/schemas.ts`) and reconciliation against that list. Pinned
+> by the test *"prints a merged name that contains a selected skill, and consumes it"*.
+
 The ATS worry that shaped the original draft turned out to be unfounded, and it is worth not
 re-discovering: consolidating by **joining** rather than substituting is keyword-*denser*, not
 sparser. "Corporate Governance & Regulatory Compliance (EBA)" carries three matchable terms where
@@ -123,8 +143,9 @@ sparser. "Corporate Governance & Regulatory Compliance (EBA)" carries three matc
 
 ## 3. Resources or references
 
-- `lib/pipeline/skills.ts` — `buildSkillsSection`; the dedupe is a normalised exact-string match on
-  `norm()` (lowercase + collapsed whitespace), which is what lets (a) through.
+- `lib/pipeline/skills.ts` — `prioritiseSkills` / `reconcileSkillGroups` (there is no
+  `buildSkillsSection` any more; notes written before 2026-08-23 cite it). The dedupe is a normalised
+  exact-string match on `norm()` (lowercase + collapsed whitespace), which is what lets (a) through.
 - `lib/__tests__/c4-skills.test.ts` — existing coverage for selection and dedupe; new naming rules
   belong here.
 - `scripts/audit-c4-skills-density.ts` — read-only; prints the current Skills section for every lead

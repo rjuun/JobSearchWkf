@@ -48,6 +48,7 @@ import {
   SKILLS_ENVELOPE,
   reconcileSkillGroups,
   ungroupedSkills,
+  auditBulletTags,
   type VocabEntry,
 } from './skills';
 
@@ -264,6 +265,94 @@ export function planMerge(
     .filter((e) => !proposedKeys.has(`${e.requirementId}::${e.evidenceRef}`))
     .map((e) => e.id);
   return { toInsert, toReplace, toRefresh, toDelete, unchanged };
+}
+
+/** One Keep row, reduced to what C3 is given to rewrite. */
+export type C3Row = {
+  evidenceRef: string | null;
+  requirementLine: string | null;
+  originalText: string | null;
+  mySkills: readonly string[] | null;
+};
+
+/**
+ * C3's user message, as a pure builder — extracted from `generateCv` for the
+ * same reason `c2UserMessage` was: the prompt is the deliverable of
+ * CI · C3 Writes CV-Grade Skill Tags, and a prompt that can only be read by
+ * running the pipeline against Postgres cannot be pinned by a test.
+ *
+ * Two blocks, mirroring C2's split. The register is owner-wide and
+ * lead-independent — identical for every lead tailored in the same sitting — so
+ * it takes its own 1h cache breakpoint; the per-lead role and rows follow as the
+ * varying suffix.
+ *
+ * **The register block is the substance of this CI (§1.2).** C3 was previously
+ * sent the role line, each row's requirement, original text and My Skills, and
+ * nothing else — it had never seen `skills_master`, not the names and not the
+ * ATS variants. It was then instructed (old §B.5) to write the tag in the job
+ * posting's language. So it wrote "Work Autonomously": obeying an instruction,
+ * in the only vocabulary it had been shown.
+ *
+ * `skills_master` only, not all three tables. C2 matches against skills,
+ * competences and attributes and must keep doing so (epic Q3) — a JD asking for
+ * discretion is genuinely answered by an attribute. But `skills_master` is the
+ * one table written in CV register, and register is what C3 needs. The attribute
+ * still comes through; it comes through re-expressed, which is exactly what the
+ * owner's hand-built CVs do (`Confidentiality & Trust` → "Confidentiality &
+ * Discretion").
+ *
+ * And it is an EXEMPLAR, not a filter and not a closed list (§2.2). Half the
+ * entries in the benchmark CVs — "Board-Grade Synthesis", "Neutral Sounding
+ * Board", "Governance Operating Rhythm" — are in no table at all. Building this
+ * as a lookup is the way to get it wrong, which is why the block says so in as
+ * many words.
+ */
+export function c3UserMessage(
+  rows: readonly C3Row[],
+  leadTitle: string,
+  jdGroup: string | null,
+  atsSystem: string | null,
+  register: readonly VocabEntry[] = []
+): UserContentBlock[] {
+  const blocks: UserContentBlock[] = [];
+  if (register.length) {
+    blocks.push({
+      type: 'text',
+      text:
+        `THE CANDIDATE'S OWN SKILL REGISTER (from skills_master — the names he uses for his own ` +
+        `capabilities, with the alternate wordings each is known by):\n` +
+        register
+          .map((v) => `- ${v.name}${v.variants.length ? ` — also written: ${v.variants.join('; ')}` : ''}`)
+          .join('\n') +
+        `\n\nThis is the REGISTER TO WRITE IN, not a list to choose from. Read it for the LEVEL and ` +
+        `SHAPE these names have — compound rather than atomised, stating the seniority, scale or scope ` +
+        `the capability was exercised at, in the candidate's professional voice rather than a job ` +
+        `posting's. Use an entry verbatim when it genuinely fits the bullet; coin a name in the same ` +
+        `register when none does. Never stretch a claim to reach an entry.`,
+      cache_control: { type: 'ephemeral', ttl: '1h' },
+    });
+  }
+  blocks.push({
+    type: 'text',
+    text:
+      `ROLE: ${leadTitle}${jdGroup ? ` · ${jdGroup}` : ''}${atsSystem ? ` · ATS: ${atsSystem}` : ''}\n\n` +
+      `Rewrite each Keep evidence item into one CV bullet. Keep every claim supportable by the ` +
+      `original text.\n\n` +
+      `Then tag each bullet with the skills it demonstrates, written at CV grade (Process/C3 §B.5): ` +
+      `one compound entry per capability rather than several near-duplicate facets of it; state the ` +
+      `level the work was done at; add a parenthetical anchor only where it adds real precision; no ` +
+      `table-stakes tooling; no phrase lifted whole from the posting; no languages. Each row's ` +
+      `"my skills" is the capability the evidence rests on — say it in the register above, do not ` +
+      `echo it and do not drop it.\n\n` +
+      rows
+        .map(
+          (g) =>
+            `[${g.evidenceRef}] requirement: ${g.requirementLine}\n   original: ${g.originalText}\n` +
+            `   my skills: ${(g.mySkills ?? []).join(', ')}`
+        )
+        .join('\n\n'),
+  });
+  return blocks;
 }
 
 /**
@@ -919,19 +1008,18 @@ export async function generateCv(
     const ATTEMPTS = 3;
     const refsWanted = new Set(green.map((g) => g.evidenceRef).filter((ref): ref is string => !!ref));
 
+    // CI · C3 Writes CV-Grade Skill Tags §2.3.1 — the register, cached once per
+    // sitting. `skills_master` only: C2 matches against all three tables, C3
+    // names in the one written at CV grade. See `c3UserMessage`.
+    const register = (await gatherSkillVocabulary(effectiveOwnerId)).filter((v) => v.source === 'skill');
+
     const draft = async () =>
       runStructured({
         step: 'C3',
         // Truthfulness-critical (Master Instructions §6.1) → Opus tier.
         model: 'opus',
         system: await systemPromptFor('C3', effectiveOwnerId),
-        user:
-          `ROLE: ${lead.title}${lead.jdGroupPrimary ? ` · ${lead.jdGroupPrimary}` : ''}` +
-          `${lead.atsSystem ? ` · ATS: ${lead.atsSystem}` : ''}\n\n` +
-          `Rewrite each Keep evidence item into one CV bullet. Keep every claim supportable by the original text.\n\n` +
-          green
-            .map((g) => `[${g.evidenceRef}] requirement: ${g.requirementLine}\n   original: ${g.originalText}\n   my skills: ${(g.mySkills ?? []).join(', ')}`)
-            .join('\n\n'),
+        user: c3UserMessage(green, lead.title, lead.jdGroupPrimary, lead.atsSystem, register),
         tool: C3.tool,
         zod: C3.zod,
         // The mock stands in for a HEALTHY call, so it must clear the floor: a
@@ -975,6 +1063,11 @@ export async function generateCv(
       );
     }
 
+    // §2.4's two counters, summed over the rows so the step report can say what
+    // the guard did. An orphan tag dropped is a false claim kept off the CV; an
+    // uncovered My Skill is a capability that went in and did not come out.
+    let orphanTags = 0;
+    let uncoveredCount = 0;
     for (const row of green) {
       const matched = row.evidenceRef ? bulletByRef.get(row.evidenceRef) : undefined;
       // `|| row.originalText` survives only for rows with no `evidenceRef`, which
@@ -990,7 +1083,20 @@ export async function generateCv(
       // Skills section, skills no bullet actually displays — the same class of
       // false claim as a near-miss vocabulary match. No such row exists in the
       // live data; this is about which way it fails if one ever does.
-      const bulletSkills = matched?.skills ?? [];
+      //
+      // CI · C3 Writes CV-Grade Skill Tags §2.4 — the tag is no longer required
+      // to be JD wording, so it is no longer bounded by anything the row was
+      // handed. `auditBulletTags` is the replacement floor: a tag that nothing
+      // on the row anchors is an orphan and does not print, and whatever the
+      // surviving tags failed to carry through from My Skills is counted.
+      const audit = auditBulletTags(
+        matched?.skills ?? [],
+        [rewritten, row.originalText ?? '', row.requirementLine ?? '', ...(row.mySkills ?? []), ...(row.requirementSkills ?? [])],
+        row.mySkills ?? []
+      );
+      orphanTags += audit.dropped.length;
+      uncoveredCount += audit.uncovered.length;
+      const bulletSkills = audit.kept;
       await db
         .update(requirementTailoring)
         .set({ cvBullet: rewritten, cvBulletSkills: bulletSkills })
@@ -1005,7 +1111,23 @@ export async function generateCv(
     // Past the floor every ref-bearing Keep row has a real bullet, so this count
     // is now a fact rather than `r.data.bullets.length`, which reported whatever
     // the last reply happened to contain.
-    reports.push(await recordStep(leadId, { step: 'C3', label: 'Draft CV bullets', model: r.model, summary: `${refsWanted.size} Keep item(s) rewritten`, output: { count: refsWanted.size }, ms: r.ms }, effectiveOwnerId));
+    reports.push(
+      await recordStep(
+        leadId,
+        {
+          step: 'C3',
+          label: 'Draft CV bullets',
+          model: r.model,
+          summary:
+            `${refsWanted.size} Keep item(s) rewritten` +
+            (orphanTags ? ` · ${orphanTags} unanchored tag(s) dropped` : '') +
+            (uncoveredCount ? ` · ${uncoveredCount} My Skill(s) not carried into a tag` : ''),
+          output: { count: refsWanted.size, orphanTags, uncovered: uncoveredCount, register: register.length },
+          ms: r.ms,
+        },
+        effectiveOwnerId
+      )
+    );
   }
 
   // C4 — skills section. CI · C4 Skills Selection Produces Unreadable Overflow.

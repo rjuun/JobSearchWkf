@@ -11,7 +11,7 @@
  * counts as an answer, and it has to be provable without Postgres or an API key.
  */
 import { describe, it, expect } from 'vitest';
-import { absorbC3Bullets, missingC3Refs, type C3Bullet } from '../pipeline/tailoring';
+import { absorbC3Bullets, missingC3Refs, c3UserMessage, type C3Bullet } from '../pipeline/tailoring';
 
 const rows = (...refs: (string | null)[]) => refs.map((evidenceRef) => ({ evidenceRef }));
 const fresh = () => new Map<string, { bullet: string; skills: string[] }>();
@@ -114,5 +114,51 @@ describe('missingC3Refs: which Keep rows C3 still owes', () => {
       { ref: 'Z-9', bullet: 'Nobody asked.' },
     ]);
     expect(missingC3Refs(rows('5-3'), m)).toEqual([]);
+  });
+});
+
+/**
+ * CI · C3 Writes CV-Grade Skill Tags §1.2 — C3 had never been sent
+ * `skills_master`. Pinned here because the prompt IS the deliverable of that CI,
+ * and the only other way to read it is to run the pipeline against Postgres.
+ */
+describe('c3UserMessage: the register C3 writes in', () => {
+  const ROWS = [{ evidenceRef: '5-3', requirementLine: 'Govern the board calendar', originalText: 'Ran it.', mySkills: ['Corporate Governance'] }];
+  const REGISTER = [
+    { name: 'Target Operating Model Design', source: 'skill' as const, proficiency: 'Expert', variants: ['TOM design', 'operating model'] },
+    { name: 'Corporate Governance', source: 'skill' as const, proficiency: 'Expert', variants: [] },
+  ];
+
+  it('sends the register as its own cached block', () => {
+    const blocks = c3UserMessage(ROWS, 'Head of Governance', null, null, REGISTER);
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+    expect(blocks[0].text).toContain('Target Operating Model Design');
+    // The ATS variants come too — they are half of what makes the table a
+    // register rather than a word list.
+    expect(blocks[0].text).toContain('TOM design');
+  });
+
+  it('says the register is an exemplar, not a list to choose from (§2.2)', () => {
+    // Building this as a lookup is the documented way to get this CI wrong, so
+    // the prompt has to rule it out in as many words.
+    const blocks = c3UserMessage(ROWS, 'Head of Governance', null, null, REGISTER);
+    expect(blocks[0].text).toContain('not a list to choose from');
+    expect(blocks[0].text).toMatch(/coin a name in the same register/i);
+  });
+
+  it('omits the block entirely when the profile has no skills_master rows', () => {
+    // A tenant with an empty table gets the old prompt, not an empty heading
+    // implying the register is empty.
+    const blocks = c3UserMessage(ROWS, 'Head of Governance', null, null, []);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].cache_control).toBeUndefined();
+  });
+
+  it('keeps every row addressable by ref, with its own My Skills', () => {
+    const blocks = c3UserMessage(ROWS, 'Head of Governance', 'Governance', 'Workday', REGISTER);
+    expect(blocks[1].text).toContain('[5-3] requirement: Govern the board calendar');
+    expect(blocks[1].text).toContain('my skills: Corporate Governance');
+    expect(blocks[1].text).toContain('ATS: Workday');
   });
 });
