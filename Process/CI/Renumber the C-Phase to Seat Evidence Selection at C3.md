@@ -129,11 +129,15 @@ only shows as worse evidence citation on live runs.
       C2  9edc9783d63c6b24    →  C2  9edc9783d63c6b24   (unchanged)
       C3  8cc73624d6471458    →  C4  8cc73624d6471458
       C4  5ba75c944bbc191b    →  C5  5ba75c944bbc191b
-      C5  b5571e741958d575    →  C6  b5571e741958d575   (if C6 joins STEP_NOTE; today C5's note is the
-                                                         profile step and C6 makes no model call)
+      C5  b5571e741958d575    →  C6  b5571e741958d575
       C7  a3dd3257953eed2c    →  C8  a3dd3257953eed2c
       B2–B6, O2-extract       →  unchanged
       ```
+
+      `STEP_NOTE`'s keys therefore end as `C2, C4, C5, C6, C8` — **with C3 and C7 legitimately
+      absent.** C3 is the new selection step, which makes no model call until its own CI builds one;
+      C7 is the document build, which has never made one. That gap is correct, not an oversight to
+      tidy up.
 
       A hash that **changes** means a note's text was edited, which a pure renumber must never do. A
       hash that **vanishes** means a note lost its wiring. Costs nothing — no model call, so it can be
