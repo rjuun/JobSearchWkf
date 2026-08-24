@@ -83,6 +83,26 @@ parent CI chose `requirement_skills` as the source. **Any cleanup that rewrites 
 JD's wording weakens ATS matching**, and that trade has to be made deliberately rather than by a
 tidy-up pass that doesn't know it is making it.
 
+> [!NOTE] Scope addition, 2026-08-24 — the envelope comes here; education does not
+> **In: the section's size target.** `SKILLS_ENVELOPE = 40` (`lib/pipeline/skills.ts`) is not a
+> considered number — it is C4 §B.1's ceiling, 5 categories × 8 skills, multiplied out. Measured on
+> the two leads run after [[C3 Writes CV-Grade Skill Tags]] landed: 55 and 43 distinct tags arrived,
+> and both printed **exactly 40**, so the cap is binding and set at twice the 16–20 benchmark. Nothing
+> enforces the per-category half of the envelope either — `reconcileSkillGroups` caps categories at
+> five but not their size, which is how Aliaxis printed a 12-entry category. Both belong here, because
+> a size target without consolidation just sheds real capabilities instead of merging them.
+>
+> **Out: degrees printing as skills.** Julius Baer printed *Business Administration (Degree)*,
+> *Economic Development (Master's)* and *Quantitative Asset & Risk Management (Postgraduate)*, all
+> traced to `EDU-1/2/3` Keep rows. It reads like a sibling of the languages rule and it is not:
+> [[C3 Selects the CV Evidence Set]] §2.4 excludes Education and Language refs from the bullet budget
+> outright, so C3 never writes those tags and there is nothing left here to filter. Building a
+> downstream rule for it would guard against something upstream already prevents.
+>
+> **Sizing follows selection, and neither closes it alone.** 14 bullets at ~2 tags each is ~28 tags —
+> better than 55, still above the benchmark. The bullet budget gets it most of the way; consolidation
+> closes the gap. Sequence this note last.
+
 ## 2. What would the improvement look like?
 
 Not scoped — deliberately. The owner's instruction was to *declare* the treatment, and he believes one
