@@ -189,6 +189,17 @@ And the obvious static fix does not reach: C4 prints `cv_bullet_skills`, which a
 ("Governance Process Ownership", "Decision Documents Preparation"), not `skills_master` rows. So adding
 a category column to `skills_master`'s 25 rows would not categorise most of what actually prints.
 
+**The original design named a fourth site, and it was never built.**
+`docs/archive/phases/P3-tailoring.md`, the P3 retrospective, records:
+
+> **Skills grouped by proficiency, not category.** `skill_category` wasn't carried into the schema.
+> **Gap:** add `skill_category` and group by it (C4's intended 3–5 categories).
+
+So a `skill_category` column *was* the intended design, logged as an unbuilt gap — not as deferred
+roadmap work. `lib/docx/template.ts` then mis-cited that gap as "ROADMAP P6" too (corrected). Note the
+catch, though: P3 assumed C4 would group `skills_master` names. It now groups `cv_bullet_skills`, so a
+column on those 25 rows still would not reach most of what prints.
+
 Three routes, to be decided before building:
 
 1. **A small model call in C4.** Give it this lead's selected skills plus the `jd_groups` names and the

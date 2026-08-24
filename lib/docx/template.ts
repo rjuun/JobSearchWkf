@@ -3,9 +3,17 @@
  * (Group CVs/CV_Template.docx) with docxtemplater instead of rebuilding the
  * layout programmatically. The template carries 11 `<<Professional Experience -
  * … >>` placeholders keyed to the methodology's cv_position values, plus a
- * `<<Profile>>` placeholder filled by the tailored C5 profile. The skills block,
- * education and languages are the template's curated scaffold (fixed by design;
- * role-dynamic skills need the skill_category taxonomy — see ROADMAP P6).
+ * `<<Profile>>` placeholder filled by the tailored C5 profile. Skills, education
+ * and languages are filled from real data too — see `templateSlotData`.
+ *
+ * Correction, 2026-08-24: this comment used to say those three were "the
+ * template's curated scaffold (fixed by design; role-dynamic skills need the
+ * skill_category taxonomy — see ROADMAP P6)". Both halves are stale. They stopped
+ * being a fixed scaffold when the data-driven wiring shipped, and ROADMAP P6 is
+ * the `approval_status` rename plus per-tenant templates — it never mentioned
+ * skills. The real record of the `skill_category` gap is
+ * `docs/archive/phases/P3-tailoring.md`, which logged it as unbuilt, not deferred.
+ * Live work: CI · C4 Skills Selection Produces Unreadable Overflow §2.11.
  *
  * docxtemplater's default parser would choke on tags containing spaces / dots /
  * dashes, so we use `<<`…`>>` delimiters with a custom parser that treats the
