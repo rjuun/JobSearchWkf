@@ -11,6 +11,7 @@ import {
   prioritiseSkills,
   reconcileSkillGroups,
   ungroupedSkills,
+  dropLanguageSkills,
   SKILLS_ENVELOPE,
   type VocabEntry,
 } from '../pipeline/skills';
@@ -97,6 +98,40 @@ describe('C4 §A · prioritiseSkills decides WHICH skills print', () => {
   it('ignores blank and missing skill lists', () => {
     expect(prioritiseSkills([{ rank: 'Core', cvBulletSkills: null }, { rank: 'Core', cvBulletSkills: ['', ' '] }])).toEqual([]);
     expect(prioritiseSkills([])).toEqual([]);
+  });
+});
+
+describe('C4 §B.4 · languages never appear in the Skills section', () => {
+  const LANGS = ['Portuguese', 'English', 'German', 'Spanish'];
+
+  it('strikes the entry that sent a language to the CV twice', () => {
+    // The real case: "Communication: Business-Fluent English" was a one-item
+    // category that existed only to house a fact the Languages section states.
+    expect(dropLanguageSkills(['Business-Fluent English', 'Stakeholder Management'], LANGS)).toEqual([
+      'Stakeholder Management',
+    ]);
+  });
+
+  it('strikes a multi-language requirement phrase', () => {
+    expect(dropLanguageSkills(['Fluency in English and German'], LANGS)).toEqual([]);
+  });
+
+  it('is unconditional — a Core requirement does not earn an exception', () => {
+    expect(dropLanguageSkills(['German (C1)', 'Native Portuguese'], LANGS)).toEqual([]);
+  });
+
+  it('keeps a communication skill that is not a language', () => {
+    expect(dropLanguageSkills(['Executive Communication', 'Precise Written Communication'], LANGS)).toHaveLength(2);
+  });
+
+  it('does not match a language name inside another word', () => {
+    // Word boundaries, not substrings — "Englishing" is not a language claim,
+    // and a substring rule would quietly eat unrelated entries.
+    expect(dropLanguageSkills(['Germane Analysis'], LANGS)).toEqual(['Germane Analysis']);
+  });
+
+  it('is a no-op when the profile records no languages', () => {
+    expect(dropLanguageSkills(['Business-Fluent English'], [])).toEqual(['Business-Fluent English']);
   });
 });
 

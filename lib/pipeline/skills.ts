@@ -158,6 +158,29 @@ export function prioritiseSkills(rows: readonly KeepRowSkills[], limit = SKILLS_
   return out.slice(0, Math.max(0, limit));
 }
 
+/**
+ * Skills that are really a language — the CV has a Languages section of its own,
+ * filled straight from the `languages` table, so printing "Business-Fluent
+ * English" under Skills states the same fact twice in two different shapes and
+ * spends a Skills slot on it. C4 §B.4: languages are never Skills entries.
+ *
+ * Matched against the owner's OWN language list rather than a hard-coded set of
+ * language names — the profile already knows which languages exist, and a static
+ * list would be one more thing to keep in sync. Word-boundary matching, so
+ * "English" catches "Business-Fluent English" and "Fluency in English and
+ * German" without catching a substring inside an unrelated word.
+ *
+ * Deliberately narrow: it drops an entry only when a language name is IN it. A
+ * skill that merely relates to communication survives; the rule is about the
+ * Languages section owning language facts, not about suppressing soft skills.
+ */
+export function dropLanguageSkills(selected: readonly string[], languageNames: readonly string[]): string[] {
+  const names = languageNames.map((l) => (l ?? '').trim().toLowerCase()).filter(Boolean);
+  if (names.length === 0) return [...selected];
+  const patterns = names.map((n) => new RegExp(`(^|[^a-z])${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z]|$)`, 'i'));
+  return selected.filter((skill) => !patterns.some((re) => re.test(skill)));
+}
+
 export type SkillGroup = { category: string; items: string[] };
 
 /** C4 §B.1: "Group skills into 3–5 high-level categories." */

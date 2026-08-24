@@ -44,6 +44,8 @@ import {
   buildVocabIndex,
   resolveVocab,
   prioritiseSkills,
+  dropLanguageSkills,
+  SKILLS_ENVELOPE,
   reconcileSkillGroups,
   ungroupedSkills,
   type VocabEntry,
@@ -1029,12 +1031,20 @@ export async function generateCv(
   {
     const t = Date.now();
     const rankByReqId = new Map(reqs.map((r) => [r.id, r.rank]));
-    const selected = prioritiseSkills(
-      green.map((g) => ({
-        rank: (g.requirementId && rankByReqId.get(g.requirementId)) ?? null,
-        cvBulletSkills: g.cvBulletSkills ?? [],
-      }))
-    );
+    // Languages are struck before prioritisation, not after: they must not
+    // occupy a slot that a real skill would otherwise have won. C4 §B.4 — the
+    // CV's Languages section already states these, from `languages` itself.
+    const langRows = await db.select().from(languages).where(eq(languages.ownerId, effectiveOwnerId));
+    const selected = dropLanguageSkills(
+      prioritiseSkills(
+        green.map((g) => ({
+          rank: (g.requirementId && rankByReqId.get(g.requirementId)) ?? null,
+          cvBulletSkills: g.cvBulletSkills ?? [],
+        })),
+        SKILLS_ENVELOPE + 8 // headroom so struck languages don't shrink the section
+      ),
+      langRows.map((l) => l.language ?? '')
+    ).slice(0, SKILLS_ENVELOPE);
 
     let model = 'code';
     let ms = 0;
