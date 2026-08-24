@@ -274,6 +274,17 @@ export type C3Bullet = { ref: string; bullet: string; skills?: string[] };
  * strict schema, so a degraded call returns the key holding `""` — recording that
  * would satisfy the floor with nothing in it, which is the `placeholder` failure
  * this CI measured on C2 wearing a different hat.
+ *
+ * Last non-blank answer per ref wins, and that is correct in both directions it
+ * happens. ACROSS re-asks it is the point (a second attempt supersedes a weaker
+ * first — pinned by a test). WITHIN one reply it looks like a defect and isn't:
+ * C3's prompt lists a shared bullet once per Keep row (up to six times for one
+ * ref on the Allianz lead), so a reply may legitimately carry several entries
+ * for the same ref. Each is a valid rewrite of the same evidence, one bullet per
+ * ref is what the CV can show, and any of them is a real answer — so picking the
+ * last loses nothing. Flagged as a possible seam on CI · Split cv_bullet_skills
+ * from requirement_skills and closed on inspection; noted here so it doesn't get
+ * re-filed as a bug.
  */
 export function absorbC3Bullets(
   into: Map<string, { bullet: string; skills: string[] }>,
@@ -766,9 +777,11 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
             // validated against them. Requirement Skills: the matched
             // requirement's JD-language skills, written by B2 (`screening.ts`,
             // the `emit_requirements` insert — B5 never touches
-            // `job_requirements.skills`) and overwritten by C3 below with the
-            // bracketed tag it actually wrote. CI · Requirement Skills vs My
-            // Skills. Never conflate either with B4's AoE codes (A–Q).
+            // `job_requirements.skills`). Snapshotted here and never written
+            // again: C3's tag has its own column, `cvBulletSkills`, so this one
+            // keeps meaning "what the JD asked for" all the way through. CI ·
+            // Requirement Skills vs My Skills; CI · Split cv_bullet_skills from
+            // requirement_skills. Never conflate either with B4's AoE codes (A–Q).
             mySkills: link.mySkills,
             requirementSkills: req.skills ?? [],
             provSource: link.provSource,
@@ -919,7 +932,11 @@ export async function generateCv(
           bullets: green.map((g) => ({
             ref: g.evidenceRef ?? '',
             bullet: g.originalText?.trim() || `Delivered work evidenced by ${g.evidenceRef ?? 'this item'}.`,
-            skills: g.requirementSkills ?? g.mySkills ?? [],
+            // The mock stands in for C3's own tag judgement, so it echoes the
+            // requirement's asks — the closest honest stand-in available
+            // without a model. It lands in `cvBulletSkills`, not over
+            // `requirementSkills`.
+            skills: g.requirementSkills ?? [],
           })),
         }),
         leadId,
@@ -955,17 +972,26 @@ export async function generateCv(
       // the floor above deliberately does not cover. For every ref-bearing row
       // `matched` is now guaranteed non-blank, so this is a backstop, not a path.
       const rewritten = matched?.bullet || row.originalText || '';
-      const bulletSkills = matched?.skills ?? row.requirementSkills ?? [];
+      // CI · Split cv_bullet_skills from requirement_skills — C3's tag now has
+      // its own column and stops overwriting B2's asks. `?? []` and not
+      // `?? row.requirementSkills`: a row with no `evidenceRef` is one C3 was
+      // never given a way to answer (it is keyed by ref), so its bullet is the
+      // untailored `originalText` and genuinely carries no bracketed tag.
+      // Substituting the requirement's asks there would print, in the CV's
+      // Skills section, skills no bullet actually displays — the same class of
+      // false claim as a near-miss vocabulary match. No such row exists in the
+      // live data; this is about which way it fails if one ever does.
+      const bulletSkills = matched?.skills ?? [];
       await db
         .update(requirementTailoring)
-        .set({ cvBullet: rewritten, requirementSkills: bulletSkills })
+        .set({ cvBullet: rewritten, cvBulletSkills: bulletSkills })
         .where(and(eq(requirementTailoring.id, row.id), eq(requirementTailoring.ownerId, effectiveOwnerId)));
       // C4 below builds the Skills section from exactly these values, so the
       // in-memory row has to carry what was just written — otherwise C4 reads
-      // the pre-C3 Requirement Skills and the CV's Skills header disagrees with
-      // its own bullets' bracketed tags, which is the one thing the consistency
-      // rule exists to prevent.
-      row.requirementSkills = bulletSkills;
+      // the pre-C3 column and the CV's Skills header disagrees with its own
+      // bullets' bracketed tags, which is the one thing the consistency rule
+      // exists to prevent.
+      row.cvBulletSkills = bulletSkills;
     }
     // Past the floor every ref-bearing Keep row has a real bullet, so this count
     // is now a fact rather than `r.data.bullets.length`, which reported whatever
@@ -983,11 +1009,11 @@ export async function generateCv(
   // that decided the category recognised almost none of them.
   //
   // What it does now, per the owner's decision on this CI: the section is the
-  // Requirement Skills carried by the Keep-gated rows — the skills genuinely
-  // associated with the tailored bullets (bracketed or bolded inline; both
-  // resolve to this one column), and only for requirements that actually have
-  // matched evidence. Keep-gated rows ARE that restriction. Ordered Core →
-  // Important → Nice-to-Have per C4 §B.3. Same lead: 16 skills, no cap needed.
+  // `cv_bullet_skills` carried by the Keep-gated rows — the skills the tailored
+  // bullets genuinely display (bracketed or bolded inline; both resolve to this
+  // one column), and only for requirements that actually have matched evidence.
+  // Keep-gated rows ARE that restriction. Ordered Core → Important →
+  // Nice-to-Have per C4 §B.3. Same lead: 16 skills, no cap needed.
   //
   // My Skills has not gone anywhere — it is now C2's validated selection from
   // the curated vocabulary and remains the traceability chain back to the
@@ -1000,7 +1026,7 @@ export async function generateCv(
     skillsModel = buildSkillsSection(
       green.map((g) => ({
         rank: (g.requirementId && rankByReqId.get(g.requirementId)) ?? null,
-        requirementSkills: g.requirementSkills ?? [],
+        cvBulletSkills: g.cvBulletSkills ?? [],
       }))
     );
     const count = skillsModel.reduce((n, s) => n + s.items.length, 0);

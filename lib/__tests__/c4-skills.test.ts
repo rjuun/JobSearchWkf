@@ -66,12 +66,12 @@ describe('C2 · My Skills is a selection from the curated vocabulary', () => {
   });
 });
 
-describe('C4 · the Skills section is the Keep rows’ Requirement Skills', () => {
+describe('C4 · the Skills section is the Keep rows’ cv_bullet_skills', () => {
   it('groups by requirement rank, highest first', () => {
     const out = buildSkillsSection([
-      { rank: 'Core', requirementSkills: ['Governance Process Ownership', 'Executive Support'] },
-      { rank: 'Important', requirementSkills: ['Meeting & Event Management'] },
-      { rank: 'Nice-to-Have', requirementSkills: ['MS Office Proficiency'] },
+      { rank: 'Core', cvBulletSkills: ['Governance Process Ownership', 'Executive Support'] },
+      { rank: 'Important', cvBulletSkills: ['Meeting & Event Management'] },
+      { rank: 'Nice-to-Have', cvBulletSkills: ['MS Office Proficiency'] },
     ]);
     expect(out).toEqual([
       { category: 'Core Competencies', items: ['Governance Process Ownership', 'Executive Support'] },
@@ -84,28 +84,28 @@ describe('C4 · the Skills section is the Keep rows’ Requirement Skills', () =
     // The real shape of the Allianz lead: Important repeated almost all of
     // Core. Duplicating them across categories is what C4 §D forbids.
     const out = buildSkillsSection([
-      { rank: 'Important', requirementSkills: ['Executive Support'] },
-      { rank: 'Core', requirementSkills: ['Executive Support'] },
+      { rank: 'Important', cvBulletSkills: ['Executive Support'] },
+      { rank: 'Core', cvBulletSkills: ['Executive Support'] },
     ]);
     expect(out).toEqual([{ category: 'Core Competencies', items: ['Executive Support'] }]);
   });
 
   it('deduplicates case-insensitively', () => {
     const out = buildSkillsSection([
-      { rank: 'Core', requirementSkills: ['Executive Support', 'executive support', 'EXECUTIVE SUPPORT'] },
+      { rank: 'Core', cvBulletSkills: ['Executive Support', 'executive support', 'EXECUTIVE SUPPORT'] },
     ]);
     expect(out).toEqual([{ category: 'Core Competencies', items: ['Executive Support'] }]);
   });
 
   it('omits empty categories rather than printing a bare heading', () => {
-    const out = buildSkillsSection([{ rank: 'Core', requirementSkills: ['Executive Support'] }]);
+    const out = buildSkillsSection([{ rank: 'Core', cvBulletSkills: ['Executive Support'] }]);
     expect(out.map((g) => g.category)).toEqual(['Core Competencies']);
   });
 
   it('keeps skills from an unranked requirement, last', () => {
     const out = buildSkillsSection([
-      { rank: 'Core', requirementSkills: ['Executive Support'] },
-      { rank: null, requirementSkills: ['Precise Written Communication'] },
+      { rank: 'Core', cvBulletSkills: ['Executive Support'] },
+      { rank: null, cvBulletSkills: ['Precise Written Communication'] },
     ]);
     expect(out).toEqual([
       { category: 'Core Competencies', items: ['Executive Support'] },
@@ -114,7 +114,7 @@ describe('C4 · the Skills section is the Keep rows’ Requirement Skills', () =
   });
 
   it('ignores blank and missing skill lists', () => {
-    expect(buildSkillsSection([{ rank: 'Core', requirementSkills: null }, { rank: 'Core', requirementSkills: ['', '  '] }])).toEqual([]);
+    expect(buildSkillsSection([{ rank: 'Core', cvBulletSkills: null }, { rank: 'Core', cvBulletSkills: ['', '  '] }])).toEqual([]);
     expect(buildSkillsSection([])).toEqual([]);
   });
 
@@ -123,9 +123,9 @@ describe('C4 · the Skills section is the Keep rows’ Requirement Skills', () =
     const important = Array.from({ length: 10 }, (_, i) => `Important Skill ${i}`);
     const nice = Array.from({ length: 20 }, (_, i) => `Nice Skill ${i}`);
     const out = buildSkillsSection([
-      { rank: 'Core', requirementSkills: core },
-      { rank: 'Important', requirementSkills: important },
-      { rank: 'Nice-to-Have', requirementSkills: nice },
+      { rank: 'Core', cvBulletSkills: core },
+      { rank: 'Important', cvBulletSkills: important },
+      { rank: 'Nice-to-Have', cvBulletSkills: nice },
     ]);
     const total = out.reduce((n, g) => n + g.items.length, 0);
     expect(total).toBe(SKILLS_ENVELOPE);
@@ -139,7 +139,7 @@ describe('C4 · the Skills section is the Keep rows’ Requirement Skills', () =
     // rather than dropping evidence-backed Core skills. A JD that produces
     // this many is a B2 over-extraction, and it should be visible.
     const core = Array.from({ length: 50 }, (_, i) => `Core Skill ${i}`);
-    const out = buildSkillsSection([{ rank: 'Core', requirementSkills: core }]);
+    const out = buildSkillsSection([{ rank: 'Core', cvBulletSkills: core }]);
     expect(out[0].items).toHaveLength(50);
   });
 
@@ -149,7 +149,7 @@ describe('C4 · the Skills section is the Keep rows’ Requirement Skills', () =
     const pool = Array.from({ length: 16 }, (_, i) => `Skill ${i}`);
     const rows = Array.from({ length: 64 }, (_, i) => ({
       rank: i % 3 === 0 ? 'Important' : 'Core',
-      requirementSkills: [pool[i % 16], pool[(i + 5) % 16], pool[(i + 9) % 16]],
+      cvBulletSkills: [pool[i % 16], pool[(i + 5) % 16], pool[(i + 9) % 16]],
     }));
     const out = buildSkillsSection(rows);
     expect(out.reduce((n, g) => n + g.items.length, 0)).toBe(16);

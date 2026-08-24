@@ -481,12 +481,27 @@ export const requirementTailoring = pgTable('requirement_tailoring', {
   cvPosition: text('cv_position'),
   cvBullet: text('cv_bullet'),
   cvPlacement: text('cv_placement'),
-  // CI · Requirement Skills vs My Skills — mySkills is the candidate's own
-  // vocabulary for this evidence (renamed from actual_skills); requirementSkills
-  // is the JD's own skill language this evidence/row is proving. Never conflate
-  // either with the B4 Areas-of-Expertise codes (A–Q).
+  // Three skill columns, one writer each — CI · Split cv_bullet_skills from
+  // requirement_skills. Never conflate any of them with the B4 Areas-of-Expertise
+  // codes (A–Q).
+  //
+  //   requirementSkills — what the JD asks of this requirement. B2's extraction,
+  //     snapshotted onto the row at C2 and never overwritten after, for the same
+  //     reason `originalText` is snapshotted: a later step must not silently
+  //     rewrite what a decision was based on.
+  //   mySkills — the candidate's own vocabulary that answers it. C2's selection
+  //     from `skills_master` / `star_competences` / `star_attributes`, validated
+  //     against them. Traceability, not a display field.
+  //   cvBulletSkills — what the tailored bullet actually displays: C3's bracketed
+  //     tag (or the skill it bolded inline). This is what the CV's Skills section
+  //     prints, and `requirementSkills` minus this is the row's coverage gap —
+  //     what the requirement asked for that the bullet did not evidence.
+  //
+  // Before this CI, C3 wrote its tag over `requirementSkills`, so one column held
+  // two different things at two different times with nothing to tell them apart.
   mySkills: jsonb('my_skills').$type<string[]>().default([]),
   requirementSkills: jsonb('requirement_skills').$type<string[]>().default([]),
+  cvBulletSkills: jsonb('cv_bullet_skills').$type<string[]>().default([]),
   approvalStatus: approvalStatusEnum('approval_status').notNull().default('pending'),
   // M7 · provenance backbone — how a CV line entered and when you approved it.
   provSource: text('prov_source').notNull().default('imported'), // imported | coached | swapped

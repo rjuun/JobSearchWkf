@@ -85,11 +85,15 @@ export type RpRow = {
   approvalStatus: string;
   provSource: string; // imported | coached | swapped
   approvedAt: string | null;
-  // CI · Requirement Skills vs My Skills — mySkills is the candidate's own
-  // vocabulary for this evidence; requirementSkills is the Job-Lead-facing
-  // language this evidence/bullet demonstrates. Never the same list.
+  // Three skill columns, one writer each — CI · Split cv_bullet_skills from
+  // requirement_skills. `requirementSkills` is what the JD asks of this
+  // requirement (B2, snapshotted at C2 and never rewritten); `mySkills` is the
+  // candidate's own vocabulary that answers it (C2's validated selection);
+  // `cvBulletSkills` is what the tailored bullet actually displays (C3's tag).
+  // Never the same list. Asked-for minus displayed is this row's coverage gap.
   mySkills: string[];
   requirementSkills: string[];
+  cvBulletSkills: string[];
 };
 /**
  * B6's initial requirement→evidence link, scoped to the Master Bullet Bank
@@ -1745,8 +1749,8 @@ function PipelineProgress({ c }: { c: Ctx }) {
   );
 }
 
-// CI · Requirement Skills vs My Skills — a small labelled badge row so the two
-// columns are visibly distinct wherever they're shown, not just two unlabelled
+// CI · Requirement Skills vs My Skills — a small labelled badge row so the
+// columns are visibly distinct wherever they're shown, not just unlabelled
 // tag lists.
 function SkillBadgeRow({ label, tone, items }: { label: string; tone: 'proof' | 'neutral'; items: string[] }) {
   const badge =
@@ -1898,12 +1902,28 @@ function CvCard({ c }: { c: Ctx }) {
                       <span className="text-caution-deep">source pending</span>
                     )}
                   </span>
-                  {(r.requirementSkills.length > 0 || r.mySkills.length > 0) && (
+                  {(r.requirementSkills.length > 0 || r.mySkills.length > 0 || r.cvBulletSkills.length > 0) && (
                     <span className="mt-1 flex flex-col gap-1">
                       {r.requirementSkills.length > 0 && (
-                        <SkillBadgeRow label="Req. Skills" tone="proof" items={r.requirementSkills} />
+                        <SkillBadgeRow label="Asked for" tone="proof" items={r.requirementSkills} />
                       )}
                       {r.mySkills.length > 0 && <SkillBadgeRow label="My Skills" tone="neutral" items={r.mySkills} />}
+                      {r.cvBulletSkills.length > 0 && (
+                        <SkillBadgeRow label="On the bullet" tone="neutral" items={r.cvBulletSkills} />
+                      )}
+                      {/* No "not evidenced" badge yet — deliberately. The gap
+                          (asked-for minus on-the-bullet) is the whole reason
+                          C3's tag got its own column, but the only honest way to
+                          compute it today is exact string match, and C3 rewords
+                          almost every ask ("Stakeholder management" becomes
+                          "Stakeholder Management With Senior Leadership"). That
+                          scores 48 of 49 asks as missing on the Allianz lead,
+                          nearly all of them false. A badge that fires on every
+                          row teaches you to ignore it. Blocked on the wording
+                          question in CI · Skill Name Treatment in the C4 Skills
+                          Section; `scripts/audit-c4-skills-density.ts` prints
+                          the literal comparison in the meantime, labelled for
+                          what it is. */}
                     </span>
                   )}
                 </span>

@@ -2,13 +2,13 @@
 ci-area: CV Tailoring
 ci-roadmap:
 ci-title: Split cv_bullet_skills from requirement_skills
-ci-status: 0 - Idea
+ci-status: 2 - Testing
 ci-priority: medium
 ci-date: 2026-08-23
-ci-estimated-time:
-ci-time-spent: 0
+ci-estimated-time: 2
+ci-time-spent: 1
 pr-source: "[[C4 Skills Selection Produces Unreadable Overflow]]"
-pr-target:
+pr-target: "[[C3. Transform Evidence into CV Bullets]], [[C4. Build and Manage the Skills Section]]"
 ---
 
 ---
@@ -17,11 +17,13 @@ pr-target:
 ```
 ---
 
-> [!IMPORTANT] Start here — this note is self-contained
-> Written to be picked up in a **fresh chat with no prior context**. The owner's framing when opening
-> it: *"For process transparency — after `requirement_skills` are drawn (B2) and `my_skills` are found
-> as evidence (C2), should we have a `cv_bullet_skills` column which clearly determines which
-> `requirement_skills` are properly matched (C3)?"* The answer this note argues is yes, and §1 is why.
+> [!IMPORTANT] Built 2026-08-23 — see §4
+> The owner's framing when opening it: *"For process transparency — after `requirement_skills` are
+> drawn (B2) and `my_skills` are found as evidence (C2), should we have a `cv_bullet_skills` column
+> which clearly determines which `requirement_skills` are properly matched (C3)?"* Answer: yes. Built
+> and migrated the same day, ahead of the first live pipeline run, so new leads' data lands in the
+> right shape rather than needing a second pass. **One part of §2 was deliberately NOT shipped — the
+> coverage-gap UI. §4 says why.**
 
 ---
 
@@ -63,7 +65,7 @@ per its own procedure, so row multiplicity cannot affect the Skills section eith
 `into.set(b.ref, …)` — last writer wins. C3's prompt lists a shared bullet once per Keep row (six times
 for that one ref) and asks for "one bullet per ref"; nothing enforces it. A reply that returns several
 entries for one ref keeps whichever came last and silently discards the rest. Small, but it is the same
-per-ref/per-row seam this CI is tidying.
+per-ref/per-row seam this CI is tidying. **Withdrawn on inspection — see §2.7. It is not a defect.**
 
 ## 2. What would the improvement look like?
 
@@ -103,6 +105,54 @@ Sketch of the work:
 displays one tag on the CV, so per-requirement tags would not correspond to anything the document can
 show.
 
+### 2.5 · What was built (2026-08-23)
+
+- **Schema** — `requirement_tailoring.cv_bullet_skills jsonb default '[]'`,
+  `drizzle/0037_strange_newton_destine.sql`, applied.
+- **C3** writes its tag to `cv_bullet_skills` and no longer touches `requirement_skills`. The
+  fallback for a row with no `evidenceRef` is `[]`, deliberately, not the requirement's asks: C3 is
+  keyed by ref, so such a row's bullet is the untailored `originalText` and carries no bracketed tag.
+  Substituting the asks would print skills no bullet displays — the same class of false claim as a
+  near-miss vocabulary match. No such row exists in the live data; this is about which way it fails.
+- **C4** sources `cv_bullet_skills`. `buildSkillsSection`'s field renamed; selection logic untouched.
+- **UI** — the review row shows three labelled badge rows: *Asked for* / *My Skills* / *On the bullet*.
+- **Backfill** — `scripts/backfill-cv-bullet-skills.ts` (report-only; `--apply` writes). Moves C3's
+  tag out of `requirement_skills` into the new column, then restores `requirement_skills` from
+  `job_requirements.skills`. Applied: 64 tags moved, 64 restored. Verified the Allianz lead's Skills
+  section returns 16 items — it drops to **0** without the backfill, since the new column starts empty.
+
+### 2.6 · NOT shipped: the coverage-gap badge
+
+§2 step 4 called for surfacing `requirement_skills` − `cv_bullet_skills` on the review row. It is
+computable now, and the audit script prints it — but it is **not** shown in the UI, because the only
+honest implementation today is exact string match and **C3 rewords almost every ask**:
+
+| B2 asked for | C3's tag |
+| --- | --- |
+| Stakeholder management · Board-level communication · Senior management liaison | Stakeholder Management With Senior Leadership |
+| PowerPoint presentation creation · Decision proposal drafting · Steering dashboard preparation | Decision Documents Preparation · Executive Support |
+| Meeting management · Agenda preparation · Action tracking · Follow-up coordination | Meeting & Event Management |
+
+Literal comparison scores **48 of 49** asks as missing on the Allianz lead, nearly all of them false —
+those skills *are* evidenced, in different words. A badge that fires on every row teaches the reviewer
+to ignore it, which is worse than no badge. Closing the gap needs the wording question settled first:
+**blocked on [[Skill Name Treatment in the C4 Skills Section]]**. `scripts/audit-c4-skills-density.ts`
+prints the literal comparison meanwhile, labelled "NOT MATCHED LITERALLY" rather than "not evidenced".
+
+Note what this table also shows, which matters for that CI: **B2's extraction is the more specific of
+the two.** "PowerPoint presentation creation" is a sharper CV skill than "Executive Support". The
+awkward names on the printed Skills section — "Work Autonomously", "MS Office Proficiency", "Fluency
+in German and English" — are C3's phrasing, not B2's.
+
+### 2.7 · Withdrawn: the absorbC3Bullets seam
+
+§1 flagged `absorbC3Bullets`' last-writer-wins on duplicate refs as part of the same per-ref/per-row
+seam. On inspection it is not a defect and no change was made. Across re-asks, later-wins is the
+deliberate, test-pinned behaviour (`c3-bullet-floor.test.ts`: "lets a later real bullet replace an
+earlier one"). Within one reply, several entries for one ref are each a valid rewrite of the same
+evidence, one bullet per ref is all the CV can show, so picking the last loses nothing. Documented in
+the function so it does not get re-filed as a bug.
+
 ## 3. Resources or references
 
 - `lib/pipeline/tailoring.ts` — the C2 insert, the C3 write-back, `absorbC3Bullets`, and the C4 block
@@ -117,6 +167,16 @@ show.
   to three. Its §3 is where "C3 write-back of its skills judgment" first landed on `requirement_skills`.
 
 ## 4. Notes / Progress log
+
+### 2026-08-23 · Built, migrated and backfilled
+
+Brought forward and implemented the same day it was opened, at the owner's request — he asked for the
+column *before* the first live pipeline run so a new lead's data would land in the right shape rather
+than needing a second pass. See §2.5 for what shipped, §2.6 for the one part deliberately held back.
+
+The backfill surfaced the finding in §2.6's table: restoring `requirement_skills` from
+`job_requirements.skills` made visible, for the first time, how far C3's tags drift from B2's own
+extraction. That is now the strongest input to [[Skill Name Treatment in the C4 Skills Section]].
 
 ### 2026-08-23 · Opened as an Idea
 
