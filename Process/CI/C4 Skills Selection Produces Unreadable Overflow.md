@@ -2,7 +2,7 @@
 ci-area: CV Tailoring
 ci-roadmap:
 ci-title: C4 Skills Selection Produces Unreadable Overflow
-ci-status: 1 - Development
+ci-status: 2 - Testing
 ci-priority: high
 ci-date: 2026-08-07
 ci-estimated-time:
@@ -100,9 +100,9 @@ Two further findings that reframed the fix:
 ### 2.3 · Acceptance
 
 - [x] The Allianz lead's Skills section is readable: **68 → 16**, one category, all Core.
-- [ ] **3–5 thematic categories per C4 §B.1 — NOT MET.** Shipped rank labels instead; reopened as
-      §2.11. "One category, all Core" above is itself the evidence: a single bucket cannot deliver the
-      vertical readability §B.1 exists for.
+- [x] **3–5 thematic categories per C4 §B.1** — built 2026-08-24 (§2.13). Verify on the next generated
+      CV: 3–5 named capability areas, ~4–8 skills each, no rank names as headings, and every printed
+      skill also present as a bracketed tag on a bullet.
 - [x] No raw graph tag can reach the CV — every My Skills value is validated against the vocabulary.
 - [x] `npm run typecheck` clean; 226 tests pass, 17 of them new (`lib/__tests__/c4-skills.test.ts`).
 - [x] Strict-schema audit clean after the `emit_evidence_map` change.
@@ -214,6 +214,46 @@ Three routes, to be decided before building:
    matcher, and this CI already rejected fuzzy matching once for good reason (it mapped "Leadership"
    onto "Change Management").
 
+### 2.13 · Built 2026-08-24 — §B.1 categorisation
+
+The owner corrected the interpretation twice before this landed, and both
+corrections are the reason it is now right:
+
+1. *"Which is not what I want."* — rank names are not categories.
+2. *"IT HAS NOTHING TO DO WITH B5 Areas of Expertise. The app should create 3 to 5
+   meaningful groups."* — §2.12's three routes were all variants of *mapping to an
+   existing taxonomy*, which is the same mistake in a new costume. §B.1 says
+   categories reflect the capability areas **relevant to this Job Lead**: a
+   judgement made per lead over the actual set, not a lookup. That settles the
+   pure-code question by itself — no deterministic rule produces
+   "Governance, Risk & Compliance" from a list of strings.
+
+**C4 §A, now in three separable moves:**
+
+| Move | Where | How |
+| --- | --- | --- |
+| 1 · collect | `cv_bullet_skills` on Keep rows | code |
+| 2 · prioritise | `prioritiseSkills` — Core → Important → Nice-to-Have, best rank kept, cut to 5×8 | code |
+| 3 · categorise | `emit_skill_groups` → `reconcileSkillGroups` — 3–5 capability areas | **Sonnet** |
+
+**C4 makes a model call for the first time**, and the containment is the whole
+design. `reconcileSkillGroups` re-checks every name the call returns against the
+prioritised set: an invented skill is dropped, a reworded one is restored to the
+selected spelling, a doubly-claimed one is placed once, and one no category
+claimed is appended rather than lost. Beyond five categories the surplus folds
+into the fifth (§B.1's ceiling) rather than dropping its skills. **The model can
+only choose the arrangement; the content was decided in code before it was
+asked.** Sonnet, not Opus — presentation, not a truth claim.
+
+`Process/C4…md` is now registered in `STEP_NOTE`, so the note is the prompt, as
+with every other model step. Failure paths: a call that returns nothing usable
+falls back to `ungroupedSkills` — one honest bucket — so a grouping failure never
+costs the CV its Skills section. Mock mode returns the same ungrouped shape rather
+than inventing plausible headings offline, which would make mock runs look live.
+
+`scripts/audit-c4-skills-density.ts` now stops at step 2 and says so: a read-only
+probe cannot reproduce a model call, and should not pretend to.
+
 ### 2.4 · Deliberately out of scope
 
 - ~~**Thematic categories** — ROADMAP P6.~~ **Withdrawn 2026-08-24 — the premise was false.** See
@@ -252,6 +292,19 @@ Three routes, to be decided before building:
 Surfaced while verifying the Skills tag wiring end-to-end against a real lead. The user explicitly asked
 this be tracked as unresolved rather than considered closed by the display cap, and set it as the highest
 priority of the three Ideas opened the same day.
+
+### 2026-08-24 · Categorisation built
+
+Reggie corrected the interpretation twice: rank names are not categories, and the
+categories have nothing to do with B5's Areas of Expertise — the app creates them
+over the surfaced set. Both corrections were right and both had to land before the
+shape was. See §2.13.
+
+Worth recording for whoever reads this next: the first correction was accepted and
+then re-made in a new form — §2.12 offered three "routes" that were all taxonomy
+lookups, which is the same error the first correction had already named. The
+lesson is not about C4. **When a correction lands, check whether the next proposal
+is the same mistake wearing different clothes.**
 
 ### 2026-08-24 · Reopened — categorisation half was deferred on a false premise
 

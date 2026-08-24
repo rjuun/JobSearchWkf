@@ -19,12 +19,19 @@
  *  - `buildVocabIndex` / `resolveVocab`: nothing becomes a My Skills value
  *    unless it is a real name in the owner's curated vocabulary. Free-text
  *    graph tags stay on the graph as provenance and never reach the CV.
- *  - `buildSkillsSection`: the CV's Skills section is the `cv_bullet_skills`
- *    carried by Keep-gated rows only — i.e. the skills actually displayed by
- *    the tailored bullets, for requirements that have matched evidence —
- *    ordered Core → Important → Nice-to-Have per C4 §B.3. (CI · Split
- *    cv_bullet_skills from requirement_skills gave C3's tag its own column;
- *    this read `requirement_skills` until then.)
+ *  - `prioritiseSkills` / `reconcileSkillGroups` / `ungroupedSkills`: C4 §A's
+ *    three moves, in order. Collect every skill the Keep-gated bullets declare
+ *    (`cv_bullet_skills`); prioritise Core → Important → Nice-to-Have until the
+ *    section is full (§B.3); then group what survived into 3–5 capability areas
+ *    (§B.1).
+ *
+ * The grouping half was wrong until 2026-08-24: it printed the rank names
+ * themselves as headings — Core Competencies / Supporting Expertise /
+ * Additional Skills — which implements §B.3 and leaves §B.1 unbuilt. The owner:
+ * *"the procedure was always about creating meaningful skill groups (3 to 5) to
+ * facilitate the vertical reading… which is not what I want."* Prioritisation
+ * decides WHICH skills print; categorisation decides what they print UNDER.
+ * They are different questions and the old code answered only one of them.
  *
  * Pure on purpose: `lib/pipeline/tailoring.ts` is a DB/LLM module that cannot
  * be imported under vitest, and this is the part worth testing directly.
@@ -102,99 +109,133 @@ export type KeepRowSkills = {
   cvBulletSkills: readonly string[] | null;
 };
 
-/** C4 §B.1's outer envelope (3–5 categories × 4–8 skills). Core and Important
- *  are never truncated — the owner asked for the whole list of skills carried
- *  by the tailored bullets — so this only ever sheds Nice-to-Have, which is
- *  exactly what §B.3 calls secondary. Inert on real data: the lead that
- *  produced the original 67 yields 16 here. */
+/**
+ * How many skills the section can hold: C4 §B.1's own envelope, 3–5 categories
+ * × 4–8 skills. §A's prioritisation exists precisely to fit within it — "as the
+ * number of declared skills allows", in the owner's words — so this is the
+ * number that decides what gets shed, not a safety cap bolted on afterwards.
+ */
 export const SKILLS_ENVELOPE = 40;
 
-/** Rank → the heading it prints under, in priority order (C4 §B.3 — Core and
- *  Important first, Nice-to-Have last). The headings are CV language, not the
- *  JD-internal rank labels; the thematic taxonomy a real CV shows
- *  ("Governance & Compliance", …) is NOT yet built.
- *
- *  Correction, 2026-08-24: earlier revisions of this comment said that taxonomy
- *  "doesn't exist as data yet — ROADMAP P6". Both halves were wrong. ROADMAP P6
- *  has two entries — renaming the `approval_status` enum and per-tenant CV
- *  templates — and says nothing about skills. And a taxonomy DOES exist:
- *  `jd_groups` holds six named capability areas (Strategy & Corporate
- *  Development, Chief of Staff & Executive Office, Operations & Shared Services,
- *  Controlling/FP&A & Finance, Transformation & Project Management, Procurement/
- *  Outsourcing & ESG), and B5 rates every lead against a 17-dimension A–Q
- *  framework. The rank headings below are a stand-in that C4 §B.1 does not ask
- *  for; see CI · C4 Skills Selection Produces Unreadable Overflow §2.11. */
-const RANK_HEADINGS: [rank: string, heading: string][] = [
-  ['core', 'Core Competencies'],
-  ['important', 'Supporting Expertise'],
-  ['nice-to-have', 'Additional Skills'],
-];
-
-const ADDITIONAL = 'Additional Skills';
+/** Rank order for §B.3's prioritisation: Core first, then Important, then
+ *  Nice-to-Have, then anything whose requirement carries no recognised rank. */
+const RANK_ORDER = ['core', 'important', 'nice-to-have'];
 
 /**
- * Build the CV's Skills section from the Keep-gated rows.
+ * §A step 1–2: collect every skill the Keep-gated bullets declare, in priority
+ * order, cut to what the section can hold.
  *
- * Source is `cv_bullet_skills`, not `my_skills` — the owner's decision on the
- * parent CI: the section prints "the whole list of skills associated with the
- * tailored cv_bullets, either bracketed or integrated", restricted to
- * requirements that actually have matched evidence. Keep-gated rows ARE that
- * restriction, and `cv_bullet_skills` is the only durable record of a bullet's
- * skills: bold-inline integration lives inside the bullet's own text and is
- * never captured separately, so both of C3 §B.5's presentation methods resolve
- * to this one column. (It read `requirement_skills` until C3's tag was split
- * into its own column — same values, but that column also held B2's asks
- * before C3 ran, so it could not say which it was carrying.)
+ * A skill claimed by several ranks keeps its BEST rank — it is one skill, and
+ * the highest-ranked requirement it answers is what decides whether it survives
+ * the cut. Order within a rank follows row order, so a re-run of the same data
+ * produces the same list.
  *
- * A skill claimed by several ranks prints once, under the highest — nothing is
- * duplicated across categories (C4 §D).
+ * Note what this does NOT do any more: it does not group. Rank decides *which*
+ * skills print and in what priority; it says nothing about the headings they
+ * print under. Conflating the two is the mistake this function was split out of
+ * — see `buildSkillsSection`.
  */
-export function buildSkillsSection(rows: readonly KeepRowSkills[]): { category: string; items: string[] }[] {
-  const byRank = new Map<string, string[]>(RANK_HEADINGS.map(([rank]) => [rank, [] as string[]]));
-  const unranked: string[] = [];
+export function prioritiseSkills(rows: readonly KeepRowSkills[], limit = SKILLS_ENVELOPE): string[] {
+  const out: string[] = [];
   const claimed = new Set<string>();
-
-  const take = (into: string[], row: KeepRowSkills) => {
+  const take = (row: KeepRowSkills) => {
     for (const raw of row.cvBulletSkills ?? []) {
       const name = (raw ?? '').trim();
       if (!name) continue;
       const key = norm(name);
       if (claimed.has(key)) continue;
       claimed.add(key);
-      into.push(name);
+      out.push(name);
     }
   };
-
-  // Iterate the rank order outside the rows, so a skill's category is decided
-  // by its best rank rather than by whichever row happened to come first.
-  for (const [rank] of RANK_HEADINGS) {
-    for (const row of rows) if (norm(row.rank ?? '') === rank) take(byRank.get(rank)!, row);
+  for (const rank of RANK_ORDER) {
+    for (const row of rows) if (norm(row.rank ?? '') === rank) take(row);
   }
-  // A row whose requirement carries no recognised rank still has real evidence
-  // behind it, so its skills aren't discarded — they land last, with the other
-  // secondary material.
-  for (const row of rows) {
-    if (byRank.has(norm(row.rank ?? ''))) continue;
-    take(unranked, row);
+  // A row whose requirement carries no recognised rank still has Keep-gated
+  // evidence behind it, so its skills are not discarded — they queue last, and
+  // are therefore the first to fall off the cut.
+  for (const row of rows) if (!RANK_ORDER.includes(norm(row.rank ?? ''))) take(row);
+  return out.slice(0, Math.max(0, limit));
+}
+
+export type SkillGroup = { category: string; items: string[] };
+
+/** C4 §B.1: "Group skills into 3–5 high-level categories." */
+const MAX_CATEGORIES = 5;
+/** Where skills land that the grouping step failed to place. Should be empty in
+ *  a healthy run — the step report surfaces the count so it is visible if not. */
+const LEFTOVER_CATEGORY = 'Additional Skills';
+
+/**
+ * §A step 3: turn the grouping step's proposal into the section that prints.
+ *
+ * The categories themselves are a judgement — "the main capability areas
+ * relevant to the Job Lead" (§B.1) — made per lead over this lead's actual set,
+ * which is why a model proposes them. **What it proposes is not trusted.** A
+ * model that reworded, invented, dropped or duplicated a skill would put text on
+ * the CV that no bullet declares, which is the exact failure this CI exists to
+ * end. So every returned name is checked back against the prioritised set:
+ *
+ *  - a name not in `selected` is dropped (invented or reworded)
+ *  - the spelling that prints is `selected`'s, never the model's
+ *  - a name claimed twice keeps its first placement
+ *  - a name no category claimed is appended under `Additional Skills` rather
+ *    than silently vanishing — losing a skill is worse than an ugly heading
+ *  - beyond 5 categories, the surplus folds into the fifth (§B.1's ceiling)
+ *
+ * The result is that the model can only ever choose the ARRANGEMENT. The
+ * content is decided in code, before it is asked.
+ */
+export function reconcileSkillGroups(
+  selected: readonly string[],
+  proposed: readonly { category: string; skills: readonly string[] }[]
+): SkillGroup[] {
+  const canonical = new Map<string, string>();
+  for (const name of selected) {
+    const key = norm(name);
+    if (key && !canonical.has(key)) canonical.set(key, name);
   }
 
-  const groups = RANK_HEADINGS.map(([rank, heading]) => ({ category: heading, items: byRank.get(rank)! }));
-  if (unranked.length) {
-    const additional = groups.find((g) => g.category === ADDITIONAL)!;
-    additional.items = [...additional.items, ...unranked];
+  const groups: SkillGroup[] = [];
+  const placed = new Set<string>();
+  for (const group of proposed) {
+    const heading = (group.category ?? '').trim();
+    if (!heading) continue;
+    const items: string[] = [];
+    for (const raw of group.skills ?? []) {
+      const key = norm(raw ?? '');
+      const name = canonical.get(key);
+      if (!name || placed.has(key)) continue;
+      placed.add(key);
+      items.push(name);
+    }
+    if (items.length) groups.push({ category: heading, items });
   }
 
-  // Shed secondary material until inside the envelope — and ONLY secondary
-  // material. Core and Important answer requirements with matched, Keep-gated
-  // evidence behind them; dropping one to hit a number is dropping a proven
-  // claim, which is the mistake the 24-item display cap made. If those two
-  // alone overrun the envelope the section prints long, and that is a B2
-  // over-extraction worth seeing rather than hiding.
-  const additional = groups.find((g) => g.category === ADDITIONAL)!;
-  const fixed = groups.reduce((n, g) => (g === additional ? n : n + g.items.length), 0);
-  if (fixed + additional.items.length > SKILLS_ENVELOPE) {
-    additional.items = additional.items.slice(0, Math.max(0, SKILLS_ENVELOPE - fixed));
+  // §B.1 caps at 5. Folding the surplus into the fifth keeps every skill while
+  // respecting the ceiling; dropping the extra groups would drop their skills.
+  if (groups.length > MAX_CATEGORIES) {
+    const kept = groups.slice(0, MAX_CATEGORIES);
+    for (const extra of groups.slice(MAX_CATEGORIES)) kept[MAX_CATEGORIES - 1].items.push(...extra.items);
+    groups.length = 0;
+    groups.push(...kept);
   }
 
-  return groups.filter((g) => g.items.length > 0);
+  const leftover = selected.filter((name) => !placed.has(norm(name)));
+  if (leftover.length) {
+    const existing = groups.find((g) => g.category === LEFTOVER_CATEGORY);
+    if (existing) existing.items.push(...leftover);
+    else groups.push({ category: LEFTOVER_CATEGORY, items: leftover });
+  }
+  return groups;
+}
+
+/**
+ * The deterministic fallback, used when the grouping call fails or is disabled
+ * (mock mode with no key). One honest bucket beats a fabricated taxonomy: the
+ * skills are still correct, still prioritised, and the reader can see they were
+ * not grouped rather than being handed groups nobody stands behind.
+ */
+export function ungroupedSkills(selected: readonly string[]): SkillGroup[] {
+  return selected.length ? [{ category: 'Core Competencies', items: [...selected] }] : [];
 }

@@ -17,7 +17,7 @@ import './_env';
 import { db } from '../lib/db';
 import { requirementTailoring, jobRequirements, jobLeads } from '../lib/db/schema';
 import { gatherSkillVocabulary } from '../lib/pipeline/tailoring';
-import { buildVocabIndex, resolveVocab, buildSkillsSection } from '../lib/pipeline/skills';
+import { buildVocabIndex, resolveVocab, prioritiseSkills } from '../lib/pipeline/skills';
 
 async function main() {
   const rows = await db.select().from(requirementTailoring);
@@ -42,16 +42,19 @@ async function main() {
     for (const r of keep) for (const n of r.mySkills ?? []) if (n) rawTags.add(n);
     const recognised = resolveVocab([...rawTags], index);
 
-    const section = buildSkillsSection(
+    // Selection + prioritisation only. Categorisation is a model call now
+    // (C4 §B.1), so a read-only probe cannot reproduce it — and shouldn't
+    // pretend to by inventing headings offline.
+    const selected = prioritiseSkills(
       keep.map((g) => ({ rank: (g.requirementId && rankByReqId.get(g.requirementId)) ?? null, cvBulletSkills: g.cvBulletSkills ?? [] }))
     );
-    const total = section.reduce((n, g) => n + g.items.length, 0);
+    const total = selected.length;
 
     console.log(`\n${lead?.company ?? '?'} · ${lead?.title ?? '?'} [${leadId.slice(0, 8)}] — ${keep.length} Keep rows`);
     console.log(`  BEFORE (every My Skills tag, uncapped): ${rawTags.size} items in 1 line`);
     console.log(`  stored My Skills the profile recognises: ${recognised.length} / ${rawTags.size}`);
-    console.log(`  AFTER  (Keep rows' cv_bullet_skills): ${total} items in ${section.length} categor${section.length === 1 ? 'y' : 'ies'}`);
-    for (const g of section) console.log(`    ${g.category}: ${g.items.join(' · ')}`);
+    console.log(`  AFTER  (Keep rows' cv_bullet_skills, prioritised): ${total} items — categories are assigned by C4's grouping call at generate time`);
+    console.log(`    ${selected.join(' · ')}`);
 
     // CI · Split cv_bullet_skills from requirement_skills — only computable
     // once C3's tag stopped overwriting B2's asks.

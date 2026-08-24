@@ -22,6 +22,11 @@ const STEP_NOTE: Record<string, string> = {
   B6: 'B6. Role Fit & Investment Worthiness Score.md',
   C2: 'C2. Map JD Requirements to Supporting Evidence.md',
   C3: 'C3. Transform Evidence into CV Bullets.md',
+  // C4 joined this map on 2026-08-24, when its §B.1 categorisation became a model
+  // call. Its note carries the rules the call has to follow (3–5 categories,
+  // 4–8 skills, Core-aligned first), so the note IS the prompt — same as every
+  // other step here. Selection and prioritisation either side of it stay code.
+  C4: 'C4. Build and Manage the Skills Section.md',
   C5: 'C5. Drafting CV Profile (Per Job Lead).md',
   C7: 'C7. Run Reviewed ATS Matching Rating.md',
   'O2-extract': 'Onboarding/O2 Extract Career Graph.md',

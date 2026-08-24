@@ -34,13 +34,20 @@ import { writeBuffer } from '../storage';
 import { buildCv, type CvModel } from '../docx/cv';
 import { systemPromptFor } from '../prompts';
 import { runStructured, type UserContentBlock } from '../llm/client';
-import { C2, C3, C5, C7 } from '../llm/schemas';
+import { C2, C3, C4, C5, C7 } from '../llm/schemas';
 import { CV_SLOTS, normalizeCvPosition, slotCode, templateExists, buildCvFromTemplate } from '../docx/template';
 import { evidenceNeedsCvSlot } from '../cv-slots';
 import { recordGapTips } from '../ci';
 import { matchStrengthToScore } from '../scoring';
 import { candidateFactsSummary } from '../profile-context';
-import { buildVocabIndex, resolveVocab, buildSkillsSection, type VocabEntry } from './skills';
+import {
+  buildVocabIndex,
+  resolveVocab,
+  prioritiseSkills,
+  reconcileSkillGroups,
+  ungroupedSkills,
+  type VocabEntry,
+} from './skills';
 
 export const CORE_AND_IMPORTANT: string[] = ['Core', 'Important'];
 
@@ -1001,36 +1008,81 @@ export async function generateCv(
 
   // C4 — skills section. CI · C4 Skills Selection Produces Unreadable Overflow.
   //
-  // What this used to do, and why it broke: it took every My Skills value on
-  // every Keep row, unconditionally and uncapped, and printed it. My Skills was
-  // then a verbatim copy of the evidence node's own free-text graph tags — 246
-  // distinct names across the profile, 180 used exactly once — so a 64-Keep-row
-  // lead printed 67 of them, all in one bucket, because the proficiency lookup
-  // that decided the category recognised almost none of them.
+  // C4 §A, in its own three moves. The step used to conflate the middle one with
+  // the last: it grouped by requirement rank and printed the rank names as
+  // headings (Core Competencies / Supporting Expertise / Additional Skills).
+  // That implements §B.3's prioritisation and leaves §B.1's categorisation
+  // unbuilt — and since a typical lead lands almost everything under Core, it
+  // did not even deliver the vertical readability §B.1 exists for.
   //
-  // What it does now, per the owner's decision on this CI: the section is the
-  // `cv_bullet_skills` carried by the Keep-gated rows — the skills the tailored
-  // bullets genuinely display (bracketed or bolded inline; both resolve to this
-  // one column), and only for requirements that actually have matched evidence.
-  // Keep-gated rows ARE that restriction. Ordered Core → Important →
-  // Nice-to-Have per C4 §B.3. Same lead: 16 skills, no cap needed.
+  //   1. collect  — every skill the Keep-gated bullets declare (cv_bullet_skills)
+  //   2. prioritise — Core → Important → Nice-to-Have, cut to what fits (§B.3)
+  //   3. categorise — 3–5 capability areas over what survived (§B.1)
   //
-  // My Skills has not gone anywhere — it is now C2's validated selection from
-  // the curated vocabulary and remains the traceability chain back to the
-  // profile (C3 §B.5), which is what it was always described as. It is simply
-  // no longer what the CV's Skills header prints.
+  // Step 3 is the one model call C4 has ever made, and it is here because naming
+  // "Governance, Risk & Compliance" is a judgement about THIS lead's set that no
+  // lookup produces. Sonnet, not Opus: this is presentation, not a truth claim —
+  // and it cannot become one, because `reconcileSkillGroups` re-checks every name
+  // against the prioritised set. The model chooses the arrangement; the content
+  // was decided in code before it was asked.
   let skillsModel: CvModel['skills'] = [];
   {
     const t = Date.now();
     const rankByReqId = new Map(reqs.map((r) => [r.id, r.rank]));
-    skillsModel = buildSkillsSection(
+    const selected = prioritiseSkills(
       green.map((g) => ({
         rank: (g.requirementId && rankByReqId.get(g.requirementId)) ?? null,
         cvBulletSkills: g.cvBulletSkills ?? [],
       }))
     );
+
+    let model = 'code';
+    let ms = 0;
+    if (selected.length === 0) {
+      skillsModel = [];
+    } else {
+      const r = await runStructured({
+        step: 'C4',
+        model: 'sonnet',
+        system: await systemPromptFor('C4', effectiveOwnerId),
+        user:
+          `ROLE: ${lead.title}${lead.jdGroupPrimary ? ` · ${lead.jdGroupPrimary}` : ''}\n\n` +
+          `Group these ${selected.length} skills into 3–5 logical categories for the CV Skills section, ` +
+          `most relevant to this role first. Copy each skill exactly; place every one of them.\n\n` +
+          selected.map((s) => `- ${s}`).join('\n'),
+        tool: C4.tool,
+        zod: C4.zod,
+        // The mock is not a stand-in for the judgement — inventing plausible
+        // category names offline would make mock runs look like live ones. It
+        // returns the honest ungrouped shape instead.
+        mock: () => ({ groups: [{ category: 'Core Competencies', skills: selected }] }),
+        leadId,
+        ownerId: effectiveOwnerId,
+      });
+      model = r.model;
+      ms = r.ms;
+      skillsModel = reconcileSkillGroups(selected, r.data.groups);
+      // A grouping call that came back with nothing usable must not cost the CV
+      // its Skills section — the skills themselves were never in doubt.
+      if (skillsModel.length === 0) skillsModel = ungroupedSkills(selected);
+    }
+
     const count = skillsModel.reduce((n, s) => n + s.items.length, 0);
-    reports.push(await recordStep(leadId, { step: 'C4', label: 'Skills section', model: 'code', summary: `${count} skills · ${skillsModel.length} groups`, output: { groups: skillsModel.length, skills: count }, ms: Date.now() - t }, effectiveOwnerId));
+    const unplaced = skillsModel.find((g) => g.category === 'Additional Skills')?.items.length ?? 0;
+    reports.push(
+      await recordStep(
+        leadId,
+        {
+          step: 'C4',
+          label: 'Skills section',
+          model,
+          summary: `${count} skills · ${skillsModel.length} categor${skillsModel.length === 1 ? 'y' : 'ies'}${unplaced ? ` · ${unplaced} unplaced` : ''}`,
+          output: { categories: skillsModel.map((g) => ({ category: g.category, n: g.items.length })), skills: count, unplaced },
+          ms: ms || Date.now() - t,
+        },
+        effectiveOwnerId
+      )
+    );
   }
 
   // C5 — tailored profile (4–7 lines, supportable by the evidence)

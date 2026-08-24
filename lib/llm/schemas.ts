@@ -594,6 +594,46 @@ export const C3 = {
 };
 
 // ── C5 · Tailored CV profile ─────────────────────────────────────────────────
+// ── C4 · Group the selected skills into the CV's Skills categories ──────────
+// C4 §B.1: 3-5 logical categories reflecting "the main capability areas relevant
+// to the Job Lead", 4-8 skills each, most Core-aligned first. This is the one
+// part of C4 a model has to do: naming a category is a judgement over THIS
+// lead's actual skill set, and no lookup produces "Governance, Risk & Compliance"
+// from a list of strings. Selection and prioritisation stay in code either side
+// of it, and the write path re-checks every name the model returns — see
+// `reconcileSkillGroups` in lib/pipeline/skills.ts.
+export const C4 = {
+  zod: z.object({
+    groups: z
+      .array(z.object({ category: z.string(), skills: z.array(z.string()).default([]) }))
+      .default([]),
+  }),
+  tool: {
+    name: 'emit_skill_groups',
+    strict: true,
+    description:
+      'Group the supplied skills into 3-5 logical categories for the CV Skills section, most relevant to this role first. Category names are short capability areas in the candidate\'s professional register (e.g. "Governance, Risk & Compliance", "Transformation & Process Excellence"), never the requirement ranks and never a generic label like "Other". Place EVERY supplied skill in exactly one category, copied VERBATIM — never reword, merge, split or invent a skill. Aim for 4-8 skills per category.',
+    input_schema: {
+      type: 'object', additionalProperties: false,
+      properties: {
+        groups: arr({
+          type: 'object', additionalProperties: false,
+          properties: {
+            category: { type: 'string', description: 'Short capability-area heading, 2-5 words. Title Case.' },
+            skills: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'The supplied skills belonging to this category, copied exactly as given.',
+            },
+          },
+          required: ['category', 'skills'],
+        }),
+      },
+      required: ['groups'],
+    },
+  } satisfies ToolDef,
+};
+
 export const C5 = {
   zod: z.object({ profile: z.string() }),
   tool: {
