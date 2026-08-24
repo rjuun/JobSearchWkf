@@ -58,7 +58,7 @@ Worth noting how little of this is new state — three of the four are already d
 | --- | --- | --- |
 | Roadblock | `roadblocks` non-empty (B3) | no |
 | Misalignment | `misalignments` non-empty (B4) | no |
-| Low Fit | `overallFitScore < 8` (B6; the scale is **0–10**, see §1.3) | no |
+| Low Fit | `overallFitScore < 7` (B6; the scale is **0–10**, see §1.3) | no |
 | **Expired** | nothing records it today | **yes** |
 
 So this stays close to the 2026-07-30 discipline: keep deriving what is already on the row, and store
@@ -91,7 +91,7 @@ the posting closed.
 
 Making the refresh mean what its name implies is therefore the real work, and it forks (§2, Q1).
 
-### 1.3 · A threshold conflict to settle
+### 1.3 · A threshold conflict — settled at `< 7`
 
 "Low Fit (less than 8)" sits on the 0–10 `overallFitScore` scale. But `recommendationFor()` in
 `lib/scoring.ts` already partitions that scale:
@@ -102,10 +102,10 @@ Making the refresh mean what its name implies is therefore the real work, and it
 <  5.5 (below)
 ```
 
-A `< 8` Low Fit tag would mark every lead scoring 7.0–7.9 as "low fit" while B6 recommended
-**Proceed**. Either the tag threshold moves to `< 7` to agree with the existing band, or the bands
-move, or the tag is deliberately stricter than the recommendation and says so. Not a detail to encode
-silently.
+The owner first proposed `< 8`. That would mark every lead scoring 7.0–7.9 as "low fit" while B6
+recommended **Proceed** — two thresholds disagreeing about the same score. **Settled 2026-08-23 at
+`< 7`**, so the tag agrees with the existing Proceed band rather than introducing a second one:
+*"I will take it back and remain consistent with <7 being the Low Fit."*
 
 ## 2. What would the improvement look like?
 
@@ -118,8 +118,8 @@ posting and records the result, then shows the B1 re-run in the trace with its d
 lead — the one new fact — so "Not Pursued" can read it.
 
 **C · Not Pursued reason tags.** Replace the single derived `NotPursuedReason` with a set:
-`roadblock` / `misalignment` / `expired` / `low_fit`, three derived as today and `expired` read from
-B. Surfaced on the Not Pursued list, and filterable there.
+`roadblock` / `misalignment` / `expired` / `low_fit` (`< 7`, §1.3), three derived as today and
+`expired` read from B. Surfaced on the Not Pursued list, and filterable there.
 
 ### Q1 — RESOLVED: re-fetch the LinkedIn guest fragment
 
