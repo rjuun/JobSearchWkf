@@ -152,6 +152,16 @@ let it block this note.
 5. **Map UI**: show the rank, and let the owner pin or exclude a row. Pinned rows enter `S` before
    greedy runs and consume budget.
 6. **`Process/C3. Select the CV Evidence Set.md`** — fill in the stub the renumber CI created.
+7. **Add C3 to the three enumerations that deliberately skip it** — handed forward by
+   [[Renumber the C-Phase to Seat Evidence Selection at C3]], which stopped short on purpose:
+   - `lib/journey.ts` §69 `TAILOR_STEPS` — currently runs `C1, C2, C4, C5, C6, C7, C8`
+   - `docs/PIPELINE.md` §33–35 — the mermaid flow goes `C2 → HITL → C4`
+   - `docs/PIPELINE.md` §146–153 — the step table has no C3 row
+
+   **The gap is correct until this CI lands, and it is not an oversight to tidy up early.** These are
+   what the pipeline UI renders from, and a step listed there that no run trace can ever show is the
+   product claiming to do something it does not. Same reasoning as `STEP_NOTE`'s C3 gap. Add all three
+   in the same commit that makes C3 actually run — never before.
 
 ### 2.8 · Acceptance
 
