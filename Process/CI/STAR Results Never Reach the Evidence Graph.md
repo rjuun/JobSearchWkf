@@ -71,6 +71,25 @@ with no actor. Three options:
    fabricates an evidence node that exists in no table and would need its own ref code — a new
    citable identity that traces to nothing in the profile workbook.
 
+> [!WARNING] What was built is (2) with the STAR's TITLE, not its action — 2026-08-25
+> `gatherEvidence` sets `context` to `outcome of STAR <ref>: <star.title>`, so `1-R3` resolves to
+> *"outcome of STAR 1: Establishment of a Servicing Center in Portugal"* and `4-R3` to
+> *"outcome of STAR 4: Transfer Pricing — Master File Implementation"*. Neither is an action.
+>
+> **The spec above asked for something the schema cannot give.** `star_results` carries `starRef`,
+> which points at the STAR — not at an action. A STAR holds roughly six actions and three results, and
+> nothing records which action produced which result. So the title is the best available join, and the
+> implementation is right; §2.2 was wrong to say "action" and is corrected here rather than in place,
+> so the reasoning survives.
+>
+> **The missing edge is real and worth its own note.** The owner, shown `1-R3`, framed it exactly:
+> *"you have created a result which does not have an Action behind it. What is the action behind it?"* —
+> and could answer from memory. `4-R3` ("Agreement review reduced annual IT cost payments") plainly
+> belongs to action `4-2` ("Reviewed, drafted and negotiated Master Agreements…"); the ref numbers even
+> align. They align by ordering coincidence, not by anything modelled. A `result → action` link would
+> let a bullet lead with what the candidate DID and close on what it produced, which is what §B.4 asks
+> for. That is a schema column plus a curation pass, and it belongs to a note of its own.
+
 **Recommendation: (2).** It keeps every ref code traceable to a real row, which is the property
 `resolveVocab` and the C2 ref discipline both rest on, and it gives C4 exactly what §B.4 asks for —
 the action to lead with and the measurable result to close on. (3) is rejected for the same reason
