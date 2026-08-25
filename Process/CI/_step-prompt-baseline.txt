@@ -6,6 +6,8 @@ B6           c8b1bc43e1579f2d   12231 bytes
 C2           a05809568a6e8cc9   17156 bytes
 C4           61f3a9d5a8b8c8ae   16436 bytes
 C5           c729e5d53bc2d52f   10805 bytes
-C6           854b40eff94e5671    6183 bytes
+C6           8706ddc8106ce7c3    6179 bytes
 C8           63f73fa144522cde    2776 bytes
 O2-extract   0affb9c12f01bd37    1257 bytes
+
+11 steps loaded as system prompts.
