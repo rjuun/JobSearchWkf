@@ -19,7 +19,7 @@ pr-target: "[[C2. Map JD Requirements to Supporting Evidence]], [[C4. Transform 
 
 ## 1. What is the problem or opportunity?
 
-`gatherEvidence` (`lib/pipeline/tailoring.ts` §438) assembles the whole evidence graph C2 maps
+`gatherEvidence` (`lib/pipeline/tailoring.ts` §437) assembles the whole evidence graph C2 maps
 against. It queries five tables — `star_actions`, `responsibilities`, `bullet_bank`, `education`,
 `languages` — and **omits `star_results` entirely**.
 
@@ -40,7 +40,7 @@ Every one of those 22 rows already carries the ref code C2 cites by. They are th
 
 **C2 has never been able to cite a single one, and no CV has ever been built on one.**
 
-The sharpest way to see the defect: `Process/C3…md` §B.4 instructs the step to *"include measurable
+The sharpest way to see the defect: `Process/C4…md` §B.4 instructs the step to *"include measurable
 results, scale, or business impact **when they exist** in the Original Text"* and *"do not invent or
 exaggerate results that are not supported by the evidence."* Both rules are correct and the step obeys
 them. The table where the measurable results actually live was simply never passed in. The bullets are
@@ -54,7 +54,7 @@ bullets partly on whether they carry a quantified outcome, and today almost none
 ### 2.1 · Scope
 
 **In:** making `star_results` citable evidence, and deciding the shape it is cited in.
-**Out:** the selection budget ([[C3 Selects the CV Evidence Set]]), and any change to how C3 writes a
+**Out:** the selection budget ([[C3 Selects the CV Evidence Set]]), and any change to how C4 writes a
 bullet beyond having the outcome available to write from.
 
 ### 2.2 · The one real design decision: alone, or paired with its action?
@@ -65,14 +65,14 @@ with no actor. Three options:
 
 1. **Emit results as their own evidence kind** (`kind: 'STAR result'`), cited independently.
    Simplest. Risks bullets that report an outcome without the action that earned it.
-2. **Emit results, and give C3 the parent STAR's action as context** so a cited result can be written
-   as action-plus-outcome. Costs a join through `stars`; C3's prompt gains a context line.
-3. **Emit a pre-joined action→result composite** as one evidence item. Cleanest for C3, but it
+2. **Emit results, and give C4 the parent STAR's action as context** so a cited result can be written
+   as action-plus-outcome. Costs a join through `stars`; C4's prompt gains a context line.
+3. **Emit a pre-joined action→result composite** as one evidence item. Cleanest for C4, but it
    fabricates an evidence node that exists in no table and would need its own ref code — a new
    citable identity that traces to nothing in the profile workbook.
 
 **Recommendation: (2).** It keeps every ref code traceable to a real row, which is the property
-`resolveVocab` and the C2 ref discipline both rest on, and it gives C3 exactly what §B.4 asks for —
+`resolveVocab` and the C2 ref discipline both rest on, and it gives C4 exactly what §B.4 asks for —
 the action to lead with and the measurable result to close on. (3) is rejected for the same reason
 free-text graph tags were rejected as My Skills values: an identity the profile does not recognise.
 
@@ -80,10 +80,10 @@ free-text graph tags were rejected as My Skills values: an identity the profile 
 
 - **Ref-code collision.** Result refs look like `1-R1`, `1-R2`, `1-R3`. Confirm they cannot collide
   with `star_actions` ref codes (`A-R3` and `5-3` both appear in live tailoring rows) — two evidence
-  items sharing a ref would make `absorbC3Bullets`'s ref→bullet map ambiguous, and it keys on ref.
+  items sharing a ref would make `absorbC4Bullets`'s ref→bullet map ambiguous, and it keys on ref.
 - **`Evidence.cvPosition`.** Actions pass `cvPosition: null`; responsibilities and bullets derive one.
   Results need the same treatment as their parent action, or `templateFits` may reject the Keep set
-  and silently drop C6 to the programmatic builder.
+  and silently drop C7 to the programmatic builder.
 - **`Evidence.skills`.** `star_results` may or may not carry its own tags; if not, pass `[]` rather
   than inheriting the action's, so provenance stays honest.
 
@@ -104,10 +104,10 @@ free-text graph tags were rejected as My Skills values: an identity the profile 
 
 ## 3. Resources or references
 
-- `lib/pipeline/tailoring.ts` §438 `gatherEvidence`; §100 `c2UserMessage`'s evidence block.
-- `lib/db/schema.ts` §186 `starResults`, §166 `stars`, §176 `starActions`.
-- `Process/C3…md` §B.4 — the rule this unblocks.
-- [[C3 Selects the CV Evidence Set]] — **build this note first.** Budgeting over a candidate pool that
+- `lib/pipeline/tailoring.ts` §437 `gatherEvidence`; §101 `c2UserMessage`'s evidence block.
+- `lib/db/schema.ts` §187 `starResults`, §167 `stars`, §177 `starActions`.
+- `Process/C4…md` §B.4 — the rule this unblocks.
+- [[C3 Selects the CV Evidence Set]] — comes AFTER this one; **land the present CI first.** Budgeting over a candidate pool that
   is about to gain 22 quantified outcomes is tuning against inputs that are about to change; the same
   argument sequenced [[C3 Writes CV-Grade Skill Tags]] ahead of consolidation.
 
