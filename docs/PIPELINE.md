@@ -33,7 +33,9 @@ flowchart TD
         C1["C1 · Format & headshot check<br/><i>code</i>"] --> C2["C2 · Map requirements → evidence<br/>builds on B6, targets Good/Weak/No Match<br/><i>Opus 4.8</i>"]
         C2 --> HITL{"Human review<br/>Approve the map"}
         HITL -- "Approve" --> C3["C3 · Select the CV evidence set<br/>greedy + swaps over a submodular objective<br/><i>code</i>"]
-        C3 --> C4["C4 · Draft CV bullets<br/><i>Opus 4.8</i>"]
+        C3 --> PIN{"Pin / exclude on the Map<br/>re-solves C3, free"}
+        PIN --> C3
+        PIN -- "Generate CV" --> C4["C4 · Draft CV bullets<br/><i>Opus 4.8</i>"]
         C4 --> C5["C5 · Skills section<br/><i>code</i>"]
         C5 --> C6["C6 · CV profile<br/><i>Opus 4.8</i>"]
         C6 --> C7["C7 · Compile 2-page CV<br/><i>code · docxtemplater</i>"]
@@ -142,11 +144,19 @@ keeps scoring unbiased and reproducible.
 "Map"/"Match the evidence" (`mapEvidenceAction` → `runEvidenceMapping`). C1 has no UI of its own; its one
 output (the headshot decision) is folded into the same run trace as C2.
 
+**"Approve map" is a trigger; "Generate CV" starts at C4.** Approving fires C3 on its own
+(`approveAllAction` → `runEvidenceSelection`), and because C3 is pure code that costs nothing, every
+pin, exclude and change to the Keep set re-solves it on the spot. The Map then shows a rank on every
+approved card and a solid outline on the ones that fit, so the whole set decision is made before a
+word is written. `generateCv` runs C4–C8 over the shortlist; it runs C3 itself only when no shortlist
+exists, which is the path that carries leads approved before C3 was seated at this gate. Once a
+`tailored.docx` exists the Map freezes: ranks and outlines stay as the record, the controls go.
+
 | Step | Note | Model | Output |
 | --- | --- | --- | --- |
 | **C1** Format & compliance | `C1. Overall Application Content and Format Guidance.md` | **code** | CV format/length, cover-letter required?, **headshot decision** (country/DEI tree), HR contact |
 | **C2** Map requirements → evidence | `C2. Map JD Requirements to Supporting Evidence.md` | Opus 4.8 | Builds on B6 rather than re-deriving (CI-034): B6's Excellent/Very Strong picks are carried forward untouched (no model call); the model is targeted only at requirements B6 rated Good/Weak/No Match, to add candidates on top. Merges into `requirement_tailoring[]` — several evidence rows per requirement are allowed (ranked), a stored row is replaced only when new evidence scores strictly higher, and an untouched row still `pending` from a prior run is pruned. Also sets `my_skills`: the model selects it from the owner's curated vocabulary (`skills_master` + `star_competences` + `star_attributes`, supplied as a cached block), and the write path drops any name that vocabulary doesn't contain. → **`approval_status=pending`** |
-| ⟶ **Human gate** | — | — | **Approve the whole map in one action** — every row with a valid CV slot is Kept at once. No more per-row triage. |
+| ⟶ **Human gate** | — | — | **Approve the whole map in one action** — every row with a valid CV slot is Kept at once. No more per-row triage. **This click also runs C3**, so the Map comes back ranked and the pin / exclude pass happens here, before anything is written. |
 | **C3** Select the CV evidence set | `C3. Select the CV Evidence Set.md` | **code** | Chooses WHICH of the Keep evidence reaches the CV, before any of it is rewritten — the first step in the phase that decides a *set* rather than judging items one at a time. Maximises quality-weighted requirement coverage (`max` per requirement, so redundancy stops paying) plus ATS keyword breadth and a quantified-outcome bonus, subject to a bullet budget `B` (default 14, a **parameter** — see the note's §2.6), a per-position cap and a floor on the most recent roles. Greedy + pairwise swaps, deterministic, no model call. Writes `shortlist_rank` per Keep row (NULL = not selected) and clears the `cv_bullet`/`cv_bullet_skills` of anything it drops. Education and Language rows are exempt from the budget entirely — they render from the profile tables regardless, which is also what stops a degree reaching the Skills section |
 | **C4** Evidence → CV bullets | `C4. Transform Evidence into CV Bullets.md` | Opus 4.8 | `cv_bullet` per **selected** row (C3's shortlist, not every Keep row) (7 principles: truthful, natural keywords, strong verbs, real metrics, skill tags, concise) + `cv_bullet_skills` (Job-Lead-facing skills this bullet demonstrates — the bracketed tag). Its own column since CI · Split cv_bullet_skills from requirement_skills; it used to overwrite `requirement_skills`, which is B2's asks and is now left alone |
 | **C5** Skills section | `C5. Build and Manage the Skills Section.md` | **code + Sonnet** | The **selected** rows' `cv_bullet_skills` — the skills carried by the tailored bullets, for requirements that have matched evidence — prioritised by the matched requirement's rank (Core → Important → Nice-to-Have), deduped to the best rank, cut to 5×8. The surviving set is then grouped into 3–5 named capability areas by a Sonnet call (§B.1) — the only model call in this step; `reconcileSkillGroups` re-checks every returned name against the prioritised set, so the call can only choose the arrangement, never the content |

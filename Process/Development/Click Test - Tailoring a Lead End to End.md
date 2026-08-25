@@ -19,6 +19,10 @@ for exactly that reason, and they move to `3 - Delivered` together once this is 
 > Once a lead has a `tailored.docx`, the workspace hides the **Generate** button — by design, since a
 > CV is produced once and produced properly. So this runs on a freshly captured lead, and you get one
 > attempt at each step. Do not plan to re-generate.
+>
+> Since CI-050 Part 2 that is no longer a constraint to work around: every decision about *which*
+> evidence reaches the CV now happens in §D, before Generate, and re-solving it is free. Nothing
+> that could need a regeneration is left to discover afterwards.
 
 ---
 
@@ -52,24 +56,41 @@ for exactly that reason, and they move to `3 - Delivered` together once this is 
 | --- | --- | --- | --- |
 | 4 | **Match the evidence** | Each requirement gets one or more evidence rows, each `pending` | Every row cites a real ref code and shows a connection sentence |
 | 5 | Review each row and Keep / decline | Your judgement, on **truthfulness only** | Do not weigh whether it will print — that is C3's job now |
-| 6 | **Approve map** when done | Rows go green | Anything left `pending` is deleted by the next C2 run, silently |
+| 6 | **Approve map** when done | Rows go green **and C3 runs immediately** — the Map comes back with a rank on every approved card | Anything left `pending` is deleted by the next C2 run, silently |
 
 **Judge on truth, not space.** The Keep gate stopped being about CV length the moment C3 started
 budgeting. Approving more good evidence costs nothing; selection decides what fits.
 
 ---
 
-## D. Tailor — the part that has never had a human pass
+## D. Select — the pass that happens before anything is written
+
+This phase used to be step 8, *after* Generate. It moved here when CI-050 Part 2 landed: the whole
+point of pinning is to change what gets written, and after Generate there is nothing left to change.
+Everything below is free — C3 makes no model call, so re-solving costs nothing and you can click as
+much as you like.
 
 | # | Do | Expect | Watch for |
 | --- | --- | --- | --- |
-| 7 | **Generate** | Progress runs through: reading your career graph → matching each must-have → rewriting evidence into CV bullets → assembling the skills section → writing your tailored profile → assembling your CV → rating the ATS match | Each stage completes; no stage silently skipped |
-| 8 | Open the selection view and look at **Pin to CV** / **Take off** | Selected bullets shown with their rank; unselected evidence still visible | **These controls have never been used by a person.** Pin something unselected, take off something selected, and confirm the counts move |
-| 9 | Download the CV | Two pages | Skills section reads as a senior CV, not an inventory |
+| 7 | Scroll to the Map and read the legend | *"C3 chose 14 of N"*, a solid outline on the cards that fit, a rank badge on **every** approved card | The held-back evidence is ranked 15, 16, 17… — near-misses should read as near-misses, not as a leftover pile |
+| 8 | Find the dashed cards | A lighter dashed outline from the saturation rank down | Below that point the objective is flat and the order is an alphabetical tie. If the line is missing, nothing saturated — also a legitimate answer |
+| 9 | **Pin to CV** something held back | It gains a solid outline and a pin dot; something else loses one | **Watch what it displaced.** That trade is the reason this control exists, and it is only visible here |
+| 10 | **Exclude** something selected | It drops to the bottom of the held-back ranks; the set re-solves | You should never need to exclude nineteen things — the cut is proposed, not asked for. If it feels like triage, the budget or C2's recall is what to look at |
+| 11 | Check the Education and Languages lanes | Their cards read `always`, with no rank | They print from the profile tables regardless and never entered the bullet budget — a rank there would report a decision C3 never made |
 
 ---
 
-## E. Verify
+## E. Tailor — the part that has never had a human pass
+
+| # | Do | Expect | Watch for |
+| --- | --- | --- | --- |
+| 12 | **Generate** | Progress runs through: rewriting evidence into CV bullets → assembling the skills section → writing your tailored profile → compiling the CV → rating the ATS match | C4–C8 only — selection already happened. Each stage completes; no stage silently skipped |
+| 13 | Look at the Map again | Ranks and outlines unchanged; the pin / exclude controls are gone; clicking a card still lights the requirements it serves | The Map is now the record of what the document was built from. If a rank moved, something re-solved after generation and that is a defect |
+| 14 | Download the CV | Two pages | Skills section reads as a senior CV, not an inventory |
+
+---
+
+## F. Verify
 
 ```bash
 npx tsx scripts/verify-lead-run.ts <leadId>
@@ -88,7 +109,7 @@ document you would send, not the intermediate tags.
 
 ---
 
-## F. Recording the result
+## G. Recording the result
 
 If it passes: move CI-048, CI-050, CI-051 and CI-052 to `3 - Delivered` together, and add a dated §4
 entry to each naming this lead and the date. They close as one epic because they were tested as one.

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { and, eq, inArray, ne } from 'drizzle-orm';
-import { runEvidenceMapping, generateCv } from '@/lib/pipeline/tailoring';
+import { runEvidenceMapping, runEvidenceSelection, generateCv } from '@/lib/pipeline/tailoring';
 import { db } from '@/lib/db';
 import { requirementTailoring } from '@/lib/db/schema';
 import type { StepReport } from '@/lib/pipeline/runs';
@@ -10,10 +10,55 @@ import { recordActivation } from '@/lib/activation';
 import { recordActivity } from '@/lib/activity';
 import { currentOwnerId } from '@/lib/auth';
 import { evidenceNeedsCvSlot } from '@/lib/cv-slots';
+import { exists } from '@/lib/storage';
+
+/**
+ * After Generate, the Map is the record — CI · C3 §2b.3.
+ *
+ * Ranks and outlines stay exactly as the CV was built from them, so nothing
+ * that rewrites `shortlist_rank` may run once a `tailored.docx` exists. Without
+ * this a re-solve would clear the `cv_bullet` of anything it newly dropped and
+ * the Map would describe a document different from the one on disk.
+ */
+function shortlistFrozen(leadId: string): Promise<boolean> {
+  return exists(`cv-output/${leadId}/tailored.docx`);
+}
+
+/**
+ * Re-solve C3 over whatever is green right now.
+ *
+ * Called on every event that can change the answer — approving the map, a pin,
+ * an exclude, a fresh C2 run — because C3 is free and instant, so the honest
+ * move is to remove the staleness window rather than track it as a state
+ * through the UI (§2b.5 item 3). A green set with nothing selectable in it
+ * (Education and Language only) is reported by the step, not thrown; that only
+ * becomes an error at Generate.
+ */
+async function resolveShortlist(leadId: string, owner: string): Promise<void> {
+  if (await shortlistFrozen(leadId)) return;
+  await runEvidenceSelection(leadId, owner);
+}
 
 export async function mapEvidenceAction(leadId: string): Promise<StepReport[]> {
   const owner = await currentOwnerId();
   const reports = await runEvidenceMapping(leadId, owner);
+  // A fresh C2 run can replace or prune rows the last selection ranked, so any
+  // shortlist standing behind it is now describing evidence that changed. Rows
+  // it replaced were reset to `pending` and dropped their pin with it, so this
+  // re-solves over the surviving Keep set. Skipped when nothing is green —
+  // the ordinary first run, where approving the map is what fires C3.
+  const stillGreen = await db
+    .select({ id: requirementTailoring.id })
+    .from(requirementTailoring)
+    .where(
+      and(
+        eq(requirementTailoring.jobLeadId, leadId),
+        eq(requirementTailoring.ownerId, owner),
+        eq(requirementTailoring.approvalStatus, 'green')
+      )
+    )
+    .limit(1);
+  if (stillGreen.length > 0) await resolveShortlist(leadId, owner);
   revalidatePath(`/roleproof/leads/${leadId}`);
   return reports;
 }
@@ -30,6 +75,13 @@ export async function mapEvidenceAction(leadId: string): Promise<StepReport[]> {
  * can only be Kept once it has somewhere on the CV to land — it is never
  * stranded, it just can't be marked Kept without a slot). Rows without a slot
  * are left `pending` and reported back as skipped rather than silently ignored.
+ *
+ * **This is also the trigger for C3** (CI · C3 §2b.2). Approving the map is the
+ * moment the candidate pool is final, so selection runs here — free, no model
+ * call — and the Map then shows a rank on every approved card and a solid
+ * outline on the ones that fit. Everything the owner decides about the *set*
+ * happens between this click and Generate, which is what makes generate-once
+ * work: no override can arrive after the bullets are written.
  */
 export async function approveAllAction(leadId: string): Promise<{ approved: number; skipped: number }> {
   const owner = await currentOwnerId();
@@ -74,6 +126,11 @@ export async function approveAllAction(leadId: string): Promise<{ approved: numb
       meta: { bulk: true, count: toApprove.length },
     });
   }
+  // Unconditional, not gated on `toApprove.length`: clicking Approve on a map
+  // that is already fully green is how a lead approved before this shipped gets
+  // its first shortlist, and the green set having not moved is not a reason to
+  // leave the Map without ranks.
+  await resolveShortlist(leadId, owner);
   revalidatePath(`/roleproof/leads/${leadId}`);
   return { approved: toApprove.length, skipped };
 }
@@ -93,8 +150,10 @@ export async function approveAllAction(leadId: string): Promise<{ approved: numb
  * one of its rows and not the others would be a contradiction the selector then
  * has to break arbitrarily.
  *
- * Nothing re-runs here. The override takes effect on the next Generate CV,
- * which is where the trade it forces gets shown in the C3 step report.
+ * **It re-solves on the spot** (§2b.3). C3 costs nothing, so the outlines move
+ * as you click and a pin visibly displaces something — which is the only way to
+ * see the trade a pin makes. Part 1 deferred this to the next Generate CV,
+ * where the trade was invisible until after the bullets were already written.
  */
 export async function setShortlistPinAction(
   leadId: string,
@@ -102,6 +161,9 @@ export async function setShortlistPinAction(
   pin: 'pin' | 'exclude' | null
 ): Promise<void> {
   const owner = await currentOwnerId();
+  if (await shortlistFrozen(leadId)) {
+    throw new Error('This CV has already been generated — the Map is now the record of what was chosen.');
+  }
   await db
     .update(requirementTailoring)
     .set({ shortlistPin: pin })
@@ -112,6 +174,7 @@ export async function setShortlistPinAction(
         eq(requirementTailoring.evidenceRef, evidenceRef)
       )
     );
+  await resolveShortlist(leadId, owner);
   revalidatePath(`/roleproof/leads/${leadId}`);
 }
 

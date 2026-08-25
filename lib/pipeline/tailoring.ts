@@ -985,6 +985,11 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
     }
     // §2.3 — only a genuinely replaced row resets to pending; the evidence
     // changed, so the judgement has to be made again.
+    //
+    // The shortlist goes with it (CI · C3 §2b.5 item 3). A rank describes a
+    // choice made over the evidence that was here a moment ago, and a pin says
+    // "keep THIS on the CV" about a sentence that has just been swapped out —
+    // both now refer to nothing, so neither may survive the replacement.
     for (const { id, link } of toReplace) {
       await db
         .update(requirementTailoring)
@@ -997,6 +1002,8 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
           provSource: link.provSource,
           approvalStatus: 'pending',
           approvedAt: null,
+          shortlistRank: null,
+          shortlistPin: null,
         })
         .where(and(eq(requirementTailoring.id, id), eq(requirementTailoring.ownerId, effectiveOwnerId)));
     }
@@ -1044,6 +1051,195 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
   return reports;
 }
 
+/**
+ * The Keep set — every row the owner approved, in one place.
+ *
+ * Hoisted because two callers need it and one of them needs it twice:
+ * `generateCv` re-reads the set after the legacy fallback has run C3, since
+ * selection clears the `cv_bullet` of everything it dropped and the rows loaded
+ * beforehand still carry the previous run's tailored prose.
+ */
+function loadGreenRows(leadId: string, ownerId: string) {
+  return db
+    .select()
+    .from(requirementTailoring)
+    .where(
+      and(
+        eq(requirementTailoring.jobLeadId, leadId),
+        eq(requirementTailoring.ownerId, ownerId),
+        eq(requirementTailoring.approvalStatus, 'green')
+      )
+    );
+}
+
+/**
+ * C3 · Select the CV evidence set — the step that chooses.
+ *
+ * Runs at the **Approve-map gate**, not inside `generateCv`. That is the whole
+ * of CI · C3 Selects the CV Evidence Set §2b: the arithmetic below is Part 1's
+ * and is unchanged, but selection now happens *before* anything is written, so
+ * every pin and exclude the owner makes lands while a bullet is still an
+ * unwritten proposal. Part 1 ran it between C2's output and bullet-writing and
+ * showed the result afterwards, which asked the human to judge a choice already
+ * spent.
+ *
+ * It is free — pure code, no model call — which is what makes re-solving on
+ * every pin, exclude and Keep change affordable rather than a state to track.
+ *
+ * `selected` is what C4 is asked to rewrite, what C5 draws skills from, and
+ * what C7/C8 see. Education and Language rows are exempt rather than dropped:
+ * they never entered the budget (they render from the profile tables
+ * regardless), and they still gate their own sections' detail through `green`.
+ *
+ * Selecting nothing is reported, not thrown. A map holding only Education and
+ * Language rows is a real state to show on the Map; it only becomes an error at
+ * Generate, where `generateCv` raises it with the message that says what to do.
+ */
+export async function runEvidenceSelection(leadId: string, ownerId?: string | null): Promise<StepReport[]> {
+  const [lead] = await db
+    .select()
+    .from(jobLeads)
+    .where(ownerId ? and(eq(jobLeads.id, leadId), eq(jobLeads.ownerId, ownerId)) : eq(jobLeads.id, leadId));
+  if (!lead) throw new Error('Lead not found');
+  const effectiveOwnerId = ownerId ?? lead.ownerId;
+  const reports: StepReport[] = [];
+
+  const green = await loadGreenRows(leadId, effectiveOwnerId);
+  if (green.length === 0) throw new Error('No Keep evidence — approve the map before selecting.');
+
+  const reqs = await db
+    .select()
+    .from(jobRequirements)
+    .where(and(eq(jobRequirements.jobLeadId, leadId), eq(jobRequirements.ownerId, effectiveOwnerId)));
+
+  const exemptRows = green.filter((g) => !evidenceNeedsCvSlot(g.evidenceKind));
+  const t = Date.now();
+  const rankByReqId = new Map(reqs.map((r) => [r.id, r.rank]));
+  const byRef = new Map<string, SelectionCandidate>();
+  for (const g of green) {
+    if (!g.evidenceRef || !evidenceNeedsCvSlot(g.evidenceKind)) continue;
+    let cand = byRef.get(g.evidenceRef);
+    if (!cand) {
+      cand = {
+        ref: g.evidenceRef,
+        links: [],
+        cvPosition: normalizeCvPosition(g.cvPosition),
+        // `originalText` is the snapshot C2 wrote, which for a STAR result
+        // already carries its `metric` column composed in as "— measured: …".
+        // That is what `impact` reads, and reading `cvBullet` instead would
+        // score this run against the PREVIOUS run's tailored prose.
+        text: g.originalText ?? '',
+        pin: g.shortlistPin === 'pin' || g.shortlistPin === 'exclude' ? g.shortlistPin : null,
+      };
+      byRef.set(g.evidenceRef, cand);
+    }
+    // A row whose pin disagrees with its siblings' can't happen through the
+    // UI (the pin is set per ref), but if it ever did, an explicit exclude
+    // wins over a pin — the safer direction for a claim on a CV.
+    if (g.shortlistPin === 'exclude') cand.pin = 'exclude';
+    if (!g.requirementId) continue;
+    (cand.links as SelectionLink[]).push({
+      requirementId: g.requirementId,
+      rank: rankByReqId.get(g.requirementId) ?? null,
+      // C2 stamps the label at the head of `connectionToExpertise`; there is
+      // no dedicated column, and `storedMatchStrength` is the same reader the
+      // C2 merge uses.
+      matchStrength: storedMatchStrength(g.connectionToExpertise),
+      requirementSkills: g.requirementSkills ?? [],
+    });
+  }
+  const candidates = [...byRef.values()];
+  const result = selectEvidence(candidates, DEFAULT_SELECTION_PARAMS);
+  const rankByRef = new Map(result.selected.map((s) => [s.ref, s.rank]));
+
+  // Persist the verdict. Rewritten wholesale every run, so a re-run after the
+  // owner pins or excludes something reflects only this run — and the stale
+  // `cv_bullet`/`cv_bullet_skills` of a row that is no longer selected are
+  // cleared with it. Leaving them would let a previous run's tags reach C5
+  // (this is exactly how a degree printed as a skill: EDU-1/2/3 carried tags
+  // from a run that did write bullets for them), and would show the Map's
+  // proof trail a bullet that is not on the CV.
+  for (const g of green) {
+    const rank = g.evidenceRef ? rankByRef.get(g.evidenceRef) ?? null : null;
+    g.shortlistRank = rank;
+    if (rank == null) {
+      g.cvBullet = null;
+      g.cvBulletSkills = [];
+    }
+    await db
+      .update(requirementTailoring)
+      .set(rank == null ? { shortlistRank: null, cvBullet: null, cvBulletSkills: [] } : { shortlistRank: rank })
+      .where(and(eq(requirementTailoring.id, g.id), eq(requirementTailoring.ownerId, effectiveOwnerId)));
+  }
+
+  // ── The step report (CI §2.7 item 4) ─────────────────────────────────────
+  // This is the surface the budget is judged from, so it carries the two
+  // coverage readings that differ, and says why they differ. "Bullets" is
+  // coverage from the selected set alone; "as printed" adds the Education and
+  // Language rows, whose sections appear on the CV unconditionally — a Core
+  // requirement answered only by a degree is genuinely answered by the CV
+  // even though no bullet carries it, and reporting only the first number
+  // would score C3 down for obeying §2.4.
+  const universe = reqs.map((r) => ({ id: r.id, rank: r.rank }));
+  const exemptCandidates: SelectionCandidate[] = exemptRows.map((g) => ({
+    ref: g.evidenceRef ?? '',
+    links: g.requirementId
+      ? [{ requirementId: g.requirementId, rank: rankByReqId.get(g.requirementId) ?? null, matchStrength: storedMatchStrength(g.connectionToExpertise), requirementSkills: g.requirementSkills ?? [] }]
+      : [],
+    cvPosition: null,
+    text: g.originalText ?? '',
+  }));
+  const chosen = candidates.filter((c) => rankByRef.has(c.ref));
+  const before = coverageOf([...candidates, ...exemptCandidates], universe);
+  const afterBullets = coverageOf(chosen, universe);
+  const afterPrinted = coverageOf([...chosen, ...exemptCandidates], universe);
+  // How far into the budget the objective still discriminates. Measured at
+  // ~6 on all three real leads against a budget of 14, which is the fact
+  // §2.6 says must stay visible rather than settle in as a constant.
+  const informative = result.selected.filter((s) => s.gain > 1e-9).length;
+  reports.push(
+    await recordStep(
+      leadId,
+      {
+        step: 'C3',
+        label: 'Select the CV evidence set',
+        model: 'code',
+        summary:
+          `${result.selected.length} of ${candidates.length} candidates · budget ${DEFAULT_SELECTION_PARAMS.budget} · ` +
+          `V ${result.objective.total.toFixed(1)} · ${formatCoverage(afterPrinted)}` +
+          (informative < result.selected.length ? ` · ${result.selected.length - informative} filled past saturation` : ''),
+        output: {
+          budget: DEFAULT_SELECTION_PARAMS.budget,
+          params: result.params,
+          candidates: candidates.length,
+          exempt: exemptRows.length,
+          selectedCount: result.selected.length,
+          informative,
+          objective: result.objective,
+          coverage: {
+            beforeAllKeep: formatCoverage(before),
+            afterBulletsOnly: formatCoverage(afterBullets),
+            afterAsPrinted: formatCoverage(afterPrinted),
+          },
+          selected: result.selected.map((s) => ({ rank: s.rank, ref: s.ref, position: s.position, gain: Number(s.gain.toFixed(3)), newlyCovered: s.newlyCovered.length, pinned: s.pinned })),
+          // The WHOLE dropped list, not the first ten it used to store. The Map
+          // ranks every approved card, and held-back ranks come from here
+          // (CI §2b.4) — truncating it left the near-misses the owner asked to
+          // see with no rank at all on any lead with more than ten of them.
+          // Already ordered by the gain each would have added, ties by ref.
+          displaced: result.dropped.map((d) => ({ ref: d.ref, position: d.position, wouldAdd: Number(d.gain.toFixed(3)), reason: d.reason })),
+          swaps: result.swaps,
+          notes: result.notes,
+        },
+        ms: Date.now() - t,
+      },
+      effectiveOwnerId
+    )
+  );
+
+  return reports;
+}
+
 // ── C4–C8 (Keep evidence only) ───────────────────────────────────────────────
 export async function generateCv(
   leadId: string,
@@ -1058,16 +1254,7 @@ export async function generateCv(
   const [profile] = await db.select().from(profiles).where(eq(profiles.ownerId, effectiveOwnerId)).limit(1);
   const reports: StepReport[] = [];
 
-  const green = await db
-    .select()
-    .from(requirementTailoring)
-    .where(
-      and(
-        eq(requirementTailoring.jobLeadId, leadId),
-        eq(requirementTailoring.ownerId, effectiveOwnerId),
-        eq(requirementTailoring.approvalStatus, 'green')
-      )
-    );
+  let green = await loadGreenRows(leadId, effectiveOwnerId);
   if (green.length === 0) throw new Error('No Keep evidence — keep at least one row before generating.');
 
   const reqs = await db
@@ -1076,144 +1263,27 @@ export async function generateCv(
     .where(and(eq(jobRequirements.jobLeadId, leadId), eq(jobRequirements.ownerId, effectiveOwnerId)));
   const coreThemes = reqs.filter((r) => r.rank === 'Core').slice(0, 4).map((r) => r.requirement);
 
-  // ── C3 — select the CV evidence set ────────────────────────────────────────
+  // ── C3's shortlist — computed at the Approve-map gate, not here ────────────
   //
-  // The step that chooses. Everything below it used to read `green` directly,
-  // so section sizes tracked how much evidence was approved rather than what a
-  // two-page CV holds. `selected` is what C4 is asked to rewrite, what C5 draws
-  // skills from, and what C7/C8 see.
+  // Selection moved out of this function (CI §2b.5 item 1): it fires when the
+  // owner approves the map, so the Map can show what it chose and the owner can
+  // pin or exclude while nothing has been written yet. `generateCv` starts at
+  // C4 and reads the shortlist.
   //
-  // Education and Language rows are exempt rather than dropped: they never
-  // entered the budget (they render from the profile tables regardless), and
-  // they still gate their own sections' detail through `green` further down.
-  const exemptRows = green.filter((g) => !evidenceNeedsCvSlot(g.evidenceKind));
-  let selected: typeof green = [];
-  {
-    const t = Date.now();
-    const rankByReqId = new Map(reqs.map((r) => [r.id, r.rank]));
-    const byRef = new Map<string, SelectionCandidate>();
-    for (const g of green) {
-      if (!g.evidenceRef || !evidenceNeedsCvSlot(g.evidenceKind)) continue;
-      let cand = byRef.get(g.evidenceRef);
-      if (!cand) {
-        cand = {
-          ref: g.evidenceRef,
-          links: [],
-          cvPosition: normalizeCvPosition(g.cvPosition),
-          // `originalText` is the snapshot C2 wrote, which for a STAR result
-          // already carries its `metric` column composed in as "— measured: …".
-          // That is what `impact` reads, and reading `cvBullet` instead would
-          // score this run against the PREVIOUS run's tailored prose.
-          text: g.originalText ?? '',
-          pin: g.shortlistPin === 'pin' || g.shortlistPin === 'exclude' ? g.shortlistPin : null,
-        };
-        byRef.set(g.evidenceRef, cand);
-      }
-      // A row whose pin disagrees with its siblings' can't happen through the
-      // UI (the pin is set per ref), but if it ever did, an explicit exclude
-      // wins over a pin — the safer direction for a claim on a CV.
-      if (g.shortlistPin === 'exclude') cand.pin = 'exclude';
-      if (!g.requirementId) continue;
-      (cand.links as SelectionLink[]).push({
-        requirementId: g.requirementId,
-        rank: rankByReqId.get(g.requirementId) ?? null,
-        // C2 stamps the label at the head of `connectionToExpertise`; there is
-        // no dedicated column, and `storedMatchStrength` is the same reader the
-        // C2 merge uses.
-        matchStrength: storedMatchStrength(g.connectionToExpertise),
-        requirementSkills: g.requirementSkills ?? [],
-      });
-    }
-    const candidates = [...byRef.values()];
-    const result = selectEvidence(candidates, DEFAULT_SELECTION_PARAMS);
-    const rankByRef = new Map(result.selected.map((s) => [s.ref, s.rank]));
-
-    // Persist the verdict. Rewritten wholesale every run, so a re-run after the
-    // owner pins or excludes something reflects only this run — and the stale
-    // `cv_bullet`/`cv_bullet_skills` of a row that is no longer selected are
-    // cleared with it. Leaving them would let a previous run's tags reach C5
-    // (this is exactly how a degree printed as a skill: EDU-1/2/3 carried tags
-    // from a run that did write bullets for them), and would show the Map's
-    // proof trail a bullet that is not on the CV.
-    for (const g of green) {
-      const rank = g.evidenceRef ? rankByRef.get(g.evidenceRef) ?? null : null;
-      g.shortlistRank = rank;
-      if (rank == null) {
-        g.cvBullet = null;
-        g.cvBulletSkills = [];
-      }
-      await db
-        .update(requirementTailoring)
-        .set(rank == null ? { shortlistRank: null, cvBullet: null, cvBulletSkills: [] } : { shortlistRank: rank })
-        .where(and(eq(requirementTailoring.id, g.id), eq(requirementTailoring.ownerId, effectiveOwnerId)));
-    }
-    selected = green.filter((g) => g.shortlistRank != null);
-    if (selected.length === 0) {
-      throw new Error(
-        'C3 selected no evidence. Every Keep row is either Education/Language (which render from the ' +
-          'profile tables and never enter the bullet budget) or excluded by you — nothing is left to ' +
-          'write bullets from. Keep at least one piece of experience evidence, or clear an exclusion.'
-      );
-    }
-
-    // ── The step report (CI §2.7 item 4) ─────────────────────────────────────
-    // This is the surface the budget is judged from, so it carries the two
-    // coverage readings that differ, and says why they differ. "Bullets" is
-    // coverage from the selected set alone; "as printed" adds the Education and
-    // Language rows, whose sections appear on the CV unconditionally — a Core
-    // requirement answered only by a degree is genuinely answered by the CV
-    // even though no bullet carries it, and reporting only the first number
-    // would score C3 down for obeying §2.4.
-    const universe = reqs.map((r) => ({ id: r.id, rank: r.rank }));
-    const exemptCandidates: SelectionCandidate[] = exemptRows.map((g) => ({
-      ref: g.evidenceRef ?? '',
-      links: g.requirementId
-        ? [{ requirementId: g.requirementId, rank: rankByReqId.get(g.requirementId) ?? null, matchStrength: storedMatchStrength(g.connectionToExpertise), requirementSkills: g.requirementSkills ?? [] }]
-        : [],
-      cvPosition: null,
-      text: g.originalText ?? '',
-    }));
-    const chosen = candidates.filter((c) => rankByRef.has(c.ref));
-    const before = coverageOf([...candidates, ...exemptCandidates], universe);
-    const afterBullets = coverageOf(chosen, universe);
-    const afterPrinted = coverageOf([...chosen, ...exemptCandidates], universe);
-    // How far into the budget the objective still discriminates. Measured at
-    // ~6 on all three real leads against a budget of 14, which is the fact
-    // §2.6 says must stay visible rather than settle in as a constant.
-    const informative = result.selected.filter((s) => s.gain > 1e-9).length;
-    reports.push(
-      await recordStep(
-        leadId,
-        {
-          step: 'C3',
-          label: 'Select the CV evidence set',
-          model: 'code',
-          summary:
-            `${result.selected.length} of ${candidates.length} candidates · budget ${DEFAULT_SELECTION_PARAMS.budget} · ` +
-            `V ${result.objective.total.toFixed(1)} · ${formatCoverage(afterPrinted)}` +
-            (informative < result.selected.length ? ` · ${result.selected.length - informative} filled past saturation` : ''),
-          output: {
-            budget: DEFAULT_SELECTION_PARAMS.budget,
-            params: result.params,
-            candidates: candidates.length,
-            exempt: exemptRows.length,
-            selectedCount: result.selected.length,
-            informative,
-            objective: result.objective,
-            coverage: {
-              beforeAllKeep: formatCoverage(before),
-              afterBulletsOnly: formatCoverage(afterBullets),
-              afterAsPrinted: formatCoverage(afterPrinted),
-            },
-            selected: result.selected.map((s) => ({ rank: s.rank, ref: s.ref, position: s.position, gain: Number(s.gain.toFixed(3)), newlyCovered: s.newlyCovered.length, pinned: s.pinned })),
-            displaced: result.dropped.slice(0, 10).map((d) => ({ ref: d.ref, position: d.position, wouldAdd: Number(d.gain.toFixed(3)), reason: d.reason })),
-            swaps: result.swaps,
-            notes: result.notes,
-          },
-          ms: Date.now() - t,
-        },
-        effectiveOwnerId
-      )
+  // What remains is the fallback for a lead approved before that shipped. It is
+  // not a nicety: the four existing leads carry hand-made Keep decisions — the
+  // one input here that no amount of model spend regenerates — so rather than
+  // failing on a missing shortlist, run C3 once, now, and carry them.
+  if (!green.some((g) => g.shortlistRank != null)) {
+    reports.push(...(await runEvidenceSelection(leadId, effectiveOwnerId)));
+    green = await loadGreenRows(leadId, effectiveOwnerId);
+  }
+  const selected = green.filter((g) => g.shortlistRank != null);
+  if (selected.length === 0) {
+    throw new Error(
+      'C3 selected no evidence. Every Keep row is either Education/Language (which render from the ' +
+        'profile tables and never enter the bullet budget) or excluded by you — nothing is left to ' +
+        'write bullets from. Keep at least one piece of experience evidence, or clear an exclusion.'
     );
   }
 

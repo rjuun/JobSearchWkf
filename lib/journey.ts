@@ -221,9 +221,9 @@ function computeNext(
     if (keptCount === 0) {
       // CI-034 · bulk-approve retired the row-by-row Keep/Maybe/Drop triage —
       // this used to send the person into that box; now it's one action.
-      return { title: 'Approve the map', detail: 'Approve the whole map in one action — only items with a CV slot are Kept.', cta: 'approve', tone: 'amber', blocked: false };
+      return { title: 'Approve the map', detail: 'Approve the whole map in one action — only items with a CV slot are Kept. C3 then picks the set, free.', cta: 'approve', tone: 'amber', blocked: false };
     }
-    return { title: `Generate the CV`, detail: `${keptCount} item${keptCount === 1 ? '' : 's'} kept. Compile the 2-page CV (C4–C8).`, cta: 'generate', tone: 'green', blocked: false };
+    return { title: `Generate the CV`, detail: `${keptCount} item${keptCount === 1 ? '' : 's'} kept and ranked. Pin or exclude on the Map first — then compile the 2-page CV (C4–C8).`, cta: 'generate', tone: 'green', blocked: false };
   }
 
   // Screen stage

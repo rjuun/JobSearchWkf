@@ -19,6 +19,7 @@ import { env } from '@/lib/env';
 import { RpShell } from '@/components/roleproof/rp-shell';
 import { RpWorkspace, type RpEvidence, type RpLead, type RpReq, type RpRow } from '@/components/roleproof/workspace';
 import { normalizeCvPosition } from '@/lib/cv-slots';
+import { latestSelection } from '@/lib/selection-view';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -62,6 +63,11 @@ export default async function RoleProofWorkspacePage({
   // Hydrate the ATS score from the latest C8 run so it survives a page reload
   // (runs are ordered newest-first). C8 persists its rating in pipeline_runs.output.
   const initialAtsRating = atsRatingFromRuns(runTrace);
+
+  // C3's standing verdict, read off the latest C3 run rather than off columns of
+  // its own (CI · C3 §2b.4). Null until the map has been approved, which is what
+  // keeps the Map rendering exactly as it did before selection existed.
+  const selection = latestSelection(runTrace);
 
   const greenCount = tailoring.filter((t) => t.approvalStatus === 'green').length;
   const recommendation =
@@ -185,6 +191,7 @@ export default async function RoleProofWorkspacePage({
           model: run.model,
           finishedAt: run.finishedAt ? run.finishedAt.toISOString() : null,
         }))}
+        selection={selection}
         initialAtsRating={initialAtsRating}
         coachBridge={coachBridge}
         nextInterviewBrief={env.nextInterviewBrief}

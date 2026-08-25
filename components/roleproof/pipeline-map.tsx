@@ -62,6 +62,23 @@ export type MapEvidence = {
   note?: string | null;
   /** Stable identity of the underlying evidence (its ref code) — what duplicate rows are collapsed on. */
   groupKey?: string | null;
+  // ── C3 · Select the CV Evidence Set §2b ────────────────────────────────────
+  // Read off the latest C3 step output, never off a column of their own
+  // (lib/selection-view.ts says why). `rank` covers held-back evidence too —
+  // `shortlist_rank` does not, and must not.
+  /** C3's place for this evidence: 1..B selected, budget+1 upward held back. */
+  rank?: number | null;
+  /** ΔV it contributed, or would have contributed. */
+  gain?: number | null;
+  /** On the CV. */
+  selected?: boolean;
+  /** On the CV and adding nothing measurable - the dashed outline. */
+  saturated?: boolean;
+  /** The owner's override: 'pin' | 'exclude' | null. */
+  pin?: string | null;
+  /** Education / Language — prints from the profile tables, never entered the
+   *  budget, so it has no rank and its absence is not a verdict (§2.4). */
+  exempt?: boolean;
 };
 /** Roadblocks that name a requirement (§2.5). Unmapped ones never reach here — they live in Key Patterns. */
 export type MapBlock = { requirementId: string; detail: string; dimension: string };
@@ -114,6 +131,25 @@ const EVIDENCE_TONE: Record<string, string> = {
 };
 const EVIDENCE_FALLBACK = 'border-hairline bg-raised text-ink-muted';
 
+/**
+ * C3's visual language — and it deliberately borrows NOTHING from the one above.
+ *
+ * `EVIDENCE_TONE`'s green / yellow / red means approval and only approval. The
+ * owner spotted that reusing it for selection was confusing (CI · C3 §2b.3:
+ * *"there is a part of the colour-code which is meant to be used on the C2
+ * which is confusing"*), so selection speaks in outline and rank instead:
+ *
+ *   • **solid outline** — on the CV
+ *   • **dashed, lighter outline** — on the CV, but past the saturation point
+ *   • **no outline** — approved and held back, still carrying its rank
+ *
+ * Graphite, not a status hue, and drawn with `outline` rather than `ring`
+ * because `ring` is already the click-to-trace highlight. Two different
+ * statements about the same card have to be able to appear at once.
+ */
+const SELECTED_OUTLINE = 'outline outline-[2px] outline-offset-[2px] outline-[#2A2724]';
+const SATURATED_OUTLINE = 'outline outline-dashed outline-[2px] outline-offset-[2px] outline-[#B0AAA1]';
+
 export function PipelineMap({
   positions,
   credentials,
@@ -122,6 +158,10 @@ export function PipelineMap({
   blocks,
   leadTitle,
   company,
+  selection,
+  canAdjust = false,
+  onPin,
+  pinBusy = false,
 }: {
   positions: MapPosition[];
   credentials: MapCredentialSection[];
@@ -130,6 +170,21 @@ export function PipelineMap({
   blocks: MapBlock[];
   leadTitle: string;
   company: string | null;
+  /** C3's standing verdict, or null before the map has been approved. */
+  selection?: {
+    budget: number;
+    saturationRank: number | null;
+    saturatedCount: number;
+    selectedCount: number;
+    heldBackCount: number;
+    candidateCount: number;
+  } | null;
+  /** Pin / exclude are live: a shortlist exists AND no CV has been generated.
+   *  After Generate the Map freezes — ranks and outlines stay as the record,
+   *  the controls go, and click-to-trace keeps working (§2b.3). */
+  canAdjust?: boolean;
+  onPin?: (evidenceRef: string, pin: 'pin' | 'exclude' | null) => void;
+  pinBusy?: boolean;
 }) {
   // `active` is a requirement id or an evidence id — one selection drives tracing
   // in both directions, which is what makes the many-to-many visible: click a
@@ -229,6 +284,8 @@ export function PipelineMap({
         )}
       </div>
 
+      {selection && <SelectionLegend selection={selection} canAdjust={canAdjust} />}
+
       <div ref={boardRef} className="relative grid grid-cols-1 lg:grid-cols-[1.5fr_1fr]">
         <TraceLines boardRef={boardRef} activeReqIds={activeReqIds} activeEvIds={activeEvIds} />
 
@@ -254,6 +311,9 @@ export function PipelineMap({
                   items={lane.slot ? evidenceBySlot.get(lane.slot) ?? [] : []}
                   activeEvIds={activeEvIds}
                   onPick={(id) => setActive((cur) => (cur === id ? null : id))}
+                  canAdjust={canAdjust}
+                  onPin={onPin}
+                  pinBusy={pinBusy}
                 />
               ))}
             </div>
@@ -268,6 +328,9 @@ export function PipelineMap({
                   items={lane.slot ? evidenceBySlot.get(lane.slot) ?? [] : []}
                   activeEvIds={activeEvIds}
                   onPick={(id) => setActive((cur) => (cur === id ? null : id))}
+                  canAdjust={canAdjust}
+                  onPin={onPin}
+                  pinBusy={pinBusy}
                 />
               ))}
             </div>
@@ -363,11 +426,17 @@ function Lane({
   items,
   activeEvIds,
   onPick,
+  canAdjust,
+  onPin,
+  pinBusy,
 }: {
   lane: MapLane;
   items: MapEvidence[];
   activeEvIds: Set<string>;
   onPick: (id: string) => void;
+  canAdjust: boolean;
+  onPin?: (evidenceRef: string, pin: 'pin' | 'exclude' | null) => void;
+  pinBusy: boolean;
 }) {
   return (
     <div className="flex border-t border-dashed border-hairline/50">
@@ -380,24 +449,231 @@ function Lane({
             {lane.slot ? 'no evidence placed' : 'not on the 2-page CV'}
           </span>
         ) : (
-          items.map((e) => (
-            <button
-              key={e.id}
-              type="button"
-              data-map-ev={e.id}
-              title={e.note ?? undefined}
-              onClick={() => onPick(e.id)}
-              className={cn(
-                'w-full rounded-[4px] border px-2 py-1.5 text-left text-[10.5px] leading-[1.4] transition',
-                EVIDENCE_TONE[e.approvalStatus] ?? EVIDENCE_FALLBACK,
-                activeEvIds.has(e.id) && 'ring-[1.5px] ring-inset ring-proof-deep'
-              )}
-            >
-              {e.text ?? '—'}
-            </button>
-          ))
+          items.map((e) => {
+            // Per card, never per rank: the swap pass appends its result at the
+            // end of the order regardless of what it added, so a rank below the
+            // saturation line can still be earning its place.
+            const past = e.selected === true && e.saturated === true;
+            const ref = e.groupKey ?? null;
+            const showControls = canAdjust && !!onPin && !!ref && e.rank != null;
+            return (
+              <div key={e.id} className={cn('flex w-full items-start gap-1.5', e.rank != null && 'pr-1')}>
+                <RankBadge e={e} past={past} />
+                <div className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    data-map-ev={e.id}
+                    title={e.note ?? undefined}
+                    onClick={() => onPick(e.id)}
+                    className={cn(
+                      'w-full rounded-[4px] border px-2 py-1.5 text-left text-[10.5px] leading-[1.4] transition',
+                      EVIDENCE_TONE[e.approvalStatus] ?? EVIDENCE_FALLBACK,
+                      // Selection and approval are two statements about the same
+                      // card, so they use two mechanisms: outline for C3, the
+                      // border/fill for C2, and `ring` stays free for the trace.
+                      e.selected === true && (past ? SATURATED_OUTLINE : SELECTED_OUTLINE),
+                      activeEvIds.has(e.id) && 'ring-[1.5px] ring-inset ring-proof-deep'
+                    )}
+                  >
+                    {e.text ?? '—'}
+                  </button>
+                  {showControls && <PinControls e={e} evidenceRef={ref} onPin={onPin} busy={pinBusy} />}
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * C3's rank, on every approved card — not only the ones that made the cut.
+ *
+ * The owner asked for this explicitly (§2b.3): the held-back evidence is ranked
+ * 15, 16, 17… so the near-misses are visible as near-misses. Selected badges are
+ * filled, held-back ones outlined, past-saturation ones greyed — the same three
+ * states the outline carries, so neither is the only signal.
+ *
+ * Education and Language evidence gets no number and says why: it never entered
+ * the budget, so no rank is a fact about the constraint and not a verdict on the
+ * evidence. Blank would read as "C3 held this back".
+ */
+function RankBadge({ e, past }: { e: MapEvidence; past: boolean }) {
+  if (e.rank == null) {
+    if (e.approvalStatus !== 'green') return null;
+    if (e.exempt)
+      return (
+        <span
+          className="mt-[3px] w-[22px] shrink-0 text-center text-[8px] font-semibold leading-tight text-ink-subtle/70"
+          title="Education and Languages print from your profile regardless — they never compete for bullet space."
+        >
+          always
+        </span>
+      );
+    // Approved, competed, and no rank came back. On a lead selected today this
+    // cannot happen — but the C3 runs recorded before this shipped stored only
+    // the ten strongest of the held-back items, and those leads are frozen, so
+    // their reports can never be completed. A blank badge here would read as
+    // "prints regardless", which is the one thing this card is not.
+    return (
+      <span
+        className="mt-[3px] w-[22px] shrink-0 text-center font-mono text-[9.5px] font-bold leading-[18px] text-ink-subtle/50"
+        title="Held back. This CV was selected before the full ranking was recorded, so its exact place is not in the report."
+      >
+        –
+      </span>
+    );
+  }
+  const pinned = e.pin === 'pin';
+  const excluded = e.pin === 'exclude';
+  return (
+    <span
+      className={cn(
+        'relative mt-[3px] grid h-[18px] w-[22px] shrink-0 place-items-center rounded-[4px] font-mono text-[9.5px] font-bold tabular-nums',
+        e.selected
+          ? past
+            ? 'bg-[#75706A] text-paper'
+            : 'bg-[#2A2724] text-paper'
+          : 'bg-surface text-ink-subtle ring-1 ring-inset ring-hairline',
+        excluded && 'line-through opacity-60'
+      )}
+      title={
+        (e.selected ? `Rank ${e.rank} — on the CV` : `Rank ${e.rank} — approved, held back`) +
+        (typeof e.gain === 'number' ? ` · adds ${e.gain.toFixed(2)} to the objective` : '') +
+        (pinned ? ' · pinned by you' : excluded ? ' · excluded by you' : '')
+      }
+    >
+      {/* The number stays visible under an override. Showing a pin GLYPH in its
+          place cost the card its rank, which is the one thing every approved card
+          is supposed to carry — and a pinned item's rank is exactly what the
+          owner needs in order to see what the pin displaced. */}
+      {e.rank}
+      {(pinned || excluded) && (
+        <i
+          aria-hidden
+          className={cn(
+            'absolute -right-[2px] -top-[2px] h-[6px] w-[6px] rounded-full ring-1 ring-surface',
+            pinned ? 'bg-[#2A2724]' : 'bg-[#B0AAA1]'
+          )}
+        />
+      )}
+    </span>
+  );
+}
+
+/**
+ * Pin / Exclude, on the card, before anything is written.
+ *
+ * Both re-solve on the spot — C3 is free — so the outlines move as you click and
+ * a pin visibly displaces something. That is the point: Part 1 deferred the
+ * trade to the next Generate CV, where it could not be seen until after the
+ * bullets existed.
+ *
+ * There is deliberately no control for "leave the rest out". Expressing that
+ * cost nineteen clicks on the Vestas lead, which was the owner's actual
+ * complaint (§2b.1): the cut is what the algorithm proposes, not what the human
+ * is asked to state.
+ */
+function PinControls({
+  e,
+  evidenceRef,
+  onPin,
+  busy,
+}: {
+  e: MapEvidence;
+  evidenceRef: string;
+  onPin: (evidenceRef: string, pin: 'pin' | 'exclude' | null) => void;
+  busy: boolean;
+}) {
+  const base =
+    'rounded-[3px] px-1 py-[1px] text-[9px] font-semibold ring-1 ring-inset transition disabled:opacity-40';
+  const off = 'bg-surface text-ink-subtle ring-hairline hover:text-ink';
+  const on = 'bg-[#2A2724] text-paper ring-transparent';
+  return (
+    <div className="mt-[3px] flex flex-wrap items-center gap-1">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => onPin(evidenceRef, e.pin === 'pin' ? null : 'pin')}
+        className={cn(base, e.pin === 'pin' ? on : off)}
+        title={
+          e.pin === 'pin'
+            ? 'Pinned — always selected. Click to let C3 decide again.'
+            : 'Keep this on the CV. It consumes budget, so something else falls out — watch the outlines move.'
+        }
+      >
+        {e.pin === 'pin' ? 'Pinned' : 'Pin to CV'}
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => onPin(evidenceRef, e.pin === 'exclude' ? null : 'exclude')}
+        className={cn(base, e.pin === 'exclude' ? on : off)}
+        title={
+          e.pin === 'exclude'
+            ? 'Excluded — never selected. Click to let C3 decide again.'
+            : 'Keep this off the CV whatever C3 thinks.'
+        }
+      >
+        {e.pin === 'exclude' ? 'Excluded' : 'Exclude'}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The two lines C3 draws, said in words.
+ *
+ * The first is the cut — solid outline, on the CV. The second is **saturation**,
+ * and it is the one that must not be left implicit: the objective goes flat long
+ * before the budget does (8 of Julius Baer's 14 were past the point where
+ * anything added measurable value), so below it `gain` is exactly 0 and the
+ * ranks are an alphabetical tie on the ref code. Without saying so the Map would
+ * imply a precision the arithmetic does not have. Hiding those ranks instead was
+ * offered and declined (§2b.3) — the near-misses are what the owner wants to see.
+ */
+function SelectionLegend({
+  selection,
+  canAdjust,
+}: {
+  selection: {
+    budget: number;
+    saturationRank: number | null;
+    saturatedCount: number;
+    selectedCount: number;
+    heldBackCount: number;
+    candidateCount: number;
+  };
+  canAdjust: boolean;
+}) {
+  const { budget, saturationRank, saturatedCount, selectedCount, candidateCount } = selection;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-hairline bg-surface px-4 py-2">
+      <span className="text-[11px] font-semibold text-ink">
+        C3 chose {selectedCount} of {candidateCount}
+      </span>
+      <span className="flex items-center gap-1.5 text-[10px] text-ink-muted">
+        <i className={cn('block h-[13px] w-[18px] rounded-[3px] border border-proof-ring bg-proof-soft', SELECTED_OUTLINE)} />
+        on the CV
+      </span>
+      {saturationRank != null && (
+        <span className="flex items-center gap-1.5 text-[10px] text-ink-muted">
+          <i className={cn('block h-[13px] w-[18px] rounded-[3px] border border-proof-ring bg-proof-soft', SATURATED_OUTLINE)} />
+          from rank {saturationRank}: {saturatedCount} dashed {saturatedCount === 1 ? 'card adds' : 'cards add'} no measurable
+          value — their order is an alphabetical tie
+        </span>
+      )}
+      <span className="flex items-center gap-1.5 text-[10px] text-ink-muted">
+        <i className="grid h-[13px] w-[18px] place-items-center rounded-[3px] bg-surface font-mono text-[8px] font-bold text-ink-subtle ring-1 ring-inset ring-hairline">
+          {budget + 1}
+        </i>
+        approved, held back
+      </span>
+      <span className="ml-auto text-[10px] text-ink-subtle">
+        {canAdjust ? 'Pin or exclude — it re-solves instantly, no model call' : 'Frozen — this is the record of what the CV was built from'}
+      </span>
     </div>
   );
 }

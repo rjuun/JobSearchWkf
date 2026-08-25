@@ -37,6 +37,7 @@ import { Frame } from '@/components/layout';
 import { cn, RpStagePill, rpVerdict, scoreTone, SCORE_TEXT } from './kit';
 import { ApplicationSentControl } from './application-sent-control';
 import { PipelineMap, type MapBlock, type MapCredentialSection, type MapPosition } from './pipeline-map';
+import type { MapSelection } from '@/lib/selection-view';
 
 export type RpLead = {
   id: string;
@@ -157,6 +158,8 @@ type Props = {
   cvReady: boolean;
   leadTips: { id: string; observation: string }[];
   runTrace: RunTrace[];
+  /** C3's standing verdict — CI · C3 §2b. Null before the map is approved. */
+  selection: MapSelection | null;
   /** Latest C8 ATS rating from the DB, so the score survives a reload. */
   initialAtsRating: number | null;
   /** True when an OPEN screening-gap coach prompt actually exists for this lead. */
@@ -197,6 +200,7 @@ type Ctx = {
   enrichHref: string;
   leadFlags: { id: string; observation: string }[];
   runTrace: RunTrace[];
+  selection: MapSelection | null;
   error: string | null;
   clearError: () => void;
   scored: boolean;
@@ -361,11 +365,13 @@ export function RpWorkspace(props: Props) {
       }
     });
   }
-  // Override C3's shortlist for one piece of evidence (CI · C3 §2.7 item 5).
-  // No optimistic overlay and no re-run: a pin changes what the NEXT Generate CV
-  // selects, and pretending the CV had already changed would be the overclaim
-  // the proof trail exists to prevent. `router.refresh()` brings back the row's
-  // new pin state so the button reflects what is stored.
+  // Override C3's shortlist for one piece of evidence (CI · C3 §2b.3).
+  //
+  // The action re-solves before it returns, so `router.refresh()` brings back a
+  // whole new selection: the pinned card gains its outline and whatever it
+  // displaced loses one. No optimistic overlay, deliberately — the trade a pin
+  // makes is exactly what cannot be guessed client-side, and showing a pin as
+  // free until the server disagrees would hide the one thing worth seeing.
   function onPin(evidenceRef: string, pin: 'pin' | 'exclude' | null) {
     if (busyPhase || !evidenceRef) return;
     startTransition(async () => {
@@ -417,6 +423,7 @@ export function RpWorkspace(props: Props) {
     enrichHref,
     leadFlags: props.leadTips,
     runTrace: props.runTrace,
+    selection: props.selection,
     error,
     clearError: () => setError(null),
     scored,
@@ -471,6 +478,8 @@ const PROMPT_SOURCE: Record<string, string> = {
   B6: 'Process/B6',
   C1: 'code rule',
   C2: 'Process/C2',
+  // C3 makes no model call, so it has no STEP_NOTE entry to name here.
+  C3: 'code rule',
   C4: 'Process/C4',
   C5: 'code rule',
   C6: 'Process/C6',
@@ -663,17 +672,29 @@ function TwoPane({ c }: { c: Ctx }) {
         // Bullet Bank §2.3).
         evidence={
           c.rows.length > 0
-            ? c.rows.map((row) => ({
-                id: row.id,
-                requirementIds: row.requirementId ? [row.requirementId] : [],
-                // Education/Language kind never gets a cvPosition (no such CV_SLOTS
-                // entry exists) — same fallback B6's getInitialEvidence already uses,
-                // so these rows land in their credential lane instead of vanishing.
-                slot: evidenceNeedsCvSlot(row.evidenceKind) ? row.cvPosition : row.evidenceRef,
-                text: row.originalText,
-                approvalStatus: row.approvalStatus,
-                groupKey: row.evidenceRef,
-              }))
+            ? c.rows.map((row) => {
+                // C3's place for this evidence, keyed by ref because selection
+                // decides per distinct ref and the same bullet arrives as several
+                // rows. Absent for Education/Language, which never competed.
+                const s = row.evidenceRef ? c.selection?.byRef[row.evidenceRef] : undefined;
+                return {
+                  id: row.id,
+                  requirementIds: row.requirementId ? [row.requirementId] : [],
+                  // Education/Language kind never gets a cvPosition (no such CV_SLOTS
+                  // entry exists) — same fallback B6's getInitialEvidence already uses,
+                  // so these rows land in their credential lane instead of vanishing.
+                  slot: evidenceNeedsCvSlot(row.evidenceKind) ? row.cvPosition : row.evidenceRef,
+                  text: row.originalText,
+                  approvalStatus: row.approvalStatus,
+                  groupKey: row.evidenceRef,
+                  rank: s?.rank ?? null,
+                  gain: s?.gain ?? null,
+                  selected: s?.selected ?? false,
+                  saturated: s?.saturated ?? false,
+                  pin: row.shortlistPin,
+                  exempt: !evidenceNeedsCvSlot(row.evidenceKind),
+                };
+              })
             : c.initialEvidence.map((e) => ({
                 id: e.id,
                 requirementIds: [e.requirementId],
@@ -691,6 +712,14 @@ function TwoPane({ c }: { c: Ctx }) {
         blocks={mappedBlocks(c)}
         leadTitle={c.lead.title}
         company={c.lead.company}
+        selection={c.selection}
+        // The pin/exclude pass lives between Approve map and Generate, and only
+        // there. Once a `tailored.docx` exists the Map is the record of what the
+        // CV was built from: ranks and outlines stay, controls go, and clicking a
+        // card still lights the requirements it serves (§2b.3).
+        canAdjust={!!c.selection && !c.cvReady}
+        onPin={c.onPin}
+        pinBusy={c.busy}
       />
     </Frame>
   );
@@ -1708,9 +1737,9 @@ function MapCard({ c }: { c: Ctx }) {
       >
         {c.busy ? 'Matching…' : 'Match the evidence'}
       </button>
-      {hasTrace(c, ['C1', 'C2']) && (
+      {hasTrace(c, ['C1', 'C2', 'C3']) && (
         <div className="mt-4">
-          <TraceDisclosure c={c} steps={['C1', 'C2']} />
+          <TraceDisclosure c={c} steps={['C1', 'C2', 'C3']} />
         </div>
       )}
     </div>
@@ -1761,9 +1790,9 @@ function ApproveMapCard({ c }: { c: Ctx }) {
           Re-map
         </button>
       </div>
-      {hasTrace(c, ['C1', 'C2']) && (
+      {hasTrace(c, ['C1', 'C2', 'C3']) && (
         <div className="border-b border-hairline px-4 py-3">
-          <TraceDisclosure c={c} steps={['C1', 'C2']} />
+          <TraceDisclosure c={c} steps={['C1', 'C2', 'C3']} />
         </div>
       )}
 
@@ -1774,6 +1803,12 @@ function ApproveMapCard({ c }: { c: Ctx }) {
           </div>
           <p className="mx-auto mt-1.5 max-w-sm text-[13px] text-ink-muted">
             Across {approvable.length} requirement link{approvable.length === 1 ? '' : 's'} below — approve them all at once rather than one at a time.
+          </p>
+          {/* Naming C3 here is what turns Approve from a bookkeeping click into a
+              step with a visible result. It is also true: approving runs it. */}
+          <p className="mx-auto mt-1 max-w-sm text-[11.5px] text-ink-subtle">
+            Approving runs C3, which picks the set a two-page CV holds. Free — no model call. You then pin or exclude on
+            the Map, before a word is written.
           </p>
           <button
             type="button"
@@ -1791,9 +1826,18 @@ function ApproveMapCard({ c }: { c: Ctx }) {
         </div>
       ) : c.kept > 0 ? (
         <div className="px-5 py-8 text-center">
-          <div className="font-serif text-[24px] text-ink">{c.kept} pieces kept</div>
+          <div className="font-serif text-[24px] text-ink">
+            {/* Counted in distinct evidence, not rows: `c.kept` is green ROWS and
+                one bullet legitimately answers several requirements, so it runs
+                about a third high against a bullet budget. */}
+            {c.selection
+              ? `${c.selection.selectedCount} of ${c.selection.candidateCount} pieces on the CV`
+              : `${c.kept} pieces kept`}
+          </div>
           <p className="mx-auto mt-1.5 max-w-sm text-[13px] text-ink-muted">
-            Every one is something you can defend in an interview. Ready to assemble the CV.
+            {c.selection
+              ? 'C3 has chosen. Every approved card on the Map below carries its rank, and the ones that fit are outlined — pin or exclude there until it reads right.'
+              : 'Every one is something you can defend in an interview. Ready to assemble the CV.'}
           </p>
           {blocked.length > 0 && (
             <p className="mx-auto mt-1.5 max-w-sm text-[11px] text-ink-subtle">
@@ -1873,47 +1917,6 @@ function PipelineProgress({ c }: { c: Ctx }) {
 // CI · Requirement Skills vs My Skills — a small labelled badge row so the
 // columns are visibly distinct wherever they're shown, not just unlabelled
 // tag lists.
-/**
- * The owner's override on C3's shortlist, as two idempotent buttons.
- *
- * Deliberately says what it will DO rather than what is stored — "Pin to CV" /
- * "Pinned", not a checkbox — because nothing changes until the next Generate
- * CV, and a control that looked like it had already moved the bullet would
- * misreport the CV in the one card whose whole job is not to.
- */
-function ShortlistToggle({ c, row }: { c: Ctx; row: RpRow }) {
-  const ref = row.evidenceRef;
-  if (!ref) return null;
-  const pin = row.shortlistPin;
-  const on = row.shortlistRank != null;
-  const btn =
-    'rounded px-1.5 py-0.5 font-semibold ring-1 ring-inset transition disabled:opacity-50 ' +
-    'bg-surface text-ink-subtle ring-hairline hover:text-ink';
-  const active = 'rounded px-1.5 py-0.5 font-semibold ring-1 ring-inset bg-proof-soft text-proof-deep ring-proof/20';
-  return (
-    <>
-      <button
-        type="button"
-        disabled={c.busy}
-        onClick={() => c.onPin(ref, pin === 'pin' ? null : 'pin')}
-        className={pin === 'pin' ? active : btn}
-        title={pin === 'pin' ? 'Pinned — always selected. Click to let C3 decide again.' : 'Force this into the next CV. It consumes budget, so something else falls out.'}
-      >
-        {pin === 'pin' ? '📌 Pinned' : 'Pin to CV'}
-      </button>
-      <button
-        type="button"
-        disabled={c.busy}
-        onClick={() => c.onPin(ref, pin === 'exclude' ? null : 'exclude')}
-        className={pin === 'exclude' ? active : btn}
-        title={pin === 'exclude' ? 'Excluded — never selected. Click to let C3 decide again.' : 'Keep this off the CV from now on.'}
-      >
-        {pin === 'exclude' ? '🚫 Excluded' : on ? 'Take off' : 'Never'}
-      </button>
-    </>
-  );
-}
-
 function SkillBadgeRow({ label, tone, items }: { label: string; tone: 'proof' | 'neutral'; items: string[] }) {
   const badge =
     tone === 'proof'
@@ -1981,20 +1984,22 @@ function CvCard({ c }: { c: Ctx }) {
   const lines = [...new Map(onCv.map((r) => [r.evidenceRef ?? `row:${r.id}`, r] as const)).values()].sort(
     (a, b) => (a.shortlistRank ?? 1e9) - (b.shortlistRank ?? 1e9)
   );
-  // One entry per ref, and Education/Language are not shown: they never entered
-  // the budget (they print from the profile tables regardless), so listing them
-  // as "held back" would report a decision C3 never made.
-  const heldBack =
+  // A count, not a list. The list used to live here as a "Kept but not on this
+  // CV" panel carrying pin controls, which is what CI · C3 §2b retired: by the
+  // time this card exists the bullets are written and the .docx rendered, so a
+  // control here could only ask for a regeneration. The held-back evidence is on
+  // the Map, ranked, where the decision is now made — before anything is written.
+  // Education/Language are not counted: they never entered the budget (they
+  // print from the profile tables regardless), so calling them held back would
+  // report a decision C3 never made.
+  const leftOut =
     ranked.length > 0
-      ? [
-          ...new Map(
-            kept
-              .filter((r) => r.shortlistRank == null && r.evidenceRef && evidenceNeedsCvSlot(r.evidenceKind))
-              .map((r) => [r.evidenceRef as string, r] as const)
-          ).values(),
-        ]
-      : [];
-  const leftOut = heldBack.length;
+      ? new Set(
+          kept
+            .filter((r) => r.shortlistRank == null && r.evidenceRef && evidenceNeedsCvSlot(r.evidenceKind))
+            .map((r) => r.evidenceRef as string)
+        ).size
+      : 0;
   const cov = provenanceCoverage(c.rows, c.effective); // the invariant, computed
   const untraced = cov.green - cov.traced;
   return (
@@ -2054,8 +2059,8 @@ function CvCard({ c }: { c: Ctx }) {
             <span className="text-proof">✓</span>{' '}
             {cov.selected ? (
               <>
-                Chosen to fit the page — {leftOut} more kept {leftOut === 1 ? 'piece' : 'pieces'} held back, still yours to
-                pin
+                Chosen to fit the page — {leftOut} more kept {leftOut === 1 ? 'piece' : 'pieces'} ranked below the cut, on
+                the Map
               </>
             ) : (
               'Within the 2-page budget'
@@ -2097,7 +2102,6 @@ function CvCard({ c }: { c: Ctx }) {
                     <span className="rounded bg-surface px-1.5 py-0.5 font-semibold ring-1 ring-inset ring-hairline">
                       {SOURCE_LABEL[r.provSource] ?? 'Imported'}
                     </span>
-                    {cov.selected && r.evidenceRef && <ShortlistToggle c={c} row={r} />}
                     {r.evidenceRef ? (
                       <span className="text-proof-deep">✓ approved by you{r.approvedAt ? ` · ${fmtApproved(r.approvedAt)}` : ''}</span>
                     ) : (
@@ -2135,36 +2139,6 @@ function CvCard({ c }: { c: Ctx }) {
         </details>
       )}
 
-      {/* Kept, but not on the CV — CI · C3 §2.2. C3 proposes and the owner
-          decides, so what it held back has to be visible and reversible. This
-          is not the same list as "Left out, on purpose" above, which is evidence
-          the owner DROPPED at the Keep gate; these are pieces he approved and
-          the budget could not fit. Pinning one forces it into the next run's
-          set — and it consumes budget, so something else falls out, which is
-          the trade the C3 step report then shows. */}
-      {heldBack.length > 0 && (
-        <details className="group border-t border-hairline">
-          <summary className="flex cursor-pointer select-none items-center gap-2 px-5 py-3 text-[12px] font-semibold text-ink-muted transition hover:text-ink">
-            <span className="text-ink-subtle transition group-open:rotate-90">▸</span>
-            Kept but not on this CV · {heldBack.length}
-          </summary>
-          <ul className="flex flex-col gap-2.5 border-t border-hairline bg-raised/50 px-5 py-3.5">
-            {heldBack.map((r) => (
-              <li key={r.id} className="flex items-start gap-3 text-[12px]">
-                <span className="mt-0.5 shrink-0 rounded bg-surface px-1.5 py-0.5 font-mono text-[10px] font-semibold text-ink-subtle ring-1 ring-inset ring-hairline">
-                  {r.evidenceRef}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-ink-muted">{r.originalText ?? r.requirementLine ?? 'Evidence'}</span>
-                  <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10.5px] text-ink-subtle">
-                    <ShortlistToggle c={c} row={r} />
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
       <div className="flex gap-2.5 px-5 pb-5">
         <a
           href={`/api/cv/${c.lead.id}`}
@@ -2183,9 +2157,9 @@ function CvCard({ c }: { c: Ctx }) {
           </button>
         )}
       </div>
-      {hasTrace(c, ['C4', 'C5', 'C6', 'C7', 'C8']) && (
+      {hasTrace(c, ['C3', 'C4', 'C5', 'C6', 'C7', 'C8']) && (
         <div className="border-t border-hairline px-5 py-3">
-          <TraceDisclosure c={c} steps={['C4', 'C5', 'C6', 'C7', 'C8']} />
+          <TraceDisclosure c={c} steps={['C3', 'C4', 'C5', 'C6', 'C7', 'C8']} />
         </div>
       )}
     </div>

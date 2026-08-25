@@ -2,11 +2,11 @@
 ci-area: CV Tailoring (C-Phase)
 ci-roadmap:
 ci-title: C3 Selects the CV Evidence Set
-ci-status: 1 - Development
+ci-status: 2 - Testing
 ci-priority: high
 ci-date: 2026-08-24
 ci-estimated-time: 7
-ci-time-spent: 7
+ci-time-spent: 5
 pr-source: "[[C3 Writes CV-Grade Skill Tags]]"
 pr-target: "[[C3. Select the CV Evidence Set]], [[C2. Map JD Requirements to Supporting Evidence]]"
 ---
@@ -458,3 +458,105 @@ Two things it settles that were open elsewhere:
   into its own phase between Approve map and Generate.
 - **"Click Never nineteen times" was the real complaint**, not that controls were missing. The
   interaction asked the human to state what the algorithm should have been proposing to him.
+
+### 2026-08-26 · Part 2 built — C3 moved to the Approve-map gate, the Map became the surface
+
+§2b is implemented. `lib/pipeline/selection.ts` was not touched, as §2b promised: the arithmetic is
+Part 1's, unchanged. What moved is **when** it runs and **where** the human sees it.
+
+`runEvidenceSelection` is now its own exported step in `lib/pipeline/tailoring.ts` — the same body
+that used to sit inline inside `generateCv`, lifted out whole. `approveAllAction` calls it, so
+approving the map produces a shortlist; `setShortlistPinAction` calls it after writing the pin, so
+every pin and exclude re-solves on the spot; `mapEvidenceAction` calls it when a green set already
+exists, which is §2b.5 item 3's staleness rule. `generateCv` starts at C4 and runs C3 itself only
+when no shortlist exists. A `shortlistFrozen` guard (a `tailored.docx` on disk) stops any of them
+rewriting the record after generation.
+
+The Map reads the verdict out of the latest C3 step's `pipeline_runs.output` through
+`lib/selection-view.ts` — a pure module with 11 unit tests, no DB import, no new column, and
+`shortlist_rank` keeps its exact meaning for C4, C5 and `verify-lead-run.ts`. Selection renders as a
+graphite **outline** rather than a colour, because `EVIDENCE_TONE` means approval and only approval;
+`ring` was already the click-to-trace highlight, so `outline` keeps the two statements independent
+and one card can carry both at once. `Kept but not on this CV` is gone from the CV card, and
+`ShortlistToggle` with it — the controls live on the Map now, where they can still change something.
+
+**Five things §2b got wrong, in descending order of how much they matter.**
+
+**1 · "All of it is already persisted in the C3 step's `pipeline_runs.output`" was not true.** §2b.4
+is the load-bearing sentence of the whole design — no new columns, feed the Map from the step report
+— and the step report stored `result.dropped.slice(0, 10)`. Held-back ranks come from that list, so
+on Julius Baer, with 18 dropped, eight approved cards had no rank at all. Widened to the whole list.
+That is a change to the report's shape, not a new column, so the design survives — but it was not
+free, and **the three already-generated leads can never get theirs back**: they are frozen, so their
+truncated reports stand. Those cards render a muted `–` with a tooltip saying the ranking was not
+recorded, because a blank badge in that slot reads as "prints regardless", which is what Education
+and Language cards say and the one thing these are not.
+
+**2 · The saturation line cannot be read off the rank, and §2b.3's own example is mis-attributed.**
+§2b.3 says *"8 of Julius Baer's 14 were already past the point where anything added measurable
+value"*. Measured live, Julius Baer is **4 of 14**; the 8 belongs to ALDI's 13 — the 2026-08-25
+entry above records the three leads as 8 of 13, 4 of 14, 5 of 14, in the table's own order, and
+§2b.3 picked the wrong one. The consequential half is the mechanism: **rank order is not gain
+order.** The swap pass appends its result at the end of the order regardless of what that item
+added, and a pin enters at the front carrying whatever gain it has. On the Allianz lead that puts a
+0.3-gain item at rank 13 underneath six zeroes. So the line marks where the zeroes *start*, and
+whether a given card is past saturation is decided by **that card's own gain** — which makes the
+dashed count equal the step report's own "filled past saturation" number, and stops the Map calling
+a swap-in worthless.
+
+**3 · Numbering held-back cards from `budget + 1` leaves a hole whenever C3 fills fewer than `B`.**
+Implemented as specified, and it is visible: on the Allianz lead C3 selected 13 against a budget of
+14, so the Map reads 1…13, nothing at 14, then 15 onwards. Two defensible readings — the gap is the
+unfilled budget slot, or the ranks should simply be continuous — and this is the one place the spec
+produces something a reader may take for a bug. **Left as specified**; flagging rather than
+relitigating.
+
+**4 · "Pins survive for rows still green; a pin on a row since declined is dropped" needed a
+mechanism, not just a rule.** Nothing declines a row through the UI any more. What actually
+invalidates a pin is C2 *replacing* the evidence behind a row — the pin then points at a sentence
+that has been swapped out. So `runEvidenceMapping` clears `shortlist_rank` and `shortlist_pin` on
+exactly the rows it resets to `pending`, in the same update.
+
+**5 · A map holding only Education and Language rows must not fail at the gate.** The extracted C3
+threw when it selected nothing, which inside `generateCv` was the right place for it and inside
+`approveAllAction` would have failed an approval that had already been committed. Selecting nothing
+is now reported by the step; `generateCv` keeps the throw, with the message that says what to do.
+
+**What was found and deliberately left alone.** The pin/exclude controls render under every approved
+card, which roughly doubles the height of a populated lane. Hiding them behind hover or a click was
+the alternative, and both hide the affordance the owner asked to have *there*, so density loses to
+discoverability for now. Also: this note's 2026-08-25 live-run table records Aliaxis at ATS 82;
+`verify-lead-run.ts` reads **78** off the stored run today, which is the figure the Part 2 handover
+carried as the baseline. Not touched — it belongs to whichever run wrote it.
+
+**§2b.6, box by box.** Approving produces a shortlist with no LLM call ✓ — `llm_calls` sat at **437
+before and 437 after** approving, after a pin and after an exclude; the C3 runs record
+`model: code`. Every approved card carries a rank and the selected ones a solid outline ✓. The saturation line
+appears where `gain` first reaches 0 and is absent when nothing saturates ✓ — Julius Baer draws it
+at rank 11 over 4 dashed cards, Allianz at rank 7 over 6. Pinning re-solves, moves the outlines and
+costs no model call ✓ — pinning `P3` took it to rank 1 and pushed the saturation point from 11 to
+12; excluding `S1` dropped it from rank 3 to rank 32 and the set re-solved around it. "Leave these
+out" takes no clicks ✓ — the cut is proposed. Generate runs C4–C8 only ✓ — measured on a clone
+carrying a shortlist: `C4 → C5 → C6 → C7 → C8`, no C3. After generation the controls are gone, ranks
+and outlines remain, and clicking a card still lights its requirements ✓. **A lead approved before
+this shipped still generates ✓** — a clone of `b7e91408`, the one real lead with green rows and no
+C3 run anywhere in its trace, ran `C3 → C4 → C5 → C6 → C7 → C8` and rendered through the real Word
+template.
+
+**How it was verified without spending anything.** Two throwaway clones — one reset to `pending` to
+drive the approve → pin → exclude → generate path in the browser, one preserving the legacy
+no-shortlist state — both generated in mock mode, then deleted along with their rows, runs, storage
+and event records. `llm_calls` is back at 437 and the four real leads are untouched. `npm test` 340
+passing (330 + 10 new), typecheck clean, and `scripts/snapshot-step-prompts.ts` still reproduces
+`_step-prompt-baseline.txt` byte for byte. `verify-lead-run.ts` re-run on all three real leads: ALDI
+88 and Aliaxis 78 pass every criterion, Julius Baer 84 fails the same two it failed before (6
+categories, one stray `Additional Skills`) — the pre-existing state, unchanged.
+
+**Time.** Part 2 took 5 hours and `ci-time-spent` now carries that figure alone; Part 1's 7 are
+recorded in the 2026-08-25 entries above and, per the 2026-08-26 rescope, do not count toward it.
+
+**Still open, and it is the only thing open.** Nobody has driven this with a hand on the mouse, and
+no CV has been generated live since it landed. `Process/Development/Click Test - Tailoring a Lead
+End to End.md` is updated for the new shape — the pin/exclude pass is now §D, its own phase between
+Approve map and Generate, and Tailor moved to §E — so the epic's click test is ready to run. Status
+`2 - Testing` until it has been.
