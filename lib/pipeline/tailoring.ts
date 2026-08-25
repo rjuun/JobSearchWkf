@@ -53,6 +53,14 @@ import {
   auditBulletTags,
   type VocabEntry,
 } from './skills';
+import {
+  selectEvidence,
+  coverageOf,
+  formatCoverage,
+  DEFAULT_SELECTION_PARAMS,
+  type SelectionCandidate,
+  type SelectionLink,
+} from './selection';
 
 export const CORE_AND_IMPORTANT: string[] = ['Core', 'Important'];
 
@@ -588,6 +596,12 @@ function fmtEduDate(s: string | null): string {
 
 async function templateSlotData(
   ownerId: string,
+  /** C3's chosen set — what fills the eleven Professional Experience slots. */
+  selected: (typeof requirementTailoring.$inferSelect)[],
+  /** The whole Keep set. Education and Language rows never reach `selected`
+   *  (they are exempt from the bullet budget, CI · C3 §2.4), but their sections
+   *  still print their detail only when the row was Kept as evidence for THIS
+   *  job — so that decision keeps reading the Keep gate, not the selection. */
   green: (typeof requirementTailoring.$inferSelect)[],
   bulletByRef: Map<string, { bullet: string; skills: string[] }>,
   profileText: string,
@@ -701,7 +715,7 @@ async function templateSlotData(
     const letter = code[0];
     const isOverview = code.endsWith('0');
     const seenLines = new Set<string>();
-    let lines = green
+    let lines = selected
       .filter((g) => {
         const normalized = normalizeCvPosition(g.cvPosition);
         return normalized === slot || (normalized ? slotCode(normalized) === code : false);
@@ -710,7 +724,7 @@ async function templateSlotData(
       // RENDER path, not a write path: C4's floor already guarantees a real
       // bullet for every ref-bearing Keep row before anything reaches the .docx,
       // and throwing at render time would block a CV that is otherwise complete.
-      // Same reasoning for `bullets14` in the programmatic builder below.
+      // Same reasoning for `bulletsForCv` in the programmatic builder below.
       .map((g) => (g.evidenceRef && bulletByRef.get(g.evidenceRef)?.bullet) || g.cvBullet || g.originalText || '')
       .filter(Boolean)
       // De-dupe: requirement_tailoring is one row per JD requirement, and the
@@ -1061,7 +1075,148 @@ export async function generateCv(
     .where(and(eq(jobRequirements.jobLeadId, leadId), eq(jobRequirements.ownerId, effectiveOwnerId)));
   const coreThemes = reqs.filter((r) => r.rank === 'Core').slice(0, 4).map((r) => r.requirement);
 
-  // C4 — rewrite each Keep evidence item into a tailored CV bullet
+  // ── C3 — select the CV evidence set ────────────────────────────────────────
+  //
+  // The step that chooses. Everything below it used to read `green` directly,
+  // so section sizes tracked how much evidence was approved rather than what a
+  // two-page CV holds. `selected` is what C4 is asked to rewrite, what C5 draws
+  // skills from, and what C7/C8 see.
+  //
+  // Education and Language rows are exempt rather than dropped: they never
+  // entered the budget (they render from the profile tables regardless), and
+  // they still gate their own sections' detail through `green` further down.
+  const exemptRows = green.filter((g) => !evidenceNeedsCvSlot(g.evidenceKind));
+  let selected: typeof green = [];
+  {
+    const t = Date.now();
+    const rankByReqId = new Map(reqs.map((r) => [r.id, r.rank]));
+    const byRef = new Map<string, SelectionCandidate>();
+    for (const g of green) {
+      if (!g.evidenceRef || !evidenceNeedsCvSlot(g.evidenceKind)) continue;
+      let cand = byRef.get(g.evidenceRef);
+      if (!cand) {
+        cand = {
+          ref: g.evidenceRef,
+          links: [],
+          cvPosition: normalizeCvPosition(g.cvPosition),
+          // `originalText` is the snapshot C2 wrote, which for a STAR result
+          // already carries its `metric` column composed in as "— measured: …".
+          // That is what `impact` reads, and reading `cvBullet` instead would
+          // score this run against the PREVIOUS run's tailored prose.
+          text: g.originalText ?? '',
+          pin: g.shortlistPin === 'pin' || g.shortlistPin === 'exclude' ? g.shortlistPin : null,
+        };
+        byRef.set(g.evidenceRef, cand);
+      }
+      // A row whose pin disagrees with its siblings' can't happen through the
+      // UI (the pin is set per ref), but if it ever did, an explicit exclude
+      // wins over a pin — the safer direction for a claim on a CV.
+      if (g.shortlistPin === 'exclude') cand.pin = 'exclude';
+      if (!g.requirementId) continue;
+      (cand.links as SelectionLink[]).push({
+        requirementId: g.requirementId,
+        rank: rankByReqId.get(g.requirementId) ?? null,
+        // C2 stamps the label at the head of `connectionToExpertise`; there is
+        // no dedicated column, and `storedMatchStrength` is the same reader the
+        // C2 merge uses.
+        matchStrength: storedMatchStrength(g.connectionToExpertise),
+        requirementSkills: g.requirementSkills ?? [],
+      });
+    }
+    const candidates = [...byRef.values()];
+    const result = selectEvidence(candidates, DEFAULT_SELECTION_PARAMS);
+    const rankByRef = new Map(result.selected.map((s) => [s.ref, s.rank]));
+
+    // Persist the verdict. Rewritten wholesale every run, so a re-run after the
+    // owner pins or excludes something reflects only this run — and the stale
+    // `cv_bullet`/`cv_bullet_skills` of a row that is no longer selected are
+    // cleared with it. Leaving them would let a previous run's tags reach C5
+    // (this is exactly how a degree printed as a skill: EDU-1/2/3 carried tags
+    // from a run that did write bullets for them), and would show the Map's
+    // proof trail a bullet that is not on the CV.
+    for (const g of green) {
+      const rank = g.evidenceRef ? rankByRef.get(g.evidenceRef) ?? null : null;
+      g.shortlistRank = rank;
+      if (rank == null) {
+        g.cvBullet = null;
+        g.cvBulletSkills = [];
+      }
+      await db
+        .update(requirementTailoring)
+        .set(rank == null ? { shortlistRank: null, cvBullet: null, cvBulletSkills: [] } : { shortlistRank: rank })
+        .where(and(eq(requirementTailoring.id, g.id), eq(requirementTailoring.ownerId, effectiveOwnerId)));
+    }
+    selected = green.filter((g) => g.shortlistRank != null);
+    if (selected.length === 0) {
+      throw new Error(
+        'C3 selected no evidence. Every Keep row is either Education/Language (which render from the ' +
+          'profile tables and never enter the bullet budget) or excluded by you — nothing is left to ' +
+          'write bullets from. Keep at least one piece of experience evidence, or clear an exclusion.'
+      );
+    }
+
+    // ── The step report (CI §2.7 item 4) ─────────────────────────────────────
+    // This is the surface the budget is judged from, so it carries the two
+    // coverage readings that differ, and says why they differ. "Bullets" is
+    // coverage from the selected set alone; "as printed" adds the Education and
+    // Language rows, whose sections appear on the CV unconditionally — a Core
+    // requirement answered only by a degree is genuinely answered by the CV
+    // even though no bullet carries it, and reporting only the first number
+    // would score C3 down for obeying §2.4.
+    const universe = reqs.map((r) => ({ id: r.id, rank: r.rank }));
+    const exemptCandidates: SelectionCandidate[] = exemptRows.map((g) => ({
+      ref: g.evidenceRef ?? '',
+      links: g.requirementId
+        ? [{ requirementId: g.requirementId, rank: rankByReqId.get(g.requirementId) ?? null, matchStrength: storedMatchStrength(g.connectionToExpertise), requirementSkills: g.requirementSkills ?? [] }]
+        : [],
+      cvPosition: null,
+      text: g.originalText ?? '',
+    }));
+    const chosen = candidates.filter((c) => rankByRef.has(c.ref));
+    const before = coverageOf([...candidates, ...exemptCandidates], universe);
+    const afterBullets = coverageOf(chosen, universe);
+    const afterPrinted = coverageOf([...chosen, ...exemptCandidates], universe);
+    // How far into the budget the objective still discriminates. Measured at
+    // ~6 on all three real leads against a budget of 14, which is the fact
+    // §2.6 says must stay visible rather than settle in as a constant.
+    const informative = result.selected.filter((s) => s.gain > 1e-9).length;
+    reports.push(
+      await recordStep(
+        leadId,
+        {
+          step: 'C3',
+          label: 'Select the CV evidence set',
+          model: 'code',
+          summary:
+            `${result.selected.length} of ${candidates.length} candidates · budget ${DEFAULT_SELECTION_PARAMS.budget} · ` +
+            `V ${result.objective.total.toFixed(1)} · ${formatCoverage(afterPrinted)}` +
+            (informative < result.selected.length ? ` · ${result.selected.length - informative} filled past saturation` : ''),
+          output: {
+            budget: DEFAULT_SELECTION_PARAMS.budget,
+            params: result.params,
+            candidates: candidates.length,
+            exempt: exemptRows.length,
+            selectedCount: result.selected.length,
+            informative,
+            objective: result.objective,
+            coverage: {
+              beforeAllKeep: formatCoverage(before),
+              afterBulletsOnly: formatCoverage(afterBullets),
+              afterAsPrinted: formatCoverage(afterPrinted),
+            },
+            selected: result.selected.map((s) => ({ rank: s.rank, ref: s.ref, position: s.position, gain: Number(s.gain.toFixed(3)), newlyCovered: s.newlyCovered.length, pinned: s.pinned })),
+            displaced: result.dropped.slice(0, 10).map((d) => ({ ref: d.ref, position: d.position, wouldAdd: Number(d.gain.toFixed(3)), reason: d.reason })),
+            swaps: result.swaps,
+            notes: result.notes,
+          },
+          ms: Date.now() - t,
+        },
+        effectiveOwnerId
+      )
+    );
+  }
+
+  // C4 — rewrite each selected evidence item into a tailored CV bullet
   const bulletByRef = new Map<string, { bullet: string; skills: string[] }>();
   {
     // ── The C4 collapse guard ────────────────────────────────────────────────
@@ -1086,7 +1241,7 @@ export async function generateCv(
     // bullet per ref is a misfire. Rows with no `evidenceRef` at all are
     // excluded: C4 was never given a key to answer them with.
     const ATTEMPTS = 3;
-    const refsWanted = new Set(green.map((g) => g.evidenceRef).filter((ref): ref is string => !!ref));
+    const refsWanted = new Set(selected.map((g) => g.evidenceRef).filter((ref): ref is string => !!ref));
 
     // CI · C3 Writes CV-Grade Skill Tags §2.3.1 — the register, cached once per
     // sitting. `skills_master` only: C2 matches against all three tables, C4
@@ -1102,7 +1257,7 @@ export async function generateCv(
     const contextByRef = new Map(
       (await gatherEvidence(effectiveOwnerId)).flatMap((e) => (e.context ? [[e.ref, e.context] as const] : []))
     );
-    const c4Rows: C4Row[] = green.map((g) => ({ ...g, context: contextByRef.get(g.evidenceRef ?? '') ?? null }));
+    const c4Rows: C4Row[] = selected.map((g) => ({ ...g, context: contextByRef.get(g.evidenceRef ?? '') ?? null }));
 
     const draft = async () =>
       runStructured({
@@ -1117,7 +1272,7 @@ export async function generateCv(
         // row whose `originalText` is null (legacy/seeded data) would otherwise
         // yield a blank bullet and trip the guard with no model involved.
         mock: () => ({
-          bullets: green.map((g) => ({
+          bullets: selected.map((g) => ({
             ref: g.evidenceRef ?? '',
             bullet: g.originalText?.trim() || `Delivered work evidenced by ${g.evidenceRef ?? 'this item'}.`,
             // The mock stands in for C4's own tag judgement, so it echoes the
@@ -1139,14 +1294,14 @@ export async function generateCv(
     // cover what the first missed — a partial reply is still worth its refs.
     let r = await draft();
     absorbC4Bullets(bulletByRef, r.data.bullets);
-    for (let attempt = 2; attempt <= ATTEMPTS && missingC4Refs(green, bulletByRef).length > 0; attempt++) {
+    for (let attempt = 2; attempt <= ATTEMPTS && missingC4Refs(selected, bulletByRef).length > 0; attempt++) {
       r = await draft();
       absorbC4Bullets(bulletByRef, r.data.bullets);
     }
-    const short = missingC4Refs(green, bulletByRef);
+    const short = missingC4Refs(selected, bulletByRef);
     if (short.length > 0) {
       throw new Error(
-        `C4 returned no bullet for ${short.length} of ${refsWanted.size} Keep evidence item(s) ` +
+        `C4 returned no bullet for ${short.length} of ${refsWanted.size} selected evidence item(s) ` +
           `after ${ATTEMPTS} attempts (${short.slice(0, 5).join(', ')}${short.length > 5 ? ', …' : ''}) — ` +
           'the model call degraded rather than the evidence genuinely being unusable. Nothing was written; ' +
           're-run Generate CV to retry. Falling back to the raw evidence text here would have produced a ' +
@@ -1159,7 +1314,7 @@ export async function generateCv(
     // uncovered My Skill is a capability that went in and did not come out.
     let orphanTags = 0;
     let uncoveredCount = 0;
-    for (const row of green) {
+    for (const row of selected) {
       const matched = row.evidenceRef ? bulletByRef.get(row.evidenceRef) : undefined;
       // `|| row.originalText` survives only for rows with no `evidenceRef`, which
       // the floor above deliberately does not cover. For every ref-bearing row
@@ -1210,7 +1365,7 @@ export async function generateCv(
           label: 'Draft CV bullets',
           model: r.model,
           summary:
-            `${refsWanted.size} Keep item(s) rewritten` +
+            `${refsWanted.size} selected item(s) rewritten` +
             (orphanTags ? ` · ${orphanTags} unanchored tag(s) dropped` : '') +
             (uncoveredCount ? ` · ${uncoveredCount} My Skill(s) not carried into a tag` : ''),
           output: { count: refsWanted.size, orphanTags, uncovered: uncoveredCount, register: register.length },
@@ -1248,9 +1403,9 @@ export async function generateCv(
     // occupy a slot that a real skill would otherwise have won. C5 §B.4 — the
     // CV's Languages section already states these, from `languages` itself.
     const langRows = await db.select().from(languages).where(eq(languages.ownerId, effectiveOwnerId));
-    const selected = dropLanguageSkills(
+    const skillNames = dropLanguageSkills(
       prioritiseSkills(
-        green.map((g) => ({
+        selected.map((g) => ({
           rank: (g.requirementId && rankByReqId.get(g.requirementId)) ?? null,
           cvBulletSkills: g.cvBulletSkills ?? [],
         })),
@@ -1261,7 +1416,7 @@ export async function generateCv(
 
     let model = 'code';
     let ms = 0;
-    if (selected.length === 0) {
+    if (skillNames.length === 0) {
       skillsModel = [];
     } else {
       const r = await runStructured({
@@ -1270,24 +1425,24 @@ export async function generateCv(
         system: await systemPromptFor('C5', effectiveOwnerId),
         user:
           `ROLE: ${lead.title}${lead.jdGroupPrimary ? ` · ${lead.jdGroupPrimary}` : ''}\n\n` +
-          `Group these ${selected.length} skills into 3–5 logical categories for the CV Skills section, ` +
+          `Group these ${skillNames.length} skills into 3–5 logical categories for the CV Skills section, ` +
           `most relevant to this role first. Copy each skill exactly; place every one of them.\n\n` +
-          selected.map((s) => `- ${s}`).join('\n'),
+          skillNames.map((s) => `- ${s}`).join('\n'),
         tool: C5.tool,
         zod: C5.zod,
         // The mock is not a stand-in for the judgement — inventing plausible
         // category names offline would make mock runs look like live ones. It
         // returns the honest ungrouped shape instead.
-        mock: () => ({ groups: [{ category: 'Core Competencies', skills: selected }] }),
+        mock: () => ({ groups: [{ category: 'Core Competencies', skills: skillNames }] }),
         leadId,
         ownerId: effectiveOwnerId,
       });
       model = r.model;
       ms = r.ms;
-      skillsModel = reconcileSkillGroups(selected, r.data.groups);
+      skillsModel = reconcileSkillGroups(skillNames, r.data.groups);
       // A grouping call that came back with nothing usable must not cost the CV
       // its Skills section — the skills themselves were never in doubt.
-      if (skillsModel.length === 0) skillsModel = ungroupedSkills(selected);
+      if (skillsModel.length === 0) skillsModel = ungroupedSkills(skillNames);
     }
 
     const count = skillsModel.reduce((n, s) => n + s.items.length, 0);
@@ -1317,7 +1472,7 @@ export async function generateCv(
     // one line, it becomes the basis of the tailored profile. C4's floor above
     // now guarantees a bullet for every ref-bearing row, so the `originalText`
     // tail is a backstop for ref-less rows rather than a substitution path.
-    const keptBullets = green
+    const keptBullets = selected
       .map((g) => (g.evidenceRef && bulletByRef.get(g.evidenceRef)?.bullet) || g.cvBullet || g.originalText || '')
       .filter(Boolean);
 
@@ -1377,7 +1532,19 @@ export async function generateCv(
   // template (docxtemplater); programmatic build is the fallback if the template
   // is missing or fails to render.
   let cvPath = '';
-  const bullets14 = green.map((g) => g.cvBullet ?? g.originalText ?? '').filter(Boolean).slice(0, 14);
+  // One bullet per distinct evidence ref, which is what C3 selected and what
+  // the CV shows. This used to map over Keep ROWS and `slice(0, 14)`, so a lead
+  // whose bullets each answered several requirements sent the same line to the
+  // .docx and to C8 three to seven times over, and the 14 was a raw cap on rows
+  // rather than a budget on content. The budget now lives in C3, so there is
+  // nothing left to truncate here.
+  const bulletsForCv = [
+    ...new Map(
+      selected
+        .filter((g) => g.evidenceRef)
+        .map((g) => [g.evidenceRef as string, g.cvBullet ?? g.originalText ?? ''] as const)
+    ).values(),
+  ].filter(Boolean);
   // Shared by C7 (the .docx) and C8 (the ATS rating) below — Education/Languages
   // always appear on the CV regardless of Keep status, so C8 needs to see them
   // too, or it judges the CV blind to facts (e.g. language fluency) that are
@@ -1393,7 +1560,7 @@ export async function generateCv(
         .join(' · '),
       profile: profileText,
       skills: skillsModel,
-      experience: [{ heading: 'Selected Achievements', bullets: bullets14 }],
+      experience: [{ heading: 'Selected Achievements', bullets: bulletsForCv }],
       education: eduRows.map((e) => [e.qualification, e.institution, e.year].filter(Boolean).join(', ')).filter(Boolean),
       languages: langRows.map((l) => `${l.language} (${l.cefrLevel})`),
     };
@@ -1405,8 +1572,8 @@ export async function generateCv(
     let how: string;
     try {
       if (!templateExists()) throw new Error('template not found');
-      if (!templateFits(green)) throw new Error('Keep set has evidence outside the template slots');
-      buf = buildCvFromTemplate(await templateSlotData(effectiveOwnerId, green, bulletByRef, profileText, profile, lead, skillsModel));
+      if (!templateFits(selected)) throw new Error('Selected set has evidence outside the template slots');
+      buf = buildCvFromTemplate(await templateSlotData(effectiveOwnerId, selected, green, bulletByRef, profileText, profile, lead, skillsModel));
       how = 'real template';
     } catch (e) {
       buf = await buildCv(model);
@@ -1414,7 +1581,7 @@ export async function generateCv(
     }
     cvPath = `cv-output/${leadId}/tailored.docx`;
     await writeBuffer(cvPath, buf);
-    reports.push(await recordStep(leadId, { step: 'C7', label: 'Compile 2-page CV', model: 'code', summary: `${bullets14.length} Keep bullets · ${how}`, output: { cvPath, how }, ms: Date.now() - t }, effectiveOwnerId));
+    reports.push(await recordStep(leadId, { step: 'C7', label: 'Compile 2-page CV', model: 'code', summary: `${bulletsForCv.length} selected bullets · ${how}`, output: { cvPath, how }, ms: Date.now() - t }, effectiveOwnerId));
   }
 
   // C8 — reviewed ATS rating (LLM judgment; code persists)
@@ -1428,7 +1595,7 @@ export async function generateCv(
       user:
         `JOB REQUIREMENTS:\n${reqs.map((q, i) => `${i + 1}. [${q.rank}] ${q.requirement}`).join('\n')}\n\n` +
         `TAILORED CV\nProfile: ${profileText}\n\nSkills: ${skillsModel.map((s) => `${s.category}: ${s.items.join(', ')}`).join(' | ')}\n\n` +
-        `Experience bullets:\n${bullets14.map((b) => `- ${b}`).join('\n')}\n\n` +
+        `Experience bullets:\n${bulletsForCv.map((b) => `- ${b}`).join('\n')}\n\n` +
         // Education/Languages always appear on the CV regardless of Keep status
         // (see C7 above) — without these, C8 has previously marked language
         // fluency "unverified" even when it's plainly printed on the CV.
@@ -1438,7 +1605,7 @@ export async function generateCv(
       tool: C8.tool,
       zod: C8.zod,
       mock: () => {
-        const coverage = Math.min(1, green.length / Math.max(coreImp.length, 1));
+        const coverage = Math.min(1, selected.length / Math.max(coreImp.length, 1));
         return {
           overall: Math.round(40 + coverage * 55 + (lead.atsSystem ? 5 : 0)),
           requirements: coreImp.slice(0, 8).map((q) => ({ requirement: q.requirement, score: Math.round(coverage * 100), matchStrength: 'Good' as const })),

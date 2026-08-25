@@ -78,6 +78,43 @@ export async function approveAllAction(leadId: string): Promise<{ approved: numb
   return { approved: toApprove.length, skipped };
 }
 
+/**
+ * The owner's override on C3's shortlist — CI · C3 Selects the CV Evidence Set §2.7 item 5.
+ *
+ * C3 proposes and the owner decides (§2.2), so the selection has to be
+ * overridable in both directions: `pin` forces this evidence into the set
+ * before the algorithm runs (and it consumes budget, so pinning is a real
+ * trade rather than a free addition), `exclude` keeps it out, `null` hands the
+ * decision back to C3.
+ *
+ * Set on every row sharing the ref, not on the one row clicked: selection
+ * decides per distinct evidence ref (one ref becomes one bullet) and the same
+ * bullet legitimately answers several requirements, so a pin recorded against
+ * one of its rows and not the others would be a contradiction the selector then
+ * has to break arbitrarily.
+ *
+ * Nothing re-runs here. The override takes effect on the next Generate CV,
+ * which is where the trade it forces gets shown in the C3 step report.
+ */
+export async function setShortlistPinAction(
+  leadId: string,
+  evidenceRef: string,
+  pin: 'pin' | 'exclude' | null
+): Promise<void> {
+  const owner = await currentOwnerId();
+  await db
+    .update(requirementTailoring)
+    .set({ shortlistPin: pin })
+    .where(
+      and(
+        eq(requirementTailoring.jobLeadId, leadId),
+        eq(requirementTailoring.ownerId, owner),
+        eq(requirementTailoring.evidenceRef, evidenceRef)
+      )
+    );
+  revalidatePath(`/roleproof/leads/${leadId}`);
+}
+
 export async function generateCvAction(leadId: string): Promise<{ reports: StepReport[]; atsRating: number }> {
   const owner = await currentOwnerId();
   const { reports, atsRating } = await generateCv(leadId, owner);

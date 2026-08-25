@@ -59,17 +59,22 @@ export const SCREEN_STEPS: Array<{ id: string; label: string; hint: string }> = 
  * Canonical tailoring sub-steps (C1–C8).
  *
  * Kept in lockstep with the C-phase renumber (CI · Renumber the C-Phase to Seat
- * Evidence Selection at C3): bullets are now C4, skills C5, profile C6, compile C7,
- * ATS rating C8. **C3 is absent on purpose** — selecting which evidence reaches the
- * CV is a real step with a number and a note (`Process/C3. Select the CV Evidence
- * Set.md`), but nothing runs it yet, and listing it here would put a step on the
- * pipeline map that no run trace can ever show. Its own CI adds the row when it
- * builds the step. Same deliberate gap as `STEP_NOTE` in prompts.ts.
+ * Evidence Selection at C3): bullets are C4, skills C5, profile C6, compile C7,
+ * ATS rating C8.
+ *
+ * C3 joined this list on 2026-08-25, in the same commit that made `generateCv`
+ * actually run it (CI · C3 Selects the CV Evidence Set §2.7 item 7). It was
+ * deliberately absent until then — a step on the pipeline map that no run trace
+ * can ever show is the product claiming to do something it does not — and the
+ * renumber CI stopped short of adding it on purpose rather than by oversight.
+ * `STEP_NOTE` in prompts.ts still has no C3 key, and that gap is the correct
+ * one to keep: C3 makes no model call, so it has no system prompt to load.
  */
 export const TAILOR_STEPS: Array<{ id: string; label: string; hint: string }> = [
   { id: 'C1', label: 'Format check', hint: 'Detect ATS + structure' },
   { id: 'C2', label: 'Map evidence', hint: 'Link each requirement to profile evidence' },
-  { id: 'C4', label: 'Draft bullets', hint: 'Only Keep evidence' },
+  { id: 'C3', label: 'Select evidence', hint: 'Choose the set a 2-page CV holds' },
+  { id: 'C4', label: 'Draft bullets', hint: 'Only selected evidence' },
   { id: 'C5', label: 'Skills section', hint: 'Mirror supported JD keywords' },
   { id: 'C6', label: 'Profile summary', hint: 'Tailored headline + summary' },
   { id: 'C7', label: 'Compile CV', hint: 'Fill the 2-page template by content budget' },

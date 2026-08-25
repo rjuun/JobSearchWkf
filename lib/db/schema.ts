@@ -512,6 +512,29 @@ export const requirementTailoring = pgTable('requirement_tailoring', {
   requirementSkills: jsonb('requirement_skills').$type<string[]>().default([]),
   cvBulletSkills: jsonb('cv_bullet_skills').$type<string[]>().default([]),
   approvalStatus: approvalStatusEnum('approval_status').notNull().default('pending'),
+  // ── C3's two columns — CI · C3 Selects the CV Evidence Set ────────────────
+  //
+  // `shortlistRank` is C3's verdict: 1..B in the order the selected evidence
+  // stands, NULL for evidence that was not selected. It is a RANK, not an
+  // approval (§2.2) — the Keep gate above is a human judgement about
+  // truthfulness and is not being automated away. C3 proposes; the owner
+  // overrides through `shortlistPin`.
+  //
+  // Keyed to the row but decided per REF: one distinct evidence ref becomes one
+  // bullet, and several rows legitimately share a ref (one bullet answering
+  // several requirements), so every row carrying a selected ref gets the same
+  // rank. Rewritten from scratch on every Generate CV, like `cv_bullet`.
+  //
+  // Education and Language rows are never selected and always hold NULL. They
+  // render from the profile tables regardless of any of this (`evidenceNeedsCvSlot`)
+  // and were never competing for CV space — which is also what stops a degree
+  // reaching the Skills section, at source: not selected, so C4 writes no
+  // bullet for it, so it declares no `cv_bullet_skills` for C5 to print (§2.4).
+  shortlistRank: integer('shortlist_rank'),
+  // The owner's override on that verdict: 'pin' forces the row's evidence into
+  // the set before the algorithm runs (and it consumes budget), 'exclude' keeps
+  // it out entirely. NULL — the ordinary case — means "let C3 decide".
+  shortlistPin: text('shortlist_pin'),
   // M7 · provenance backbone — how a CV line entered and when you approved it.
   provSource: text('prov_source').notNull().default('imported'), // imported | coached | swapped
   approvedAt: timestamp('approved_at', { withTimezone: true }),

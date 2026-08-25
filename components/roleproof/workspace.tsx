@@ -24,7 +24,7 @@ import {
   refreshFreshnessAction,
 } from '@/app/actions/pipeline';
 import { markNotPursuedAction } from '@/app/actions/scoring-queue';
-import { mapEvidenceAction, approveAllAction, generateCvAction } from '@/app/actions/tailoring';
+import { mapEvidenceAction, approveAllAction, generateCvAction, setShortlistPinAction } from '@/app/actions/tailoring';
 import { addTipAction, resolveTipAction } from '@/app/actions/tips';
 import { trackUxAction } from '@/app/actions/ux';
 import { summariseRunTrace, totalRuns, type StepTrace } from '@/lib/run-trace';
@@ -106,6 +106,14 @@ export type RpRow = {
   mySkills: string[];
   requirementSkills: string[];
   cvBulletSkills: string[];
+  // ── C3 · Select the CV Evidence Set ───────────────────────────────────────
+  // `shortlistRank` is C3's verdict: 1..B in the order the selected evidence
+  // stands, null for evidence that was Kept but did not make the CV. It is a
+  // rank, not an approval — the Keep gate above stays a human judgement about
+  // truthfulness. Every row sharing a selected ref carries the same rank.
+  shortlistRank: number | null;
+  // The owner's override on that verdict: 'pin' | 'exclude' | null.
+  shortlistPin: string | null;
 };
 /**
  * B6's initial requirement→evidence link, scoped to the Master Bullet Bank
@@ -211,6 +219,10 @@ type Ctx = {
   onMap: () => void;
   onApproveAll: () => void;
   onGenerate: () => void;
+  /** Override C3's shortlist for one piece of evidence — CI · C3 §2.7 item 5.
+   *  Keyed by evidence ref, not row id: selection decides per ref, and the same
+   *  bullet arrives as several rows. Takes effect on the next Generate CV. */
+  onPin: (evidenceRef: string, pin: 'pin' | 'exclude' | null) => void;
   /** §2.4's gate tripped — what re-running screening would touch, shown before
    * the person confirms. Null when there's nothing to confirm. */
   rescreenImpact: { status: string; total: number; green: number } | null;
@@ -349,6 +361,24 @@ export function RpWorkspace(props: Props) {
       }
     });
   }
+  // Override C3's shortlist for one piece of evidence (CI · C3 §2.7 item 5).
+  // No optimistic overlay and no re-run: a pin changes what the NEXT Generate CV
+  // selects, and pretending the CV had already changed would be the overclaim
+  // the proof trail exists to prevent. `router.refresh()` brings back the row's
+  // new pin state so the button reflects what is stored.
+  function onPin(evidenceRef: string, pin: 'pin' | 'exclude' | null) {
+    if (busyPhase || !evidenceRef) return;
+    startTransition(async () => {
+      try {
+        setError(null);
+        await setShortlistPinAction(lead.id, evidenceRef, pin);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        router.refresh();
+      }
+    });
+  }
   function onGenerate() {
     if (busyPhase) return;
     startPhase('generate', GEN_STEPS.length);
@@ -409,6 +439,7 @@ export function RpWorkspace(props: Props) {
     onMap,
     onApproveAll,
     onGenerate,
+    onPin,
     rescreenImpact,
     onConfirmRescreen: () => onScreen(true),
     onCancelRescreen: () => setRescreenImpact(null),
@@ -1842,6 +1873,47 @@ function PipelineProgress({ c }: { c: Ctx }) {
 // CI · Requirement Skills vs My Skills — a small labelled badge row so the
 // columns are visibly distinct wherever they're shown, not just unlabelled
 // tag lists.
+/**
+ * The owner's override on C3's shortlist, as two idempotent buttons.
+ *
+ * Deliberately says what it will DO rather than what is stored — "Pin to CV" /
+ * "Pinned", not a checkbox — because nothing changes until the next Generate
+ * CV, and a control that looked like it had already moved the bullet would
+ * misreport the CV in the one card whose whole job is not to.
+ */
+function ShortlistToggle({ c, row }: { c: Ctx; row: RpRow }) {
+  const ref = row.evidenceRef;
+  if (!ref) return null;
+  const pin = row.shortlistPin;
+  const on = row.shortlistRank != null;
+  const btn =
+    'rounded px-1.5 py-0.5 font-semibold ring-1 ring-inset transition disabled:opacity-50 ' +
+    'bg-surface text-ink-subtle ring-hairline hover:text-ink';
+  const active = 'rounded px-1.5 py-0.5 font-semibold ring-1 ring-inset bg-proof-soft text-proof-deep ring-proof/20';
+  return (
+    <>
+      <button
+        type="button"
+        disabled={c.busy}
+        onClick={() => c.onPin(ref, pin === 'pin' ? null : 'pin')}
+        className={pin === 'pin' ? active : btn}
+        title={pin === 'pin' ? 'Pinned — always selected. Click to let C3 decide again.' : 'Force this into the next CV. It consumes budget, so something else falls out.'}
+      >
+        {pin === 'pin' ? '📌 Pinned' : 'Pin to CV'}
+      </button>
+      <button
+        type="button"
+        disabled={c.busy}
+        onClick={() => c.onPin(ref, pin === 'exclude' ? null : 'exclude')}
+        className={pin === 'exclude' ? active : btn}
+        title={pin === 'exclude' ? 'Excluded — never selected. Click to let C3 decide again.' : 'Keep this off the CV from now on.'}
+      >
+        {pin === 'exclude' ? '🚫 Excluded' : on ? 'Take off' : 'Never'}
+      </button>
+    </>
+  );
+}
+
 function SkillBadgeRow({ label, tone, items }: { label: string; tone: 'proof' | 'neutral'; items: string[] }) {
   const badge =
     tone === 'proof'
@@ -1893,10 +1965,36 @@ function LeftOutCard({ c }: { c: Ctx }) {
 }
 
 function CvCard({ c }: { c: Ctx }) {
-  // Provenance is computed, not asserted. `green` = every line that reaches the CV
-  // (the generator uses all Kept rows); the ledger shows each with its ref, and flags
-  // any that don't yet trace — so the summary can never overclaim.
-  const green = c.rows.filter((r) => c.effective(r) === 'green');
+  // Provenance is computed, not asserted: the ledger shows each line with its
+  // ref and flags any that don't yet trace, so the summary can never overclaim.
+  //
+  // What reaches the CV is C3's SHORTLIST, not every Kept row — and it is one
+  // line per distinct evidence ref, because one bullet legitimately answers
+  // several requirements and arrives here as several rows. This list used to
+  // render every green row, so a lead with 64 Kept rows showed 64 "lines on
+  // your CV" for a document holding 35 bullets, several of them repeats. On a
+  // lead generated before C3 shipped no row carries a rank, and the whole Keep
+  // set is still the honest answer (`cov.selected` says which reading applies).
+  const kept = c.rows.filter((r) => c.effective(r) === 'green');
+  const ranked = kept.filter((r) => r.shortlistRank != null);
+  const onCv = ranked.length > 0 ? ranked : kept;
+  const lines = [...new Map(onCv.map((r) => [r.evidenceRef ?? `row:${r.id}`, r] as const)).values()].sort(
+    (a, b) => (a.shortlistRank ?? 1e9) - (b.shortlistRank ?? 1e9)
+  );
+  // One entry per ref, and Education/Language are not shown: they never entered
+  // the budget (they print from the profile tables regardless), so listing them
+  // as "held back" would report a decision C3 never made.
+  const heldBack =
+    ranked.length > 0
+      ? [
+          ...new Map(
+            kept
+              .filter((r) => r.shortlistRank == null && r.evidenceRef && evidenceNeedsCvSlot(r.evidenceKind))
+              .map((r) => [r.evidenceRef as string, r] as const)
+          ).values(),
+        ]
+      : [];
+  const leftOut = heldBack.length;
   const cov = provenanceCoverage(c.rows, c.effective); // the invariant, computed
   const untraced = cov.green - cov.traced;
   return (
@@ -1910,7 +2008,7 @@ function CvCard({ c }: { c: Ctx }) {
           </div>
           <Mach>
             <div className="mt-1 font-mono text-[10px] text-white/70">
-              C4 draft · C5 skills · C6 profile · C7 compile · C8 ATS rating
+              C3 select · C4 draft · C5 skills · C6 profile · C7 compile · C8 ATS rating
             </div>
           </Mach>
         </div>
@@ -1953,7 +2051,15 @@ function CvCard({ c }: { c: Ctx }) {
             )}
           </li>
           <li className="flex gap-2">
-            <span className="text-proof">✓</span> Within the 2-page budget
+            <span className="text-proof">✓</span>{' '}
+            {cov.selected ? (
+              <>
+                Chosen to fit the page — {leftOut} more kept {leftOut === 1 ? 'piece' : 'pieces'} held back, still yours to
+                pin
+              </>
+            ) : (
+              'Within the 2-page budget'
+            )}
           </li>
         </ul>
       </div>
@@ -1969,8 +2075,13 @@ function CvCard({ c }: { c: Ctx }) {
             {cov.complete ? `${cov.green} ${cov.green === 1 ? 'line' : 'lines'}, 100% traced` : `${cov.traced} of ${cov.green} traced`}
           </summary>
           <ul className="flex flex-col gap-2.5 border-t border-hairline bg-raised/50 px-5 py-3.5">
-            {green.map((r) => (
+            {lines.map((r) => (
               <li key={r.id} className="flex items-start gap-3 text-[12px]">
+                {r.shortlistRank != null && (
+                  <span className="mt-0.5 w-5 shrink-0 text-right font-mono text-[10px] font-semibold tabular-nums text-ink-subtle">
+                    {r.shortlistRank}
+                  </span>
+                )}
                 {r.evidenceRef ? (
                   <span className="mt-0.5 shrink-0 rounded bg-surface px-1.5 py-0.5 font-mono text-[10px] font-semibold text-proof-deep ring-1 ring-inset ring-proof-ring">
                     {r.evidenceRef}
@@ -1986,6 +2097,7 @@ function CvCard({ c }: { c: Ctx }) {
                     <span className="rounded bg-surface px-1.5 py-0.5 font-semibold ring-1 ring-inset ring-hairline">
                       {SOURCE_LABEL[r.provSource] ?? 'Imported'}
                     </span>
+                    {cov.selected && r.evidenceRef && <ShortlistToggle c={c} row={r} />}
                     {r.evidenceRef ? (
                       <span className="text-proof-deep">✓ approved by you{r.approvedAt ? ` · ${fmtApproved(r.approvedAt)}` : ''}</span>
                     ) : (
@@ -2016,6 +2128,37 @@ function CvCard({ c }: { c: Ctx }) {
                           what it is. */}
                     </span>
                   )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {/* Kept, but not on the CV — CI · C3 §2.2. C3 proposes and the owner
+          decides, so what it held back has to be visible and reversible. This
+          is not the same list as "Left out, on purpose" above, which is evidence
+          the owner DROPPED at the Keep gate; these are pieces he approved and
+          the budget could not fit. Pinning one forces it into the next run's
+          set — and it consumes budget, so something else falls out, which is
+          the trade the C3 step report then shows. */}
+      {heldBack.length > 0 && (
+        <details className="group border-t border-hairline">
+          <summary className="flex cursor-pointer select-none items-center gap-2 px-5 py-3 text-[12px] font-semibold text-ink-muted transition hover:text-ink">
+            <span className="text-ink-subtle transition group-open:rotate-90">▸</span>
+            Kept but not on this CV · {heldBack.length}
+          </summary>
+          <ul className="flex flex-col gap-2.5 border-t border-hairline bg-raised/50 px-5 py-3.5">
+            {heldBack.map((r) => (
+              <li key={r.id} className="flex items-start gap-3 text-[12px]">
+                <span className="mt-0.5 shrink-0 rounded bg-surface px-1.5 py-0.5 font-mono text-[10px] font-semibold text-ink-subtle ring-1 ring-inset ring-hairline">
+                  {r.evidenceRef}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-ink-muted">{r.originalText ?? r.requirementLine ?? 'Evidence'}</span>
+                  <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10.5px] text-ink-subtle">
+                    <ShortlistToggle c={c} row={r} />
+                  </span>
                 </span>
               </li>
             ))}

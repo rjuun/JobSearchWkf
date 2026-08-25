@@ -128,6 +128,8 @@ export default async function RoleProofWorkspacePage({
     mySkills: t.mySkills ?? [],
     requirementSkills: t.requirementSkills ?? [],
     cvBulletSkills: t.cvBulletSkills ?? [],
+    shortlistRank: t.shortlistRank ?? null,
+    shortlistPin: t.shortlistPin ?? null,
   }));
 
   const initialEvidenceRp: RpEvidence[] = initialEvidence.map((e) => ({

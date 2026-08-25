@@ -281,6 +281,13 @@
       "when": 1787608358686,
       "tag": "0039_renumber_c_phase_steps",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1787678325284,
+      "tag": "0040_powerful_caretaker",
+      "breakpoints": true
     }
   ]
 }

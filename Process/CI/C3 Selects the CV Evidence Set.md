@@ -2,11 +2,11 @@
 ci-area: CV Tailoring (C-Phase)
 ci-roadmap:
 ci-title: C3 Selects the CV Evidence Set
-ci-status: 0 - Idea
+ci-status: 2 - Testing
 ci-priority: high
 ci-date: 2026-08-24
 ci-estimated-time: 7
-ci-time-spent: 0
+ci-time-spent: 6
 pr-source: "[[C3 Writes CV-Grade Skill Tags]]"
 pr-target: "[[C3. Select the CV Evidence Set]], [[C2. Map JD Requirements to Supporting Evidence]]"
 ---
@@ -198,3 +198,89 @@ repetition. That is what makes the budget affordable rather than a trade.
 Recorded because it was nearly missed: **bullets are not rows.** The 63/46/31 counts are
 requirement×evidence links; distinct refs are 34/27/23. Reasoning about the budget in rows would have
 set it roughly a third too tight.
+
+### 2026-08-25 · Built
+
+The step exists and runs. `lib/pipeline/selection.ts` (pure, no DB or LLM import) holds the objective,
+the greedy pass, the swap pass and the constraint checks; `generateCv` runs it as C3 ahead of
+bullet-writing; C4/C5/C6/C7/C8 all read the selected set instead of every green row. Migration 0040
+adds `shortlist_rank` and `shortlist_pin`. 35 new unit tests, 317 passing in total, typecheck clean.
+Checklist item 7 landed in the same commit that made the step run, as it was handed forward: C3 is now
+in `TAILOR_STEPS` and in both of `docs/PIPELINE.md`'s enumerations. `STEP_NOTE` still has no C3 key,
+and that gap stays correct — C3 makes no model call.
+
+`scripts/measure-cv-selection.ts` is the before/after probe. Re-measured against HEAD before building:
+§1's table reproduced exactly (31/23, 64/35, 46/27 and every coverage figure), so the premise held.
+
+**Three things §2 got wrong, in descending order of how much they matter.**
+
+**1 · §2.8's Nice-to-Have criterion cannot be met by this step, and the reason is not the budget.**
+`runEvidenceMapping` filters requirements to `CORE_AND_IMPORTANT` before anything else runs
+(`tailoring.ts` §757), so **C2 never sees a Nice-to-Have requirement at all**. There are not zero
+*green* rows for the three NtH requirements on `ee5c72bf` and `a9f2307b` — there are zero rows, full
+stop. Selection selects from what C2 proposed and the owner approved; it cannot manufacture a link.
+So §1(b)'s "budget freed by cutting redundancy buys fit and ATS score currently left on the table" is
+wrong twice: the freed budget has nothing to buy, and on one of the two leads it should stay that way.
+`a9f2307b`'s NtH ask is *Project/Change Management Certifications*, rated No Match — the candidate
+does not hold them, and zero is the honest answer.
+
+`ee5c72bf` is the live one. B6 **did** find evidence for both of its NtH requirements — G2/G10/G11 for
+*Meeting Preparation and Coordination* (rated Very Strong, 7/10) and L1/L2/G11 for *Cultural and People
+Initiatives* (Good, 5/10) — and it is sitting in `requirement_evidence` where C2 never looks. That is
+a C2 recall gap, not a C3 one, and widening C2's intake changes its prompt, its cost per run and every
+lead's map. It needs its own note. **Left alone deliberately**; this CI does not touch C2, per §2.1.
+
+**2 · §2.8's "Core and Important coverage stays at 100%" collides with §2.4's own exclusion rule.**
+Three Core requirements across two leads are covered *only* by Education or Language evidence:
+`69bc2e13`'s *Business-Fluent English* (LANG-2), `ee5c72bf`'s *University Degree in Business
+Administration* (EDU-1/2/3) and *Fluency in English and German* (LANG-2/3). §2.4 keeps Education and
+Language out of the bullet budget, so measured over selected rows alone, coverage necessarily falls to
+Core 7/8 and Core 11/13 the moment C3 runs — the criterion fails by construction, for obeying the
+constraint two paragraphs above it.
+
+It is a measurement question, not a design fault: those requirements *are* answered on the printed CV,
+by the Education and Languages sections, which render from the profile tables regardless. So the step
+report carries both readings and names the difference — `afterBulletsOnly` and `afterAsPrinted`. **As
+printed, Core and Important hold at 100% on all three leads.**
+
+**3 · The objective goes flat long before the budget does, and §2.3's α term cannot help.**
+100% Core+Important coverage is reached in **4 bullets on `69bc2e13`, 5 on `ee5c72bf`, 6 on
+`a9f2307b`** — §1's "coverage is saturated" is if anything understated. Past that point every
+remaining candidate has a marginal gain of exactly zero. The ATS term cannot break the tie either:
+`requirement_skills` is B2's ask on the *requirement*, so once a requirement is covered, every further
+bullet linking it contributes skills already counted. α is therefore a function of which requirements
+are covered — which is what the coverage term already measures. It discriminates between sets covering
+*different* requirements and is silent between sets covering the same ones.
+
+So with B = 14 and V maxed at ~6, the back half of every CV is decided by the tie-break. Left implicit
+that is alphabetical order of the ref code, which is not a reason to put a bullet on a CV. The
+objective ships exactly as §2.3 argues it — but the tie-break is now explicit and principled: at equal
+marginal gain, prefer the candidate worth more *on its own*, `V({c})`, the same objective over the
+singleton. No new term, no new constant, and V is unchanged wherever it discriminates at all. The step
+report says how many bullets were filled past saturation (8 of 13, 4 of 14, 5 of 14). **§2.6 asked for
+the budget to stay judged rather than inherited; this is the number that judges it.**
+
+**Smaller corrections.** §2.8's "from 23 / 34 / 27" mixes the bullet counts with the older distinct-ref
+counts — measured, the leads run 23 / 35 / 27 in the table's own order. §2.3 calls `s(q,e)`'s values
+"the same ordinal `matchStrengthToScore` already defines"; the ORDER is the same, the values are not
+(that function returns 9 / 7.5 / 5.5 / 3 / 1 on a 0–10 scale). Both are stated in `matchQuality`, and a
+test pins the orderings together so they cannot drift apart silently. §2.3 also omits `No Match` and a
+null label; both occur in stored rows and are handled explicitly.
+
+**What was found and deliberately left alone.** `bullets14` in C7 mapped over Keep *rows* and sliced to
+14 — so a lead whose bullets each answer several requirements sent the same line to the .docx and to C8
+three to seven times over, and the "14" was a raw cap on rows, not a content budget. Fixed here rather
+than left, because C3 makes it trivially correct (one bullet per selected ref, nothing to truncate).
+`provenanceCoverage` had the same row-vs-ref confusion and was telling the owner his CV had 64 traced
+lines when the document held 35; also fixed, since the Map's proof trail is the one surface whose whole
+job is not to overclaim. Neither is in §2.7.
+
+**Verified end to end without spending anything**: the full C3→C8 chain was run in mock mode against
+throwaway clones of all three leads (cloned, generated, asserted, deleted). Bullets 23→13, 35→14,
+27→14; the real Word template renders on all three; no Education or Language row is ever ranked; no
+unselected row keeps a stale `cv_bullet` or `cv_bullet_skills`. Applying C3's shortlist to the tags the
+last *live* C4 run actually wrote predicts skills of **27→17, 48→27, 43→27** — and **all three of the
+degree entries §2.4 named disappear from `ee5c72bf`'s Skills section**, at source, with no downstream
+filter.
+
+Still open: the live Generate CV that §2.8's ATS baselines need, and with it the epic's click test.
