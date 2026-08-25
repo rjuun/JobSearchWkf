@@ -2,7 +2,7 @@
 ci-area: CV Tailoring (C-Phase)
 ci-roadmap:
 ci-title: C3 Selects the CV Evidence Set
-ci-status: 2 - Testing
+ci-status: 1 - Development
 ci-priority: high
 ci-date: 2026-08-24
 ci-estimated-time: 7
@@ -176,6 +176,111 @@ let it block this note.
       `ee5c72bf`**, both 2026-08-24, the latter re-confirmed at 78/100 after the STAR-results CI.
 - [ ] Selection is reproducible: same inputs, same set, every run.
 
+---
+
+## 2b. Part 2 — C3 becomes a human gate, and the Map is where it happens
+
+> [!IMPORTANT] Opened 2026-08-26, after Part 1 was live-tested on lead `23074f44`
+> Part 1 (§1–§2.8 above) shipped and works. This part changes **when** selection happens and **where
+> the human sees it**, not how it is computed. `lib/pipeline/selection.ts` is untouched.
+> Part 1's `ci-time-spent` does not count toward this part.
+
+### 2b.1 · What Part 1 got wrong about the human
+
+Part 1 computes selection inside `generateCv`, between C2's output and bullet-writing, and shows the
+result afterwards as two collapsed panels in the CV card — *Show sources on every line* and *Kept but
+not on this CV*, each carrying a `ShortlistToggle`.
+
+The owner's objection, 2026-08-26:
+
+> *"Once I approve the whole map, C3 should run and calculate which 14 bullets from all those who have
+> been approved actually deliver what has been asked in the most fulfilling way. The opportunity to
+> look at the Green original Bullets and use 'Pin to CV' to make some stay in the CV — for some sort
+> of consistency in storytelling, or importance that the human himself has assigned to the bullet — is
+> **now, not later**. Only then should the App continue to transform the original bullets (C4)."*
+
+Two things are wrong today. **The judgement arrives too late**: by the time the panels appear, the
+bullets have already been written and the CV rendered, and nothing can act on a change because
+Generate is hidden once a `tailored.docx` exists. And **the interaction is backwards**: on the Vestas
+lead the owner would have to click *Never* nineteen times to express a preference the algorithm should
+be proposing to him.
+
+### 2b.2 · The flow
+
+| Phase | Trigger | What happens | Cost |
+| --- | --- | --- | --- |
+| 1 · Map | C2 | Evidence lanes fill; owner Keeps or declines each row | as today |
+| 2 · **Select** | **Approve map** | **C3 runs alone.** Map shows a rank on every approved card and a solid outline on those that fit. Pin / Exclude re-solve on the spot | **free — pure code** |
+| 3 · Write | **Generate CV** | C4–C8 over the selected set. Map then freezes as the record | as today |
+
+**This is what makes the generate-once rule work.** Every human override now happens *before* anything
+is written, so nothing ever needs regenerating — which is why the hidden Generate button stops being
+a problem rather than needing a fix.
+
+### 2b.3 · Design decisions, all settled with the owner 2026-08-26
+
+- **Colour stays C2's language.** `EVIDENCE_TONE` (green / yellow / red / neutral) keeps meaning
+  approval and nothing else. The owner: *"there is a part of the colour-code which is meant to be used
+  on the C2 which is confusing"* — so selection gets its own visual language and does not borrow one.
+- **Selection reads as a solid outline** around the cards that made the cut.
+- **Every approved card carries a rank badge**, not only the selected ones. The owner asked for this
+  explicitly: the held-back evidence is ranked 15, 16, 17… so the near-misses are visible.
+- **A second, lighter line marks saturation.** The objective goes flat before the budget does — 8 of
+  Julius Baer's 14 were already past the point where anything added measurable value, so below that
+  point `gain` is exactly 0 and the ranks are a tie broken alphabetically by ref. The line says
+  *"below here nothing adds measurable value; the order is arbitrary"*. Without it the Map would imply
+  a precision the arithmetic does not have. (The alternative — hiding ranks past saturation — was
+  offered and declined.)
+- **Pin and Exclude re-solve immediately.** Free, so the outlines move as you click and you see what
+  your pin displaced.
+- **After Generate the Map freezes.** Ranks and outlines remain as the record; the controls disappear;
+  click-to-cross-highlight between evidence and requirements keeps working exactly as now. The owner:
+  *"it is clear to whoever sees the map what were the requirements, which evidences were found, their
+  corresponding ranks, and which ones were passed on to the CV."*
+
+### 2b.4 · Where the data comes from — no new columns
+
+`selectEvidence` already returns everything the Map needs: `selected[]` carries `ref`, `rank`, `gain`,
+`newlyCovered` and `position`; `dropped[]` carries `ref`, `gain` and a `reason` of `excluded` /
+`position cap` / `outranked`. All of it is already persisted in the C3 step's `pipeline_runs.output`.
+
+**So the Map should read the latest C3 step output rather than gaining new columns.** `shortlist_rank`
+keeps its current meaning exactly — the selected rank, null when not selected — because `C4`, `C5` and
+`scripts/verify-lead-run.ts` all key off `shortlist_rank != null` meaning "on the CV". Adding a second
+ranking column, or widening that one to cover dropped rows, would change a value three consumers
+already depend on, for a display concern.
+
+Ranks for held-back cards are `dropped[]` ordered by `gain` descending, numbered from `budget + 1`.
+
+### 2b.5 · Implementation checklist
+
+1. **Move C3 out of `generateCv`** into the approve-map action. It writes `shortlist_rank` and records
+   the C3 step exactly as it does today.
+2. **`generateCv` starts at C4** and requires a shortlist. If none exists — a lead approved before this
+   shipped — run C3 first rather than failing, so old leads keep working.
+3. **Re-running C3.** Changing a Keep decision after selection has run invalidates the shortlist. Decide
+   whether approving again re-runs C3 (simplest) or whether any Keep change marks it stale; either way
+   the shortlist must never be older than the Keep set it was computed from.
+4. **`MapEvidence` gains** `rank`, `gain`, `selected` and `pin`, fed from the latest C3 step output.
+5. **Map rendering**: solid outline for selected, rank badge on every approved card, the saturation
+   line, and the pin / exclude controls — shown only while a shortlist exists AND no CV has been
+   generated.
+6. **A server action that re-solves**: re-run `selectEvidence` with the new pin set, rewrite
+   `shortlist_rank`, re-record the C3 step. No model call.
+7. **Remove `Kept but not on this CV`** from the CV card; keep *Show sources on every line*, which is
+   the traceability proof and a different job.
+
+### 2b.6 · Acceptance
+
+- [ ] Approving the map produces a shortlist and **no LLM call** — compare `llm_calls` before/after.
+- [ ] Every approved evidence card in the Map carries a rank; the selected ones carry a solid outline.
+- [ ] The saturation line appears where `gain` first reaches 0, and is absent when nothing saturates.
+- [ ] Pinning re-solves, moves the outlines, and costs no model call. What it displaced is visible.
+- [ ] Expressing "leave these out" requires **no clicks at all** — the cut is proposed, not asked for.
+- [ ] Generate CV runs C4–C8 only, over the shortlisted set.
+- [ ] After generation the controls are gone, ranks and outlines remain, and clicking an evidence card
+      still lights the requirements it serves.
+- [ ] A lead approved before this shipped still generates.
 ## 3. Resources or references
 
 - `lib/pipeline/tailoring.ts` — `generateCv`'s green-row query; `matchStrengthToScore`;
@@ -321,3 +426,28 @@ live instance and stays unit-pinned only.
 **Left at `2 - Testing` on purpose.** The runs above were driven from a script calling the same
 `generateCv`, not from the app. Nobody has clicked Generate CV in the UI, and the pin / exclude
 controls on the Map have had no human pass at all.
+
+### 2026-08-26 · Rescoped — Part 2 opened, status back to `1 - Development`
+
+Part 1 was live-tested on lead `23074f44` and the owner rejected the **interaction**, not the
+arithmetic. The selection is right; it happens at the wrong moment and is shown in the wrong place.
+§2b carries the new scope: C3 becomes its own gate fired by **Approve map**, and the
+Requirement–Evidence Map — not two collapsed panels in the CV card — is where the human sees and
+adjusts it.
+
+Status moves back per the CI Procedure's rescoping rule. **Part 1's 7 hours do not count toward Part
+2**; `ci-time-spent` stays at 7 until Part 2 logs its own.
+
+**This defers the epic.** CI-048/050/051/052 were to close together on one click test; 050 now has
+open work, so the four cannot be promoted until §2b lands. Closing the epic on Part 1 and tracking
+§2b as a fifth note was the alternative; the owner chose to keep it here, in the CI that built the
+interface it replaces.
+
+Two things it settles that were open elsewhere:
+
+- **The hidden Generate button stops being a defect to fix.** Every human override now happens before
+  anything is written, so nothing ever needs regenerating. `Process/Development/Click Test - Tailoring
+  a Lead End to End.md` §D changes shape when §2b lands — the pin/exclude pass moves out of step 8
+  into its own phase between Approve map and Generate.
+- **"Click Never nineteen times" was the real complaint**, not that controls were missing. The
+  interaction asked the human to state what the algorithm should have been proposing to him.
