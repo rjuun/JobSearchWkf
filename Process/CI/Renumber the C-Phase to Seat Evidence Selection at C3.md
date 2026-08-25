@@ -295,3 +295,28 @@ renamed literals for C4 through C8 end to end and writes them to `pipeline_runs`
 literal never changed. The first genuine test arrives with [[C3 Selects the CV Evidence Set]].
 
 All four move to `3 - Delivered` together, in one pass, once that run is read.
+
+### 2026-08-25 · The click-test gap closed early, and the entry above was wrong about how
+
+The previous entry said [[STAR Results Never Reach the Evidence Graph]] "will *not* close" the one
+unverified item, because it exercises C2 and C2's literal never moved. That reasoning was wrong. Its
+acceptance §2.5 item 3 is a claim about a *bullet*, and a bullet needs C4 — so verifying it meant a
+full Generate CV, which duly ran on `ee5c72bf` at 2026-08-25T16:41–16:42.
+
+`pipeline_runs` for that lead now holds two generations side by side, and together they verify both
+halves at once:
+
+```
+2026-08-24T18:35–18:36   C4 C5 C6 C7 C8   ← written as C3–C7, rewritten by the migration
+2026-08-25T16:41–16:42   C4 C5 C6 C7 C8   ← written natively by a live run
+```
+
+The renamed literals have now fired for real, the migrated rows and the native rows agree, and the
+trace renders. **The item §2.5 could not verify is verified.**
+
+C7's rating on that lead was 78/100 both before and after — unchanged, as a pure renumber plus an
+evidence-graph addition should leave it.
+
+So the epic's remaining click test is no longer about this note at all: what is still unexercised is
+the *selection* step, which does not exist yet. This CI has nothing outstanding, and moves to
+`3 - Delivered` with the rest of the epic only because the owner chose to close the four together.
