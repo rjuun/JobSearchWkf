@@ -264,3 +264,34 @@ left as written.
   pipeline map that no run trace can ever show is a step the UI claims to run and doesn't. Both lists
   carry a comment saying the gap is deliberate. **[[C3 Selects the CV Evidence Set]] adds those three
   entries when it builds the step.**
+
+### 2026-08-25 · Epic framing — why this stays at `2 - Testing`
+
+The owner's decision, 2026-08-25: this note and its three successors —
+[[STAR Results Never Reach the Evidence Graph]], [[C3 Selects the CV Evidence Set]] and
+[[Skill Name Treatment in the C4 Skills Section]] — are **one epic, click-tested once when the last
+of them concludes**, not four separately. They change overlapping surfaces of the same phase, and
+clicking through after each would test the same paths three times over against a pipeline still in
+motion.
+
+**What that leaves unverified here, named rather than assumed.** Everything machine-checkable passed
+(§2.5), the migration ran against the live database, and the run traces were confirmed readable on
+all three leads. But **no C-phase step has actually executed since the renumber.** The renamed `step:`
+literals are written only when a run happens, so `recordStep(… step: 'C4' …)` and its C5–C8 siblings
+have never fired for real. The pipeline page rendering `TAILOR_STEPS` is likewise unviewed.
+
+The risk is small and bounded — they are string labels on trace rows, and `STEP_NOTE` resolution is
+separately proven for every key by `scripts/snapshot-step-prompts.ts`. But small is not verified, and
+the CI Procedure is explicit that green tests are not the same claim as "this works when a human
+actually clicks it".
+
+So the status stays `2 - Testing`, which is exactly what that value means: code landed and
+machine-verified, live verification pending. It is not a demerit — with all four notes sitting in the
+same group, the dashboard renders the epic as the block it is.
+
+**The click test that closes it** is a Generate CV on a real lead: that single run exercises the
+renamed literals for C4 through C8 end to end and writes them to `pipeline_runs`. Note that
+[[STAR Results Never Reach the Evidence Graph]] will *not* close it — that CI exercises C2, whose
+literal never changed. The first genuine test arrives with [[C3 Selects the CV Evidence Set]].
+
+All four move to `3 - Delivered` together, in one pass, once that run is read.
