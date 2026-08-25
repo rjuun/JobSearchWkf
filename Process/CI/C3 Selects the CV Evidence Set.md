@@ -31,8 +31,8 @@ pr-target: "[[C3. Select the CV Evidence Set]], [[C2. Map JD Requirements to Sup
 owner approves rows one at a time in the Map, and everything approved prints. Section sizes therefore
 track how much evidence was approved, not what a two-page CV can hold.
 
-Measured across three real leads, re-measured 2026-08-25 after [[STAR Results Never Reach the Evidence
-Graph]] landed — every generated CV overflows two pages:
+Measured across three real leads, re-measured 2026-08-25,
+after [[STAR Results Never Reach the Evidence Graph]] landed — every generated CV overflows two pages:
 
 | Lead | Green rows | Bullets | Requirement coverage | Skills printed |
 | --- | --- | --- | --- | --- |
