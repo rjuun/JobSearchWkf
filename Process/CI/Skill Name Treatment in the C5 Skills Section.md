@@ -7,7 +7,7 @@ ci-status: 2 - Testing
 ci-priority: high
 ci-date: 2026-08-23
 ci-estimated-time:
-ci-time-spent: 2
+ci-time-spent: 3
 pr-source: "[[C4 Skills Selection Produces Unreadable Overflow]]"
 pr-target: "[[C5. Build and Manage the Skills Section]]"
 ---
@@ -214,6 +214,46 @@ sparser. "Corporate Governance & Regulatory Compliance (EBA)" carries three matc
 - [[C4 Skills Selection Produces Unreadable Overflow]] §2.4 — where this was logged as out of scope.
 
 ## 4. Notes / Progress log
+
+### 2026-08-25 · Live acceptance, driven through the app
+
+Three Generate CV runs, **clicked in the UI** at `/roleproof/leads/<id>` rather than driven from a
+script — the epic's outstanding click test. All three completed clean, the .docx rendered from the
+real template each time, and the C5 step report now carries the merge count.
+
+| Lead | C5 was handed | printed | merged | ATS (baseline) |
+| --- | --- | --- | --- | --- |
+| ALDI `69bc2e13` | 23 | **21** · 5 categories | 5 | **88** (88) |
+| Julius Baer `ee5c72bf` | 35 | **28** · 5 + Additional | 12 | **84** (82) |
+| Aliaxis `a9f2307b` | 29 | **26** · 5 categories | 3 | **78** (82) |
+
+**The stakeholder family is gone on every lead.** Julius Baer's six entries print as one —
+*Senior Stakeholder Management (Board, Regulator, Multi-Entity & Six Countries)* — with every anchor
+carried into the merged name rather than spent. Aliaxis's four became
+*Senior Stakeholder Management (Board, Multi-Entity & Cross-Border)*; ALDI's two became
+*(Cross-Entity & Board-Level)*. **What resisted** is what should: distinct capabilities that share a
+word stayed apart (*Transfer Pricing* beside *Cost Allocation*, *Board-Level Strategic Advisory*
+beside the stakeholder entry). No invented name reached a CV, and no `Additional Skills` bucket
+appeared except Julius Baer's single unplaced entry.
+
+**Aliaxis's ATS moved 82 → 78 and it is not the skills section.** The same lead scored 78 on
+2026-08-24 and 82 earlier on 2026-08-25 with no code change between them, and the per-requirement
+deltas this run are ±2–10 spread across bullet-backed requirements, not skills. C8 is an Opus
+judgement over regenerated C4 bullets; this lead oscillates in a 78–82 band. Julius Baer moved the
+other way, 82 → 84. Worth watching over more runs, not worth chasing here.
+
+**The before/after counts in the table above are not the 26 / 31 / 30 in §2, and the difference is
+instructive.** Those were snapshots of an older C4 run. Re-running C4 rewrites the tags, and this
+time it wrote three per bullet where the snapshot had ~2.2 — Julius Baer arrived at C5 with 40
+distinct tags, not 31. **The stable comparison is within a run**, handed → printed, which is what the
+step report's `merged` count now records. A per-lead before/after across runs measures C4's variance
+as much as C5's merging.
+
+**One UI gap found and left alone:** once a lead has a `tailored.docx`, the workspace hides the
+Generate button entirely (`{!c.cvReady && …}` in `components/roleproof/workspace.tsx`), so there is
+no way to re-generate a CV from the app. These three runs needed the stored file moved aside first.
+That is a real hole in the click path — out of scope here, worth its own note.
+
 
 ### 2026-08-25 · Built. Consolidation is declared, and the declaration is reconciled
 
