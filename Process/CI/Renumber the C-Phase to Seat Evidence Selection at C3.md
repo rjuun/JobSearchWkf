@@ -6,14 +6,14 @@ ci-status: 2 - Testing
 ci-priority: high
 ci-date: 2026-08-24
 ci-estimated-time: 3
-ci-time-spent: 3
+ci-time-spent: 1
 pr-source: "[[C3 Writes CV-Grade Skill Tags]]"
 pr-target: "[[C4. Transform Evidence into CV Bullets]], [[C5. Build and Manage the Skills Section]], [[C6. Drafting CV Profile (Per Job Lead)]], [[C7. Compile Complete CV Document]], [[C8. Run Reviewed ATS Matching Rating]]"
 ---
 
 ---
 ```simple-time-tracker
-{"entries":[]}
+{"entries":[{"name":"CI-052 — C-phase renumber: baseline gate (surfaced the CRLF artifact), the five note renames + reference sweep, prompts/schemas/tailoring/UI/scripts/docs, the enum-recreating migration (dry-run then applied), §2.4 step-9 audit, commit and merge","startTime":"2026-08-24T23:12:00.000Z","endTime":"2026-08-25T00:16:00.000Z"}]}
 ```
 ---
 
