@@ -3,11 +3,11 @@ ci-area: CV Tailoring
 ci-roadmap:
 ci-title: Skill Name Treatment in the C5 Skills Section (Consolidation)
 pr-previous-code: C4
-ci-status: 0 - Idea
+ci-status: 2 - Testing
 ci-priority: high
 ci-date: 2026-08-23
 ci-estimated-time:
-ci-time-spent: 0
+ci-time-spent: 2
 pr-source: "[[C4 Skills Selection Produces Unreadable Overflow]]"
 pr-target: "[[C5. Build and Manage the Skills Section]]"
 ---
@@ -214,6 +214,78 @@ sparser. "Corporate Governance & Regulatory Compliance (EBA)" carries three matc
 - [[C4 Skills Selection Produces Unreadable Overflow]] §2.4 — where this was logged as out of scope.
 
 ## 4. Notes / Progress log
+
+### 2026-08-25 · Built. Consolidation is declared, and the declaration is reconciled
+
+**What shipped, in the order the section is now built.**
+
+1. **A containment strike before the grouping call** — `absorbContainedSkills` (`lib/pipeline/skills.ts`),
+   run between the language strike and the model. A selected skill that another selected skill contains
+   whole is struck, and the wider name survives. This is ALDI's *Global Process Ownership & Governance*
+   beside plain *Global Process Ownership*, and it needed no judgement at all. §2 assumed
+   `subsumedSkills` already covered that pair; **it did not, and this is the note's one real error** —
+   the guard only ever consumed atoms into a name the model COINED, and a compound that is itself in
+   `selected` takes the verbatim path, where nothing was absorbing anything. Measured live: it strikes
+   exactly one entry on ALDI, one on Julius Baer, none on Aliaxis. Small, but it was the case the note
+   said was already handled.
+2. **A declared merge** — `mergedFrom` on `emit_skill_groups` (`C5.tool`), reconciled by
+   `declaredMerges` and consumed in `reconcileSkillGroups`. Exactly the seam §2 predicted: the model
+   names the skills each entry replaces, and every declared source is checked back against `selected`.
+3. **C5's prompt now asks for it** (§B.5 of the step note, new). That was the first job and the note was
+   right that the guard was waiting rather than missing.
+
+**The three filters on a declaration**, each dropping one source rather than the whole entry:
+
+- **real** — the source is a selected skill, in any spelling; anything else is dropped as an invented
+  name is;
+- **coverage** — the merged name shares an identifying word with the source (`uncoveredSkills`), so a
+  capability cannot vanish into a name with nothing of it left;
+- **width** — the merged name is not contained *within* the source it absorbs.
+
+A **coined** name additionally needs two surviving sources. One source is a rename, not a merge, and
+renaming is C4's business — the register was decided upstream. That rule is what keeps a declaration
+from becoming a free rewriting channel, which is the risk §2.4 flagged and did not name.
+
+**The qualifier judgement, stated rather than left to fall out** (the handover asked for this). The
+width filter *is* the answer: a merged entry must stay wider than every part it replaces, so
+*(Multi-Country)* may absorb *(Multi-Entity)* — each holds a word the other lacks — but bare
+*Senior Stakeholder Management* may absorb neither, because it sits inside both. **Which anchor
+survives is the model's call; surviving with none of them is refused in code.** In the live runs the
+model kept them all: Julius Baer's six-strong family collapsed to
+*Senior Stakeholder Management (Board, Regulator & Multi-Country/Entity)*.
+
+**Measured, C5 call only (Sonnet, no writes, three probe runs):**
+
+| Lead | before | handed to model | printed |
+| --- | --- | --- | --- |
+| ALDI `69bc2e13` | 26 | 25 | **22** |
+| Julius Baer `ee5c72bf` | 31 | 30 | **23** |
+| Aliaxis `a9f2307b` | 30 | 30 | **26** |
+
+Down, and down on the right families — but **not to 16–20**. Aliaxis is the honest case: it merged its
+stakeholder family and its two regulatory-delivery entries and stopped, because what is left there
+really is 26 different capabilities spread across 46 Keep rows. Reaching 20 on that lead means either
+merging things that are not duplicates or shedding real capabilities, and the note is explicit that
+shedding is the failure this CI exists to avoid. If 16–20 is to be met on every lead, the lever is
+upstream — fewer bullets or fewer tags per bullet — not here.
+
+**Deliberately left alone.**
+
+- **`SKILLS_ENVELOPE` stays 40.** It binds on none of the three leads, and lowering it would shed.
+- **The per-category size is still not enforced in code.** The §2 scope note wanted it here; the
+  re-measured admonition supersedes it, and the same objection applies — a per-category cap either
+  drops skills or reshuffles them into a bucket that means nothing. §B.1's 4–8 is asked for in the
+  prompt and was respected on all three leads (largest category: 8).
+- **CV template and page counts**, per the owner's standing instruction of 2026-08-24.
+
+**Also fixed in passing:** the `// ── C6 · Tailored CV profile ─` header in `lib/llm/schemas.ts` had been
+stranded above the C5 block by the renumber; it now sits above `C6`.
+
+**Verification.** `npm run typecheck` clean. `npm test` 327 passing, 13 new (the 3 `capture-enrich`
+failures are the missing untracked `.storage/jd-captures` fixtures in a linked worktree, not a
+regression — they pass in the main tree). `scripts/snapshot-step-prompts.ts`: C5's hash moved
+`c729e5d5` → `58d2db2c`, every other hash unchanged, baseline refreshed in the same commit.
+
 
 ### 2026-08-24 · Re-scoped to consolidation only
 

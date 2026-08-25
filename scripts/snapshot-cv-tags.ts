@@ -20,7 +20,7 @@
 import './_env';
 import { db } from '../lib/db';
 import { requirementTailoring, jobRequirements, jobLeads, languages } from '../lib/db/schema';
-import { prioritiseSkills, dropLanguageSkills, SKILLS_ENVELOPE } from '../lib/pipeline/skills';
+import { prioritiseSkills, dropLanguageSkills, absorbContainedSkills, SKILLS_ENVELOPE } from '../lib/pipeline/skills';
 import { eq } from 'drizzle-orm';
 
 const list = (v: readonly string[] | null | undefined): string => (v?.length ? v.join(' · ') : '—');
@@ -59,11 +59,19 @@ async function snapshot(leadId: string) {
     ),
     langRows.map((l) => l.language ?? '')
   ).slice(0, SKILLS_ENVELOPE);
+  // The containment strike runs before the grouping call, so the probe shows the
+  // set the model is actually handed. The merges it declares on top of this are a
+  // model judgement and are not reproduced here, for the same reason the
+  // categorisation is not.
+  const consolidated = absorbContainedSkills(selected);
 
   console.log(`\n${'-'.repeat(100)}`);
-  console.log(`WHAT C5 WOULD PRINT — ${selected.length} entries, before categorisation`);
+  console.log(
+    `WHAT C5 WOULD PRINT — ${consolidated.length} entries, before categorisation` +
+      (consolidated.length < selected.length ? ` (${selected.length - consolidated.length} absorbed by containment)` : '')
+  );
   console.log('-'.repeat(100));
-  selected.forEach((s, i) => console.log(`  ${String(i + 1).padStart(2)}. ${s}`));
+  consolidated.forEach((s, i) => console.log(`  ${String(i + 1).padStart(2)}. ${s}`));
 }
 
 async function main() {

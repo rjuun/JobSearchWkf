@@ -13,6 +13,8 @@ import {
   ungroupedSkills,
   dropLanguageSkills,
   auditBulletTags,
+  declaredMerges,
+  absorbContainedSkills,
   SKILLS_ENVELOPE,
   type VocabEntry,
 } from '../pipeline/skills';
@@ -324,5 +326,134 @@ describe('C5 §B.1 · reconcileSkillGroups accepts a supported compound (§2.4)'
       { category: 'G', skills: ['Audit and Compliance Coordination'] },
     ]);
     expect(out).toEqual([{ category: 'G', items: ['Audit & Compliance Coordination'] }]);
+  });
+});
+
+describe('C5 · consolidation, where the merge is DECLARED rather than spelled out', () => {
+  // The live shape, measured on Julius Baer 2026-08-25: one capability arriving
+  // six times because C4 wrote a tag per bullet and each bullet earned its own
+  // anchor. Nothing here contains anything else, so containment alone leaves all
+  // six printing side by side.
+  const FAMILY = [
+    'Senior Stakeholder Negotiation',
+    'Senior Stakeholder Coordination',
+    'Senior Stakeholder Management (Multi-Entity)',
+    'Senior Stakeholder Management (Multi-Country)',
+    'Senior Stakeholder Management (Board & Regulator)',
+    'Corporate Governance & Regulatory Compliance (EBA)',
+  ];
+
+  it('collapses a declared family into one entry and consumes every part', () => {
+    const out = reconcileSkillGroups(FAMILY, [
+      {
+        category: 'Stakeholder & Board Leadership',
+        skills: [
+          {
+            name: 'Senior Stakeholder Management (Board, Regulator & Multi-Country)',
+            mergedFrom: FAMILY.slice(0, 5),
+          },
+        ],
+      },
+      { category: 'Governance', skills: ['Corporate Governance & Regulatory Compliance (EBA)'] },
+    ]);
+    expect(out).toEqual([
+      { category: 'Stakeholder & Board Leadership', items: ['Senior Stakeholder Management (Board, Regulator & Multi-Country)'] },
+      { category: 'Governance', items: ['Corporate Governance & Regulatory Compliance (EBA)'] },
+    ]);
+    // No Additional Skills bucket: a declared part is consumed, not left over.
+    expect(out.some((g) => g.category === 'Additional Skills')).toBe(false);
+  });
+
+  it('lets one of the selected names be the survivor, without coining anything', () => {
+    const out = reconcileSkillGroups(FAMILY.slice(0, 3), [
+      {
+        category: 'Stakeholder',
+        skills: [{ name: 'Senior Stakeholder Management (Multi-Entity)', mergedFrom: FAMILY.slice(0, 2) }],
+      },
+    ]);
+    expect(out).toEqual([{ category: 'Stakeholder', items: ['Senior Stakeholder Management (Multi-Entity)'] }]);
+  });
+
+  it('refuses a merge that drops every qualifier — that is atomisation, declared', () => {
+    // The register CI added those parentheticals on purpose. A merge may choose
+    // which anchor survives; it may not choose that none does.
+    const out = reconcileSkillGroups(FAMILY.slice(2, 5), [
+      { category: 'Stakeholder', skills: [{ name: 'Senior Stakeholder Management', mergedFrom: FAMILY.slice(2, 5) }] },
+    ]);
+    expect(out).toEqual([{ category: 'Additional Skills', items: FAMILY.slice(2, 5) }]);
+  });
+
+  it('drops a declared source the merged name has nothing left of', () => {
+    const out = reconcileSkillGroups(['Cost Allocation', 'Cost Optimization', 'Corporate Governance'], [
+      {
+        category: 'Cost',
+        skills: [{ name: 'Cost Allocation & Optimization', mergedFrom: ['Cost Optimization', 'Corporate Governance'] }],
+      },
+    ]);
+    expect(out[0].items).toEqual(['Cost Allocation & Optimization']);
+    // Governance is not carried by that name, so it is still owed a home.
+    expect(out.at(-1)).toEqual({ category: 'Additional Skills', items: ['Corporate Governance'] });
+  });
+
+  it('ignores a declared source that is not a selected skill at all', () => {
+    const out = reconcileSkillGroups(['Cost Allocation', 'Cost Optimization'], [
+      {
+        category: 'Cost',
+        skills: [{ name: 'Cost Allocation & Optimization', mergedFrom: ['Cost Optimization', 'Nuclear Cost Engineering'] }],
+      },
+    ]);
+    expect(JSON.stringify(out)).not.toContain('Nuclear');
+    expect(out.flatMap((g) => g.items)).toEqual(['Cost Allocation & Optimization']);
+  });
+
+  it('treats a single declared source as a rename, and refuses to print it', () => {
+    // C5 consolidates; the register was decided upstream at C4. A coined name
+    // standing in for exactly one skill is the rewording the identity guard
+    // always caught, and a declaration does not buy it a pass.
+    const out = reconcileSkillGroups(['Board-Level Advisory'], [
+      { category: 'Advisory', skills: [{ name: 'Executive Partnering', mergedFrom: ['Board-Level Advisory'] }] },
+    ]);
+    expect(out).toEqual([{ category: 'Additional Skills', items: ['Board-Level Advisory'] }]);
+  });
+
+  it('still prints a plain string entry, which declares nothing', () => {
+    const out = reconcileSkillGroups(['Cost Allocation'], [{ category: 'Cost', skills: ['Cost Allocation'] }]);
+    expect(out).toEqual([{ category: 'Cost', items: ['Cost Allocation'] }]);
+  });
+
+  it('never merges an entry into itself', () => {
+    expect(declaredMerges('Cost Allocation', ['cost  ALLOCATION'], ['Cost Allocation'])).toEqual([]);
+  });
+
+});
+
+describe('C5 · the containment strike, which needs no declaration', () => {
+  it('strikes a skill another selected skill contains whole, keeping the wider one', () => {
+    // ALDI, live 2026-08-25: both of these printed.
+    expect(
+      absorbContainedSkills(['Global Process Ownership & Governance', 'Global Process Ownership'])
+    ).toEqual(['Global Process Ownership & Governance']);
+  });
+
+  it('strikes it whichever order the two arrive in', () => {
+    expect(
+      absorbContainedSkills(['Global Process Ownership', 'Global Process Ownership & Governance'])
+    ).toEqual(['Global Process Ownership & Governance']);
+  });
+
+  it('leaves siblings that merely share words — that is a meaning call, not a spelling one', () => {
+    const family = ['Senior Stakeholder Management (Multi-Entity)', 'Senior Stakeholder Management (Multi-Country)'];
+    expect(absorbContainedSkills(family)).toEqual(family);
+  });
+
+  it('keeps the first of two names built from the same words', () => {
+    expect(absorbContainedSkills(['Cost Allocation & Optimization', 'Optimization and Cost Allocation'])).toEqual([
+      'Cost Allocation & Optimization',
+    ]);
+  });
+
+  it('is a no-op on a set with nothing to absorb', () => {
+    const set = ['Corporate Governance', 'Change Management', 'Executive Support'];
+    expect(absorbContainedSkills(set)).toEqual(set);
   });
 });
