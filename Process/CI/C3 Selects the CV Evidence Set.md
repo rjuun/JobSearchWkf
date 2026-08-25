@@ -6,7 +6,7 @@ ci-status: 2 - Testing
 ci-priority: high
 ci-date: 2026-08-24
 ci-estimated-time: 7
-ci-time-spent: 6
+ci-time-spent: 7
 pr-source: "[[C3 Writes CV-Grade Skill Tags]]"
 pr-target: "[[C3. Select the CV Evidence Set]], [[C2. Map JD Requirements to Supporting Evidence]]"
 ---
@@ -283,4 +283,41 @@ last *live* C4 run actually wrote predicts skills of **27→17, 48→27, 43→27
 degree entries §2.4 named disappear from `ee5c72bf`'s Skills section**, at source, with no downstream
 filter.
 
-Still open: the live Generate CV that §2.8's ATS baselines need, and with it the epic's click test.
+### 2026-08-25 · Live run, all three leads
+
+| Lead | Bullets | Skills printed | Coverage as printed | ATS |
+| --- | --- | --- | --- | --- |
+| `69bc2e13` ALDI | 23 → **13** | 27 → **26** | Core 8/8 · Imp 1/1 | **88** (was 88) |
+| `ee5c72bf` Julius Baer | 35 → **14** | 40 capped → **31** | Core 13/13 · Imp 5/5 · NtH 0/2 | **82** (was 78) |
+| `a9f2307b` Aliaxis | 27 → **14** | 40 capped → **30** | Core 11/11 · Imp 3/3 · NtH 0/1 | **82** (no baseline) |
+
+Every lead rendered through the real Word template. `ee5c72bf`'s four pending rows were left pending.
+
+**§2.8, box by box.** 13–16 bullets ✓ (13/14/14). Core and Important at 100% ✓ *as printed* — see
+correction 2 above for why that qualifier is load-bearing. Nice-to-Have above zero ✗ — **structurally
+impossible, see correction 1**; it is a C2 recall gap and no budget can close it. No degree or language
+in the Skills section ✓ — all three of `ee5c72bf`'s degree entries are gone, at source. Skills to
+roughly 25–30 ✓ at 26/31/30, with the caveat below. ATS does not regress ✓ — ALDI held exactly at
+88/100 and Julius Baer *rose* from 78 to 82. Reproducible ✓ — the dry run, the mock end-to-end run and
+the live run independently produced byte-identical selected sets on all three leads.
+
+**The skills prediction was wrong, and in an instructive direction.** Applying C3's shortlist to the
+previous run's tags predicted 27→17 / 48→27 / 43→27. Live it came out 26 / 31 / 30. C4 rewrote its tags
+against a shorter list and wrote *more distinct* tags per bullet, so the count fell much less than
+selection alone implies. `ee5c72bf`'s 31 still carries five near-duplicate *Senior Stakeholder …*
+variants and two *Board-Level … Advisory* ones — that is
+[[Skill Name Treatment in the C4 Skills Section]]'s to close, exactly as §2.8 says, and this note does
+not claim it.
+
+**The STAR-result path, which the previous CI left unproven, is now proven live.** `4-R3` is the only
+STAR result in any of the three Keep sets and C3 selected it at rank 9 — earned, since its
+`impact` of 1.0 is one of the few things still discriminating past saturation. Its bullet reads
+*"Renegotiated the intercompany IT services agreement … cutting annual IT cost payments by nearly 50%
+from GBP 2.4 million — a saving of roughly GBP 1.2 million."* Action first, outcome after, and the
+GBP 1.2 million figure exists nowhere in the row's prose: it comes from the `metric` column that
+[[STAR Results Never Reach the Evidence Graph]] composed in. The genuinely actor-less case still has no
+live instance and stays unit-pinned only.
+
+**Left at `2 - Testing` on purpose.** The runs above were driven from a script calling the same
+`generateCv`, not from the app. Nobody has clicked Generate CV in the UI, and the pin / exclude
+controls on the Map have had no human pass at all.
