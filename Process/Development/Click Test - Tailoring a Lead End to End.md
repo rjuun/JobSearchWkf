@@ -22,6 +22,12 @@ for exactly that reason, and they move to `3 - Delivered` together once this is 
 
 ---
 
+> [!NOTE] How to use this document
+> Keep it open beside RoleProof and work down the tables while you drive the app normally. Words in
+> **bold** in the "Do" column are the labels on buttons **in the app**, not links here — nothing in
+> this document is clickable. The "Watch for" column is the real content: it is what a person can
+> catch and a script cannot.
+
 ## A. Before you start
 
 1. **Restart the dev server.** `Process/*.md` notes are the live prompts and are cached per process.
