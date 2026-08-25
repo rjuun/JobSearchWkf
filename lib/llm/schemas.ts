@@ -602,7 +602,6 @@ export const C4 = {
   } satisfies ToolDef,
 };
 
-// ── C6 · Tailored CV profile ─────────────────────────────────────────────────
 // ── C5 · Group the selected skills into the CV's Skills categories ──────────
 // C5 §B.1: 3-5 logical categories reflecting "the main capability areas relevant
 // to the Job Lead", 4-8 skills each, most Core-aligned first. This is the one
@@ -611,17 +610,38 @@ export const C4 = {
 // from a list of strings. Selection and prioritisation stay in code either side
 // of it, and the write path re-checks every name the model returns — see
 // `reconcileSkillGroups` in lib/pipeline/skills.ts.
+//
+// CI · Skill Name Treatment in the C5 Skills Section added the second judgement:
+// CONSOLIDATION. C4 writes one tag per bullet and never sees the assembled set,
+// so a capability that several bullets earn arrives several times, separated only
+// by its qualifier — six spellings of senior stakeholder work on one lead. Only
+// this call sees them together, so only this call can say they are one entry.
+// It says so by DECLARING it (`mergedFrom`) rather than by quietly printing a new
+// name: the declaration is what `reconcileSkillGroups` reconciles against the
+// selected set, and it is what keeps "merge" distinguishable from "invent".
 export const C5 = {
   zod: z.object({
     groups: z
-      .array(z.object({ category: z.string(), skills: z.array(z.string()).default([]) }))
+      .array(
+        z.object({
+          category: z.string(),
+          skills: z
+            .array(
+              z.union([
+                z.string(),
+                z.object({ name: z.string(), mergedFrom: z.array(z.string()).nullable().default([]) }),
+              ])
+            )
+            .default([]),
+        })
+      )
       .default([]),
   }),
   tool: {
     name: 'emit_skill_groups',
     strict: true,
     description:
-      'Group the supplied skills into 3-5 logical categories for the CV Skills section, most relevant to this role first. Category names are short capability areas in the candidate\'s professional register (e.g. "Governance, Risk & Compliance", "Transformation & Process Excellence"), never the requirement ranks and never a generic label like "Other". Place EVERY supplied skill in exactly one category, copied VERBATIM — never reword, merge, split or invent a skill. Aim for 4-8 skills per category.',
+      'Group the supplied skills into 3-5 logical categories for the CV Skills section, most relevant to this role first, CONSOLIDATING near-duplicates as you go. Category names are short capability areas in the candidate\'s professional register (e.g. "Governance, Risk & Compliance", "Transformation & Process Excellence"), never the requirement ranks and never a generic label like "Other". Aim for 4-8 skills per category and 16-20 entries in total. Every supplied skill must be accounted for exactly once: either placed in a category copied VERBATIM, or named in the `mergedFrom` of the one entry that replaces it. Merge only skills that are genuinely the same capability, and never reword, split or invent a skill for any other reason.',
     input_schema: {
       type: 'object', additionalProperties: false,
       properties: {
@@ -631,8 +651,24 @@ export const C5 = {
             category: { type: 'string', description: 'Short capability-area heading, 2-5 words. Title Case.' },
             skills: {
               type: 'array',
-              items: { type: 'string' },
-              description: 'The supplied skills belonging to this category, copied exactly as given.',
+              items: {
+                type: 'object', additionalProperties: false,
+                properties: {
+                  name: {
+                    type: 'string',
+                    description:
+                      'What prints. Either one supplied skill copied exactly, or — when this entry merges several — a name that covers all of them: keep the qualifier that still holds (e.g. "Senior Stakeholder Management (Board & Multi-Country)"). A merged name must be WIDER than every skill it replaces; dropping every parenthetical to reach a bare capability is rejected.',
+                  },
+                  mergedFrom: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description:
+                      'The other supplied skills this entry replaces, copied exactly as given. Empty when the entry is a single skill printed as supplied. Use this — never a silently reworded name — whenever two or more supplied skills are one capability under different qualifiers.',
+                  },
+                },
+                required: ['name', 'mergedFrom'],
+              },
+              description: 'The entries printed under this category, in order.',
             },
           },
           required: ['category', 'skills'],
@@ -643,6 +679,7 @@ export const C5 = {
   } satisfies ToolDef,
 };
 
+// ── C6 · Tailored CV profile ─────────────────────────────────────────────────
 export const C6 = {
   zod: z.object({ profile: z.string() }),
   tool: {

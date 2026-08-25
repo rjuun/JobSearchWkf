@@ -48,6 +48,7 @@ import {
   prioritiseSkills,
   dropLanguageSkills,
   SKILLS_ENVELOPE,
+  absorbContainedSkills,
   reconcileSkillGroups,
   ungroupedSkills,
   auditBulletTags,
@@ -1403,7 +1404,7 @@ export async function generateCv(
     // occupy a slot that a real skill would otherwise have won. C5 §B.4 — the
     // CV's Languages section already states these, from `languages` itself.
     const langRows = await db.select().from(languages).where(eq(languages.ownerId, effectiveOwnerId));
-    const skillNames = dropLanguageSkills(
+    const prioritised = dropLanguageSkills(
       prioritiseSkills(
         selected.map((g) => ({
           rank: (g.requirementId && rankByReqId.get(g.requirementId)) ?? null,
@@ -1413,6 +1414,11 @@ export async function generateCv(
       ),
       langRows.map((l) => l.language ?? '')
     ).slice(0, SKILLS_ENVELOPE);
+    // Consolidation, deterministic half first: a name another name already
+    // contains whole is struck before the grouping call ever sees it, so the
+    // model spends its judgement on the duplicates that are a question of
+    // meaning rather than of spelling.
+    const skillNames = absorbContainedSkills(prioritised);
 
     let model = 'code';
     let ms = 0;
@@ -1426,14 +1432,21 @@ export async function generateCv(
         user:
           `ROLE: ${lead.title}${lead.jdGroupPrimary ? ` · ${lead.jdGroupPrimary}` : ''}\n\n` +
           `Group these ${skillNames.length} skills into 3–5 logical categories for the CV Skills section, ` +
-          `most relevant to this role first. Copy each skill exactly; place every one of them.\n\n` +
+          `most relevant to this role first.\n\n` +
+          `These skills were written one bullet at a time, so the same capability arrives more than once ` +
+          `under different qualifiers. Consolidate those: print ONE entry and name every skill it replaces ` +
+          `in its \`mergedFrom\`. Merge only what is genuinely one capability — two capabilities that ` +
+          `share a word are not duplicates. A merged entry must stay WIDER than every skill it replaces, so ` +
+          `keep the qualifier that still holds instead of collapsing to a bare capability. ` +
+          `Every skill below must be either placed VERBATIM or named in exactly one \`mergedFrom\`; ` +
+          `aim for ${Math.min(20, skillNames.length)} entries in total.\n\n` +
           skillNames.map((s) => `- ${s}`).join('\n'),
         tool: C5.tool,
         zod: C5.zod,
         // The mock is not a stand-in for the judgement — inventing plausible
         // category names offline would make mock runs look like live ones. It
         // returns the honest ungrouped shape instead.
-        mock: () => ({ groups: [{ category: 'Core Competencies', skills: skillNames }] }),
+        mock: () => ({ groups: [{ category: 'Core Competencies', skills: skillNames.map((name) => ({ name, mergedFrom: [] })) }] }),
         leadId,
         ownerId: effectiveOwnerId,
       });
@@ -1447,6 +1460,13 @@ export async function generateCv(
 
     const count = skillsModel.reduce((n, s) => n + s.items.length, 0);
     const unplaced = skillsModel.find((g) => g.category === 'Additional Skills')?.items.length ?? 0;
+    // What consolidation actually did, in the one number that shows it: every
+    // selected skill either prints or was absorbed by an entry that declared it,
+    // so the shortfall IS the merge count. Worth a place in the step report
+    // because merging is the judgement this step now makes — a run that merges
+    // nothing has printed the near-duplicates, and a run that merges half the
+    // set is one to read before trusting.
+    const absorbed = Math.max(0, prioritised.length - count);
     reports.push(
       await recordStep(
         leadId,
@@ -1454,8 +1474,8 @@ export async function generateCv(
           step: 'C5',
           label: 'Skills section',
           model,
-          summary: `${count} skills · ${skillsModel.length} categor${skillsModel.length === 1 ? 'y' : 'ies'}${unplaced ? ` · ${unplaced} unplaced` : ''}`,
-          output: { categories: skillsModel.map((g) => ({ category: g.category, n: g.items.length })), skills: count, unplaced },
+          summary: `${count} skills · ${skillsModel.length} categor${skillsModel.length === 1 ? 'y' : 'ies'}${absorbed ? ` · ${absorbed} merged` : ''}${unplaced ? ` · ${unplaced} unplaced` : ''}`,
+          output: { categories: skillsModel.map((g) => ({ category: g.category, n: g.items.length })), skills: count, merged: absorbed, unplaced },
           ms: ms || Date.now() - t,
         },
         effectiveOwnerId

@@ -182,7 +182,52 @@ export function dropLanguageSkills(selected: readonly string[], languageNames: r
   return selected.filter((skill) => !patterns.some((re) => re.test(skill)));
 }
 
+/**
+ * The half of consolidation that needs no judgement at all: a selected skill
+ * that another selected skill already CONTAINS whole.
+ *
+ * ALDI, live 2026-08-25: `Global Process Ownership & Governance` printed beside
+ * plain `Global Process Ownership`. Nothing about that pair is a question of
+ * meaning — the wider name states everything the narrower one does and one word
+ * more, so printing both states the same claim twice and spends two entries on
+ * it. `reconcileSkillGroups` already consumed an atom into a compound the model
+ * COINED; it could not consume one into a compound that was already in the
+ * selected set, because that name takes the verbatim path. Running the same
+ * containment over the set BEFORE the grouping call closes that gap, and does it
+ * without asking anyone: the survivor is by construction the wider name, so no
+ * qualifier the bullets earned is ever lost.
+ *
+ * Two names with the same words in a different order contain each other; the
+ * first keeps the slot, so the result is stable across re-runs.
+ */
+export function absorbContainedSkills(selected: readonly string[]): string[] {
+  return selected.filter((atom, i) =>
+    !selected.some((other, j) => {
+      if (j === i || subsumedSkills(other, [atom]).length === 0) return false;
+      // Mutual containment is a tie, not an absorption — keep the earlier name.
+      return subsumedSkills(atom, [other]).length === 0 || j < i;
+    })
+  );
+}
+
 export type SkillGroup = { category: string; items: string[] };
+
+/**
+ * One entry the grouping step proposes: the name it wants to print, and the
+ * selected skills it says that name replaces.
+ *
+ * The bare-string form is what `emit_skill_groups` returned before consolidation
+ * shipped, and what the deterministic paths still pass — a skill that merges
+ * nothing declares nothing. Both forms reconcile identically; a string is simply
+ * an entry with an empty declaration.
+ */
+export type ProposedSkill = string | { name: string; mergedFrom?: readonly string[] | null };
+export type ProposedGroup = { category: string; skills: readonly ProposedSkill[] };
+
+const asProposedSkill = (s: ProposedSkill): { name: string; mergedFrom: readonly string[] } =>
+  typeof s === 'string'
+    ? { name: (s ?? '').trim(), mergedFrom: [] }
+    : { name: (s?.name ?? '').trim(), mergedFrom: s?.mergedFrom ?? [] };
 
 /** C5 §B.1: "Group skills into 3–5 high-level categories." */
 const MAX_CATEGORIES = 5;
@@ -201,8 +246,10 @@ const LEFTOVER_CATEGORY = 'Additional Skills';
  * end. So every returned name is checked back against the prioritised set:
  *
  *  - a name in `selected` prints in `selected`'s spelling, never the model's
- *  - a name NOT in `selected` prints only if it contains selected skills whole
- *    (`subsumedSkills`), and then consumes them — see below
+ *  - a name NOT in `selected` prints only if it carries selected skills — by
+ *    containing them whole (`subsumedSkills`) or by declaring the ones it merges
+ *    (`declaredMerges`) — and then consumes them, so a merge never prints beside
+ *    its own parts
  *  - a name claimed twice keeps its first placement
  *  - a name no category claimed is appended under `Additional Skills` rather
  *    than silently vanishing — losing a skill is worse than an ugly heading
@@ -212,25 +259,44 @@ const LEFTOVER_CATEGORY = 'Additional Skills';
  * content is decided in code, before it is asked.
  *
  * CI · C3 Writes CV-Grade Skill Tags §2.4 relaxed the second rule from IDENTITY
- * to support-plus-coverage. Identity is what stopped the 67-skill problem, and
- * it is also what would reject a merged name — the whole point of the
- * consolidation half of this work ([[Skill Name Treatment in the C4 Skills
- * Section]]), which is sequenced next and reuses this. The containment survives
- * intact: a coined name must still CONTAIN selected skills, so it can only ever
- * carry forward claims the bullets already declared, and each is consumed so a
- * merge cannot print alongside its own parts as a near-duplicate. A name that
- * contains nothing is dropped exactly as before.
+ * to support-plus-coverage: a coined name must CONTAIN selected skills, so it
+ * can only carry forward claims the bullets already declared, and each is
+ * consumed so a merge cannot print alongside its own parts.
  *
- * The seam that CI will meet: a merge only consumes the atoms it literally
- * contains, so "Transfer Pricing & Cost Optimization" consumes
- * "Cost Optimization" and leaves "Cost Allocation" for `Additional Skills`.
- * Consuming a sibling it does NOT contain is a claim about meaning, not
- * spelling, and cannot be decided here — it needs the grouping call to say which
- * skills it merged.
+ * CI · Skill Name Treatment in the C5 Skills Section adds the third rule, and it
+ * is the one this whole step exists for. Containment is spelling; consolidation
+ * is meaning. Nothing in "Senior Stakeholder Management (Multi-Entity)"
+ * literally contains "Senior Stakeholder Negotiation", yet a CV that prints both
+ * has printed one capability twice — which is what the leads did, six ways over,
+ * measured 2026-08-25. So the grouping call now DECLARES what each entry merged
+ * (`mergedFrom` on `emit_skill_groups`), and the declaration is reconciled here
+ * rather than believed:
+ *
+ *  - a declared source must be a real selected skill — anything else is dropped
+ *    exactly as an invented name is
+ *  - **coverage**: the merged name must recognise the source, sharing at least
+ *    one identifying word with it (`uncoveredSkills`). A source that vanishes
+ *    into a name with nothing of it left is not merged, it is deleted.
+ *  - **width**: the merged name must not be contained WITHIN the source it
+ *    absorbs. This is the qualifier rule. "Senior Stakeholder Management
+ *    (Multi-Country)" may absorb "(Multi-Entity)" — each carries a word the
+ *    other lacks, so the entry that prints is genuinely wider than the part it
+ *    replaces. Bare "Senior Stakeholder Management" may absorb neither: it sits
+ *    inside both, and merging by deleting every qualifier is atomisation with a
+ *    declaration attached. Whether a merge keeps one anchor or both is the
+ *    model's judgement; keeping none is refused in code.
+ *  - a COINED name (not one of the selected skills) needs two surviving declared
+ *    sources before its declaration counts. One source is a rename, not a merge,
+ *    and renaming is C4's business — the register was decided upstream.
+ *
+ * Everything a declaration cannot justify still has to be contained, and a name
+ * that neither contains nor validly declares anything is dropped as before.
+ * That is what keeps the 67-skill containment: the model chooses the
+ * ARRANGEMENT and, now, which claims collapse into which — never the claims.
  */
 export function reconcileSkillGroups(
   selected: readonly string[],
-  proposed: readonly { category: string; skills: readonly string[] }[]
+  proposed: readonly ProposedGroup[]
 ): SkillGroup[] {
   const canonical = new Map<string, string>();
   for (const name of selected) {
@@ -245,25 +311,38 @@ export function reconcileSkillGroups(
     if (!heading) continue;
     const items: string[] = [];
     for (const raw of group.skills ?? []) {
-      const key = norm(raw ?? '');
-      const name = canonical.get(key);
-      if (name) {
+      const { name, mergedFrom } = asProposedSkill(raw);
+      if (!name) continue;
+      const key = norm(name);
+      const declared = declaredMerges(name, mergedFrom, selected);
+
+      const own = canonical.get(key);
+      if (own) {
+        // One of the selected names, printed in `selected`'s spelling. It may
+        // still be the survivor of a family — the merge that coins nothing.
         if (placed.has(key)) continue;
         placed.add(key);
-        items.push(name);
+        for (const s of declared) placed.add(norm(s));
+        items.push(own);
         continue;
       }
-      // Not one of the selected names. §2.4: it may still print, but only as a
-      // compound that carries selected skills whole — and only those not already
-      // printed on their own, or the CV would show the merge beside its parts.
-      const merged = subsumedSkills(raw ?? '', selected).filter((s) => !placed.has(norm(s)));
+
+      // Not one of the selected names. It may still print, but only as a name
+      // that carries selected skills whole (§2.4) or validly declares two it
+      // merges — and only those not already printed on their own, or the CV
+      // would show the merge beside its parts.
+      const supported = [...subsumedSkills(name, selected)];
+      if (declared.length >= 2) {
+        for (const s of declared) if (!supported.some((t) => norm(t) === norm(s))) supported.push(s);
+      }
+      const merged = supported.filter((s) => !placed.has(norm(s)));
       if (merged.length === 0) continue;
       for (const s of merged) placed.add(norm(s));
       // A "compound" that only respells one selected skill ("Audit and
       // Compliance Coordination") is not a merge — it is the rewording the old
       // rule caught, so the selected spelling still wins.
-      const respelling = merged.length === 1 && subsumedSkills(merged[0], [raw ?? '']).length > 0;
-      items.push(respelling ? merged[0] : (raw ?? '').trim());
+      const respelling = merged.length === 1 && subsumedSkills(merged[0], [name]).length > 0;
+      items.push(respelling ? merged[0] : name);
     }
     if (items.length) groups.push({ category: heading, items });
   }
@@ -488,4 +567,54 @@ export function subsumedSkills(compound: string, atoms: readonly string[]): stri
     const parts = nameTokens(atom);
     return parts.length > 0 && parts.every((t) => anyWord(t, hay));
   });
+}
+
+/**
+ * The consolidation half of the guard: which of the sources an entry DECLARES it
+ * merged may actually be consumed by it.
+ *
+ * A declaration is a claim about meaning, which is why it has to be made by the
+ * step that can see the whole set and cannot be derived from the strings. It is
+ * still not believed on sight. Three filters, in order, each dropping one source
+ * rather than the whole entry — a declaration that names one absurd source loses
+ * that source, exactly as an invented skill name loses its slot:
+ *
+ *  - **real**: the source is one of the selected skills, in any spelling.
+ *  - **coverage**: the merged name shares an identifying word with the source
+ *    (`uncoveredSkills`). Merging is carrying a capability forward under a wider
+ *    name; a name with nothing of the source left in it is not carrying it.
+ *  - **width**: the merged name is not contained within the source. This is the
+ *    qualifier rule. `(Multi-Country)` may absorb `(Multi-Entity)` — each holds a
+ *    word the other lacks — but bare "Senior Stakeholder Management" may absorb
+ *    neither, because it sits inside both and would drop the precision C4
+ *    deliberately wrote. Keeping one anchor is a judgement; keeping none is
+ *    atomisation with a declaration attached.
+ *
+ * An entry never merges itself, so a self-reference is dropped silently.
+ */
+export function declaredMerges(
+  name: string,
+  sources: readonly string[],
+  selected: readonly string[]
+): string[] {
+  const target = norm(name);
+  if (!target) return [];
+  const canonical = new Map<string, string>();
+  for (const s of selected) {
+    const key = norm(s);
+    if (key && !canonical.has(key)) canonical.set(key, s);
+  }
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of sources ?? []) {
+    const source = canonical.get(norm(raw ?? ''));
+    if (!source) continue;
+    const key = norm(source);
+    if (key === target || seen.has(key)) continue;
+    if (uncoveredSkills([source], [name]).length > 0) continue;
+    if (subsumedSkills(source, [name]).length > 0) continue;
+    seen.add(key);
+    out.push(source);
+  }
+  return out;
 }
