@@ -65,7 +65,7 @@ impactful bullets which fullfils the higher amount of core, important and nice-t
 C2's job is **recall**: find every genuine link. You cannot select from what was never found, and a
 stingier C2 loses options permanently and invisibly. Selection is a **set** decision that needs the
 whole assembled map — structurally the same argument that puts consolidation in C5 rather than C4
-([[Skill Name Treatment in the C4 Skills Section]] §2.5): a step called per item cannot optimise a set.
+([[Skill Name Treatment in the C5 Skills Section]] §2.5): a step called per item cannot optimise a set.
 
 So C2 stays generous and unchanged, and the new step reads the assembled, human-approved map.
 
@@ -171,7 +171,7 @@ let it block this note.
 - [ ] Nice-to-Have coverage rises above zero on `ee5c72bf` and `a9f2307b`.
 - [ ] No degree or language appears in the Skills section (§2.4, fixed at source).
 - [ ] Skills tags fall to roughly 25–30 before consolidation — the remainder is
-      [[Skill Name Treatment in the C4 Skills Section]]'s to close, and this note does not claim it.
+      [[Skill Name Treatment in the C5 Skills Section]]'s to close, and this note does not claim it.
 - [ ] C8's ATS rating does not regress. Baselines: **88/100 on `69bc2e13`** and **78/100 on
       `ee5c72bf`**, both 2026-08-24, the latter re-confirmed at 78/100 after the STAR-results CI.
 - [ ] Selection is reproducible: same inputs, same set, every run.
@@ -184,7 +184,7 @@ let it block this note.
 - `lib/db/schema.ts` §472 `requirementTailoring` — the three skill columns and `approvalStatus`.
 - Build order: [[Renumber the C-Phase to Seat Evidence Selection at C3]] →
   [[STAR Results Never Reach the Evidence Graph]] → this →
-  [[Skill Name Treatment in the C4 Skills Section]].
+  [[Skill Name Treatment in the C5 Skills Section]].
 
 ## 4. Notes / Progress log
 
@@ -306,7 +306,7 @@ previous run's tags predicted 27→17 / 48→27 / 43→27. Live it came out 26 /
 against a shorter list and wrote *more distinct* tags per bullet, so the count fell much less than
 selection alone implies. `ee5c72bf`'s 31 still carries five near-duplicate *Senior Stakeholder …*
 variants and two *Board-Level … Advisory* ones — that is
-[[Skill Name Treatment in the C4 Skills Section]]'s to close, exactly as §2.8 says, and this note does
+[[Skill Name Treatment in the C5 Skills Section]]'s to close, exactly as §2.8 says, and this note does
 not claim it.
 
 **The STAR-result path, which the previous CI left unproven, is now proven live.** `4-R3` is the only

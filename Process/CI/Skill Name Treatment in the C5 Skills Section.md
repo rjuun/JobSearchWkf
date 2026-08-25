@@ -1,7 +1,8 @@
 ---
 ci-area: CV Tailoring
 ci-roadmap:
-ci-title: Skill Name Treatment in the C4 Skills Section (Consolidation)
+ci-title: Skill Name Treatment in the C5 Skills Section (Consolidation)
+pr-previous-code: C4
 ci-status: 0 - Idea
 ci-priority: high
 ci-date: 2026-08-23
@@ -20,20 +21,20 @@ pr-target: "[[C5. Build and Manage the Skills Section]]"
 > [!IMPORTANT] RE-SCOPED 2026-08-24 — this is now the CONSOLIDATION half
 > Opened 2026-08-23 with three problems (§1 a/b/c). Two have since moved:
 >
-> - **(b) languages — SHIPPED.** C4 §B.4 declares it and `dropLanguageSkills` enforces it against the
+> - **(b) languages — SHIPPED.** C5 §B.4 declares it and `dropLanguageSkills` enforces it against the
 >   owner's own `languages` rows. Nothing left to do.
 > - **(c) JD-phrase-shaped names — MOVED** to [[C3 Writes CV-Grade Skill Tags]]. Those names come from
->   C3's tag, and the fix is a change of register at source, not a rewrite downstream.
+>   C4's tag, and the fix is a change of register at source, not a rewrite downstream.
 >
 > **What remains, and what this CI now is: (a) consolidation.** Turning
 > "Cost Allocation · Cost Transformation · Cost Optimization · Cost Benefit Management" into
-> "Transfer Pricing & Cost Optimization". That belongs here and can only live here: **C3 is called per
-> evidence ref and never sees the assembled set**, so it cannot merge across bullets. C4 is the only
+> "Transfer Pricing & Cost Optimization". That belongs here and can only live here: **C4 is called per
+> evidence ref and never sees the assembled set**, so it cannot merge across bullets. C5 is the only
 > step with whole-set vision.
 >
-> **Sequence it after [[C3 Writes CV-Grade Skill Tags]].** C3 changes what arrives; consolidating the
+> **Sequence it after [[C3 Writes CV-Grade Skill Tags]].** C4 changes what arrives; consolidating the
 > current JD-shaped tags would be tuning against inputs that are about to change. The owner's plan
-> (2026-08-24) is C3 first, then this.
+> (2026-08-24) is that CI first, then this.
 
 ---
 
@@ -56,8 +57,8 @@ surfaces three distinct content problems. All 16 below are real output from
 > Meeting & Event Management · Fluency in German and English · Team Player & Cooperation
 
 **a. Near-duplicates.** "Decision Documents Preparation" and "Communications & Decision Documents
-Preparation" both print. C4 dedupes on exact normalised string, so two wordings of one capability
-survive as two entries. C4 §D already says *"Do not duplicate skills unnecessarily across categories"*
+Preparation" both print. C5 dedupes on exact normalised string, so two wordings of one capability
+survive as two entries. C5 §D already says *"Do not duplicate skills unnecessarily across categories"*
 — it has no rule for duplication *within* one, because it never had to.
 
 **b. Names that belong in another section, or in no section.** "Fluency in German and English" is a
@@ -67,15 +68,15 @@ role and arguably weakens a senior CV by being listed as a competency at all.
 
 **c. Names that are requirement labels, not skills.** "Work Autonomously" and "Team Player &
 Cooperation" read as JD phrasing lifted whole. They are what the posting *asks for*; a skills line
-wants what the candidate *has*. C4 §B.4 already asks for *"skill names concise and consistent in
+wants what the candidate *has*. C5 §B.4 already asks for *"skill names concise and consistent in
 style"* without defining what that means operationally.
 
-**Why this is a C4 problem and not only an upstream one.** The names originate upstream — B2 §3.6
+**Why this is a C5 problem and not only an upstream one.** The names originate upstream — B2 §3.6
 extracts Requirement Skills in the JD's own language (correct, and deliberately so: it is what drives
-ATS matching), and C3 §B.5 writes the bracketed tag per bullet. Both are behaving as specified. But C4
+ATS matching), and C4 §B.5 writes the bracketed tag per bullet. Both are behaving as specified. But C5
 is the step that decides what *prints*, and it is the only step that sees the whole set at once —
 which is the only vantage point from which "these two are the same capability" is even visible. A
-treatment applied at B2 or C3 cannot see the duplicate; a treatment at C4 can.
+treatment applied at B2 or C4 cannot see the duplicate; a treatment at C5 can.
 
 Note the constraint this sits under: the same JD language that reads awkwardly is what makes the
 Skills header and the bullets' bracketed tags agree word-for-word, which was the explicit reason the
@@ -85,7 +86,7 @@ tidy-up pass that doesn't know it is making it.
 
 > [!NOTE] Scope addition, 2026-08-24 — the envelope comes here; education does not
 > **In: the section's size target.** `SKILLS_ENVELOPE = 40` (`lib/pipeline/skills.ts`) is not a
-> considered number — it is C4 §B.1's ceiling, 5 categories × 8 skills, multiplied out. Measured on
+> considered number — it is C5 §B.1's ceiling, 5 categories × 8 skills, multiplied out. Measured on
 > the two leads run after [[C3 Writes CV-Grade Skill Tags]] landed: 55 and 43 distinct tags arrived,
 > and both printed **exactly 40**, so the cap is binding and set at twice the 16–20 benchmark. Nothing
 > enforces the per-category half of the envelope either — `reconcileSkillGroups` caps categories at
@@ -96,12 +97,45 @@ tidy-up pass that doesn't know it is making it.
 > *Economic Development (Master's)* and *Quantitative Asset & Risk Management (Postgraduate)*, all
 > traced to `EDU-1/2/3` Keep rows. It reads like a sibling of the languages rule and it is not:
 > [[C3 Selects the CV Evidence Set]] §2.4 excludes Education and Language refs from the bullet budget
-> outright, so C3 never writes those tags and there is nothing left here to filter. Building a
+> outright, so C4 never writes those tags and there is nothing left here to filter. Building a
 > downstream rule for it would guard against something upstream already prevents.
 >
 > **Sizing follows selection, and neither closes it alone.** 14 bullets at ~2 tags each is ~28 tags —
 > better than 55, still above the benchmark. The bullet budget gets it most of the way; consolidation
 > closes the gap. Sequence this note last.
+
+> [!IMPORTANT] Re-measured 2026-08-25, after C3 selection landed — the duplicate has CHANGED SHAPE
+> The scope note below was written against the old output and its numbers are superseded. Two CIs have
+> since reduced the section: [[C3 Writes CV-Grade Skill Tags]] raised the register, and
+> [[C3 Selects the CV Evidence Set]] cut the bullet count to ~14. **`SKILLS_ENVELOPE = 40` no longer
+> binds** — the leads now print 26 / 31 / 30 tags, under the cap and above the 16–20 benchmark. So the
+> size target is no longer about a cap; it is entirely about merging.
+>
+> **And the duplicates are a different animal now.** They used to be JD-shaped atoms —
+> *Governance · Corporate Governance · Process Governance*. What prints today is CV-grade compounds
+> that differ only by their parenthetical qualifier, because C4 writes a tag per bullet and each bullet
+> earns its own anchor. Julius Baer's six-strong stakeholder family:
+>
+> ```
+> Senior Stakeholder Negotiation · Senior Stakeholder Coordination
+> Senior Stakeholder Management (Multi-Entity) · Senior Stakeholder Management (Multi-Country)
+> Senior Stakeholder Management (Board & Regulator) · Multi-Country Stakeholder Coordination
+> ```
+>
+> plus *Board-Level Advisory* beside *Board-Level Strategic Advisory*. Aliaxis has four stakeholder
+> variants; ALDI prints **Global Process Ownership & Governance** beside plain **Global Process
+> Ownership** — one literally contains the other.
+>
+> **That last case is what `subsumedSkills` was built for** ([[C3 Writes CV-Grade Skill Tags]] §2.4).
+> The guard already accepts a compound that contains selected skills whole and consumes them, so a
+> merge cannot print beside its own parts. It has been inert since the day it shipped because C5's
+> prompt still says copy every skill verbatim. **This CI's first job is to change what C5 is asked
+> for** — the guard is waiting, not missing.
+>
+> The seam it leaves is unchanged and is the interesting problem: a merge only consumes atoms it
+> literally contains, so *(Multi-Entity)* and *(Board & Regulator)* are not absorbed by any single
+> compound. Deciding those are one capability is a claim about meaning, not spelling, which is why the
+> grouping call has to declare what it merged. See that CI's §2.4 admonition for the mechanism.
 
 ## 2. What would the improvement look like?
 

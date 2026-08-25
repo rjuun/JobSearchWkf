@@ -136,7 +136,7 @@ honest implementation today is exact string match and **C3 rewords almost every 
 Literal comparison scores **48 of 49** asks as missing on the Allianz lead, nearly all of them false —
 those skills *are* evidenced, in different words. A badge that fires on every row teaches the reviewer
 to ignore it, which is worse than no badge. Closing the gap needs the wording question settled first:
-**blocked on [[Skill Name Treatment in the C4 Skills Section]]**. `scripts/audit-c4-skills-density.ts`
+**blocked on [[Skill Name Treatment in the C5 Skills Section]]**. `scripts/audit-c4-skills-density.ts`
 prints the literal comparison meanwhile, labelled "NOT MATCHED LITERALLY" rather than "not evidenced".
 
 Note what this table also shows, which matters for that CI: **B2's extraction is the more specific of
@@ -176,7 +176,7 @@ than needing a second pass. See §2.5 for what shipped, §2.6 for the one part d
 
 The backfill surfaced the finding in §2.6's table: restoring `requirement_skills` from
 `job_requirements.skills` made visible, for the first time, how far C3's tags drift from B2's own
-extraction. That is now the strongest input to [[Skill Name Treatment in the C4 Skills Section]].
+extraction. That is now the strongest input to [[Skill Name Treatment in the C5 Skills Section]].
 
 ### 2026-08-23 · Opened as an Idea
 

@@ -223,7 +223,7 @@ instances a bare sweep would also have corrupted:
 
 Nothing was renamed by bare code. Every surface was renamed by an anchored pattern or edited line by
 line, and the CI-note titles carrying historical step numbers (`C3 Writes CV-Grade Skill Tags`,
-`C4 Skills Selection Produces Unreadable Overflow`, `Skill Name Treatment in the C4 Skills Section`,
+`C4 Skills Selection Produces Unreadable Overflow`, `Skill Name Treatment in the C5 Skills Section`,
 `Improve C3-C4 Skill Association Method`) were placeholder-protected through every sweep and verified
 after it.
 
@@ -269,7 +269,7 @@ left as written.
 
 The owner's decision, 2026-08-25: this note and its three successors —
 [[STAR Results Never Reach the Evidence Graph]], [[C3 Selects the CV Evidence Set]] and
-[[Skill Name Treatment in the C4 Skills Section]] — are **one epic, click-tested once when the last
+[[Skill Name Treatment in the C5 Skills Section]] — are **one epic, click-tested once when the last
 of them concludes**, not four separately. They change overlapping surfaces of the same phase, and
 clicking through after each would test the same paths three times over against a pipeline still in
 motion.

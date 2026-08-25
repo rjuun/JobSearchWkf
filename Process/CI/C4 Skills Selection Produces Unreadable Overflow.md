@@ -139,7 +139,7 @@ He is right, and the deferral rested on a claim that was simply false.
 **The false claim.** This note said the thematic categories *"don't exist as data; tracked separately
 as ROADMAP P6"*. It was written into §1 on 2026-08-07 and then repeated — without anyone opening
 `docs/ROADMAP.md` — into `lib/pipeline/skills.ts`, `Process/C4…md` §B.3, §2.4 below, and
-[[Skill Name Treatment in the C4 Skills Section]]. **ROADMAP P6 contains two entries: renaming the
+[[Skill Name Treatment in the C5 Skills Section]]. **ROADMAP P6 contains two entries: renaming the
 `approval_status` enum, and per-tenant CV templates/slots. It says nothing about skills.** There was
 never a blocker, and never a contradiction for the owner to find — which is exactly why he could not
 find one.
@@ -263,7 +263,7 @@ probe cannot reproduce a model call, and should not pretend to.
 - **Requirement Skills content quality.** The 16 that now print include "Fluency in German and
   English" and "MS Office Proficiency" (requirement labels rather than skills), and the near-duplicate
   pair "Decision Documents Preparation" / "Communications & Decision Documents Preparation". Split out
-  as [[Skill Name Treatment in the C4 Skills Section]] — note that CI reopens the "not C4 selection"
+  as [[Skill Name Treatment in the C5 Skills Section]] — note that CI reopens the "not C4 selection"
   framing, since C4 is the only step that sees the assembled set and therefore the only one that can
   detect a near-duplicate at all.
 
@@ -277,7 +277,7 @@ probe cannot reproduce a model call, and should not pretend to.
 - `lib/llm/schemas.ts` — `mySkills` on `C2.zod` and the `emit_evidence_map` tool schema.
 - `scripts/audit-c4-skills-density.ts` — read-only before/after probe over every lead with Keep rows.
 - [[Requirement Skills vs My Skills - Two-Column Redesign (Epic)]] — §2 target design, §5 Q3.
-- Follow-ons opened from this CI: [[Skill Name Treatment in the C4 Skills Section]] (what the printed
+- Follow-ons opened from this CI: [[Skill Name Treatment in the C5 Skills Section]] (what the printed
   names read like) and [[Split cv_bullet_skills from requirement_skills]] (`requirement_skills` is
   written by C2 and then overwritten by C3, so the column means two different things at two different
   times — splitting it makes "which Requirement Skills did this bullet actually evidence" computable).

@@ -201,7 +201,7 @@ improve itself. Not required for v1; do not let it block.
 - `Process/C3…md` §B.5 — the instruction to reverse. `Process/C4…md` §B.1/§B.3/§B.4 — current rules.
 - `lib/__tests__/c4-skills.test.ts` — 25 tests; the guard tests are the ones §2.4 changes.
 - `scripts/audit-c4-skills-density.ts` — read-only, stops at prioritisation.
-- [[Skill Name Treatment in the C4 Skills Section (Consolidation)]] — **reconciled 2026-08-24, no
+- [[Skill Name Treatment in the C5 Skills Section (Consolidation)]] — **reconciled 2026-08-24, no
   overlap remains.** That CI is now the consolidation half and nothing else; its language item shipped
   and its JD-phrasing item moved here. Build this one first (it changes what arrives), then that one.
   **They share one dependency: the guard replacement in §2.4. Build it once, here, and let the other
@@ -318,7 +318,7 @@ capabilities rather than re-expressing them.
 | Split cv_bullet_skills from requirement_skills | `2 - Testing` | Owner reports working. Column + migration `0037`, backfill applied (64 moved, 64 restored). Coverage-gap badge deliberately NOT shipped. |
 | Lead Liveness Re-check and Not Pursued Reason Tags | `2 - Testing` | Owner reports working. LinkedIn guest-fragment re-read, migration `0038`, Not Pursued tags, run-trace re-run display. |
 | B3 Raises False Roadblocks (Case Log) | `0 - Idea` | Case log, 2 entries. Do not design from it yet — owner's instruction. |
-| Skill Name Treatment in the C4 Skills Section | `0 - Idea` | Likely absorbed by this CI — reconcile. |
+| Skill Name Treatment in the C5 Skills Section | `0 - Idea` | Likely absorbed by this CI — reconcile. |
 
 **Verification gates:** `npm run typecheck` and `npm test` (257 passing) both clean from `main`.
 `npm run lint` fails on a pre-existing eslint plugin issue — not a regression, do not chase it.
