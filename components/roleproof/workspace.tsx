@@ -90,7 +90,7 @@ export type RpRow = {
   originalText: string | null;
   cvBullet: string | null;
   cvPosition: string | null;
-  // Bullet | Education | Language | STAR action | Responsibility. Lets the
+  // Bullet | Education | Language | STAR action | STAR result | Responsibility. Lets the
   // approval gate tell "no slot because Education/Language never gets one"
   // apart from "genuinely unslotted" (see evidenceNeedsCvSlot in cv-slots.ts).
   evidenceKind: string | null;

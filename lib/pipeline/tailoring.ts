@@ -20,6 +20,8 @@ import {
   bulletBank,
   skillsMaster,
   starActions,
+  starResults,
+  stars,
   starCompetences,
   starAttributes,
   responsibilities,
@@ -66,8 +68,27 @@ function headshotDecision(city: string | null): string {
   return city && dei.includes(city.toLowerCase()) ? 'Do not include (D&I norm)' : 'Optional (lean exclude)';
 }
 
-/** One evidence candidate the LLM may cite, keyed by its stable ref code. */
-export type Evidence = { ref: string; kind: string; text: string; skills: string[]; cvPosition: string | null; source: string | null };
+/**
+ * One evidence candidate the LLM may cite, keyed by its stable ref code.
+ *
+ * `context` is optional and, today, only `STAR result` rows carry it. A result
+ * is not a self-contained claim — `[1-R3]` ("Gradual branch FTE reallocation…
+ * following SCE go-live") is the outcome OF something, and a bullet built from
+ * it alone would state a consequence with no actor. `context` names the STAR it
+ * came out of so C2 and C4 can read the outcome against the work that earned
+ * it. It is deliberately NOT folded into `text`: `text` is the row's own words,
+ * which is what `evidence_text` snapshots and what C4 is told to stay
+ * supportable by. See CI · STAR Results Never Reach the Evidence Graph §2.2.
+ */
+export type Evidence = {
+  ref: string;
+  kind: string;
+  text: string;
+  skills: string[];
+  cvPosition: string | null;
+  source: string | null;
+  context?: string | null;
+};
 
 /**
  * C2's user message, as a pure builder — same reasoning as the B-step builders in
@@ -111,7 +132,13 @@ export function c2UserMessage(
       type: 'text',
       text:
         `CANDIDATE EVIDENCE (cite by exact ref code):\n` +
-        evidence.map((e) => `[${e.ref}] (${e.kind}) ${e.text}`).join('\n') +
+        // The indented follow-on line is `context` — today only STAR results
+        // carry one, naming the STAR the outcome came out of. It is context for
+        // reading the item, never a second citable identity: the ref in
+        // brackets is still the only thing C2 may cite.
+        evidence
+          .map((e) => `[${e.ref}] (${e.kind}) ${e.text}` + (e.context ? `\n    ${e.context}` : ''))
+          .join('\n') +
         (vocabulary.length
           ? `\n\nCANDIDATE SKILLS, COMPETENCES & ATTRIBUTES (the candidate's own vocabulary — name these in mySkills, ` +
             `copied exactly; these are NOT citable as evidenceRef):\n` +
@@ -273,6 +300,13 @@ export type C4Row = {
   requirementLine: string | null;
   originalText: string | null;
   mySkills: readonly string[] | null;
+  /** `Evidence.context`, re-attached by ref in `generateCv`. Only STAR results
+   *  have one. Without it C4 sees a result's text alone and cannot obey §B.3
+   *  ("start every bullet with a strong action verb") on an outcome that names
+   *  no actor — which is the half of the fix C2 alone doesn't deliver. It is
+   *  not persisted on `requirement_tailoring`: it is derived from the profile,
+   *  so re-deriving it keeps it current and costs no column. */
+  context?: string | null;
 };
 
 /**
@@ -348,6 +382,7 @@ export function c4UserMessage(
         .map(
           (g) =>
             `[${g.evidenceRef}] requirement: ${g.requirementLine}\n   original: ${g.originalText}\n` +
+            (g.context ? `   context: ${g.context}\n` : '') +
             `   my skills: ${(g.mySkills ?? []).join(', ')}`
         )
         .join('\n\n'),
@@ -433,17 +468,62 @@ function provFromSource(source: string | null | undefined): string {
   return source === 'ai_coached' ? 'coached' : 'imported';
 }
 
-/** Gather the owner's whole evidence graph (not just the bullet bank) for C2 to map against. */
+/**
+ * Gather the owner's whole evidence graph (not just the bullet bank) for C2 to
+ * map against.
+ *
+ * CI · STAR Results Never Reach the Evidence Graph — `star_results` used to be
+ * absent from this query set, so the 22 rows holding every quantified outcome
+ * the candidate has (delivery times, headcounts, cost reductions, audit
+ * findings) were not citable, and no CV was ever built on one. `Process/C4…`
+ * §B.4 tells the bullet step to include measurable results "when they exist in
+ * the Original Text" — a rule it obeyed correctly, over evidence the
+ * measurements had been withheld from.
+ *
+ * Results are emitted as their OWN evidence items (§2.2 option 2), not as a
+ * pre-joined action→result composite: a composite would need a ref code of its
+ * own, and that is a citable identity tracing to no row in the profile — the
+ * same objection that ruled out free-text graph tags as My Skills values. The
+ * `stars` join exists only to fill `context`, which points a result back at the
+ * work it came out of without inventing anything.
+ */
 export async function gatherEvidence(ownerId: string): Promise<Evidence[]> {
-  const [acts, resps, bullets, edu, langs] = await Promise.all([
+  const [acts, results, starRows, resps, bullets, edu, langs] = await Promise.all([
     db.select().from(starActions).where(eq(starActions.ownerId, ownerId)),
+    db.select().from(starResults).where(eq(starResults.ownerId, ownerId)),
+    db.select().from(stars).where(eq(stars.ownerId, ownerId)),
     db.select().from(responsibilities).where(eq(responsibilities.ownerId, ownerId)),
     db.select().from(bulletBank).where(eq(bulletBank.ownerId, ownerId)),
     db.select().from(education).where(eq(education.ownerId, ownerId)),
     db.select().from(languages).where(eq(languages.ownerId, ownerId)),
   ]);
+  const starTitleByRef = new Map(starRows.filter((s) => s.refCode && s.title).map((s) => [s.refCode as string, s.title as string]));
   const out: Evidence[] = [];
   for (const a of acts) if (a.refCode && a.text) out.push({ ref: a.refCode, kind: 'STAR action', text: a.text, skills: a.skills ?? [], cvPosition: null, source: a.source });
+  for (const r of results) {
+    if (!r.refCode || !r.text) continue;
+    const parent = r.starRef ? starTitleByRef.get(r.starRef) : undefined;
+    out.push({
+      ref: r.refCode,
+      kind: 'STAR result',
+      // `metric` is the row's own column, not a second source, and it is the
+      // only place some numbers live at all: [2-R1]'s text names the branches
+      // consolidated and never says "EUR 1.5B". Composing a node's text from
+      // its own columns is what Education and Language already do below.
+      text: r.metric ? `${r.text} — measured: ${r.metric}` : r.text,
+      // `star_results` carries no tags of its own. Inheriting the parent
+      // action's would attribute a claim to a row that never made it (§2.3).
+      skills: [],
+      // Same as a STAR action: no slot of its own, C2 assigns one from the
+      // CV POSITION SLOTS block. A result's parent STAR does have a derivable
+      // slot (`getCareerGraphFor`'s lane logic), but deriving it here would
+      // make a result better-slotted than the action it came out of, and that
+      // asymmetry belongs to whichever CI fixes slotting for both (§2.3).
+      cvPosition: null,
+      source: r.source,
+      context: parent ? `outcome of STAR ${r.starRef}: ${parent}` : null,
+    });
+  }
   for (const r of resps) if (r.refCode && r.text) out.push({ ref: r.refCode, kind: 'Responsibility', text: r.text, skills: r.skills ?? [], cvPosition: normalizeCvPosition(`${r.positionRef ?? ''}0`), source: r.source });
   for (const b of bullets) if (b.refCode && b.text) out.push({ ref: b.refCode, kind: 'Bullet', text: b.text, skills: b.tags ?? [], cvPosition: normalizeCvPosition(b.cvPosition), source: b.source });
   for (const e of edu) if (e.refCode) out.push({ ref: e.refCode, kind: 'Education', text: [e.qualification, e.institution, e.year].filter(Boolean).join(', '), skills: [], cvPosition: null, source: e.source });
@@ -1013,13 +1093,24 @@ export async function generateCv(
     // names in the one written at CV grade. See `c4UserMessage`.
     const register = (await gatherSkillVocabulary(effectiveOwnerId)).filter((v) => v.source === 'skill');
 
+    // CI · STAR Results Never Reach the Evidence Graph §2.2 — re-attach each Keep
+    // row's `Evidence.context` by ref. `requirement_tailoring` snapshots the
+    // evidence TEXT, not the graph around it, so a STAR result arrives here as a
+    // bare outcome and C4 has nothing to lead the bullet with. Re-deriving from
+    // the same function C2 was built from is what keeps the two steps reading the
+    // same context; only STAR results have one, so every other row is unchanged.
+    const contextByRef = new Map(
+      (await gatherEvidence(effectiveOwnerId)).flatMap((e) => (e.context ? [[e.ref, e.context] as const] : []))
+    );
+    const c4Rows: C4Row[] = green.map((g) => ({ ...g, context: contextByRef.get(g.evidenceRef ?? '') ?? null }));
+
     const draft = async () =>
       runStructured({
         step: 'C4',
         // Truthfulness-critical (Master Instructions §6.1) → Opus tier.
         model: 'opus',
         system: await systemPromptFor('C4', effectiveOwnerId),
-        user: c4UserMessage(green, lead.title, lead.jdGroupPrimary, lead.atsSystem, register),
+        user: c4UserMessage(c4Rows, lead.title, lead.jdGroupPrimary, lead.atsSystem, register),
         tool: C4.tool,
         zod: C4.zod,
         // The mock stands in for a HEALTHY call, so it must clear the floor: a

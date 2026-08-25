@@ -477,7 +477,7 @@ export const requirementTailoring = pgTable('requirement_tailoring', {
   requirementLine: text('requirement_line'),
   connectionToExpertise: text('connection_to_expertise'),
   evidenceRef: text('evidence_ref'),
-  // Bullet | Education | Language | STAR action | Responsibility — the evidence
+  // Bullet | Education | Language | STAR action | STAR result | Responsibility — the evidence
   // node's own kind, snapshotted the same way requirement_evidence already does.
   // Exists so the approval gate can tell "genuinely unslotted" (a STAR action
   // that needs a real Professional Experience slot) apart from "was never going

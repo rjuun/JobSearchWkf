@@ -2,11 +2,11 @@
 ci-area: CV Tailoring (C-Phase)
 ci-roadmap:
 ci-title: STAR Results Never Reach the Evidence Graph
-ci-status: 0 - Idea
+ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-24
 ci-estimated-time: 1
-ci-time-spent: 0
+ci-time-spent: 1.5
 pr-source: "[[C3 Writes CV-Grade Skill Tags]]"
 pr-target: "[[C2. Map JD Requirements to Supporting Evidence]], [[C4. Transform Evidence into CV Bullets]]"
 ---
@@ -81,6 +81,9 @@ free-text graph tags were rejected as My Skills values: an identity the profile 
 - **Ref-code collision.** Result refs look like `1-R1`, `1-R2`, `1-R3`. Confirm they cannot collide
   with `star_actions` ref codes (`A-R3` and `5-3` both appear in live tailoring rows) — two evidence
   items sharing a ref would make `absorbC4Bullets`'s ref→bullet map ambiguous, and it keys on ref.
+  **Correction, 2026-08-25:** only `5-3` is a `star_actions` ref. `A-R3` is a **Responsibility** —
+  the two examples were lifted from `Process/C2…` §B's kind table and both attributed to the wrong
+  one table here. That misses where the near-collision actually is; see §4.
 - **`Evidence.cvPosition`.** Actions pass `cvPosition: null`; responsibilities and bullets derive one.
   Results need the same treatment as their parent action, or `templateFits` may reject the Keep set
   and silently drop C7 to the programmatic builder.
@@ -97,10 +100,13 @@ free-text graph tags were rejected as My Skills values: an identity the profile 
 
 ### 2.5 · Acceptance
 
-- [ ] `gatherEvidence` returns 22 additional evidence items on the live profile.
-- [ ] A re-run of C2 on `ee5c72bf` or `a9f2307b` cites at least one `*-R*` ref in the map.
-- [ ] The resulting bullet reads as action-plus-outcome and carries the number from the result row.
-- [ ] No ref-code collision: every evidence ref in `gatherEvidence`'s output is unique.
+- [x] `gatherEvidence` returns 22 additional evidence items on the live profile. — 113 → 135.
+- [x] A re-run of C2 on `ee5c72bf` or `a9f2307b` cites at least one `*-R*` ref in the map. — `4-R3`
+      on the Julius Baer lead, slotted to `B2. Transfer Pricing`.
+- [x] The resulting bullet reads as action-plus-outcome and carries the number from the result row.
+      — carries the GBP 1.2M figure that lives only in `metric`; see §4 for the one part of the
+      mechanism this run did not exercise.
+- [x] No ref-code collision: every evidence ref in `gatherEvidence`'s output is unique. — 135/135.
 
 ## 3. Resources or references
 
@@ -112,6 +118,86 @@ free-text graph tags were rejected as My Skills values: an identity the profile 
   argument sequenced [[C3 Writes CV-Grade Skill Tags]] ahead of consolidation.
 
 ## 4. Notes / Progress log
+
+### 2026-08-25 · Built and delivered
+
+Implemented as §2.2 option (2). **The recommendation survived contact with the data unchanged** —
+nothing in §2.3's checks argued for (1) or (3).
+
+**What was built.** `gatherEvidence` gained `star_results` plus a `stars` join, and `Evidence` gained
+an optional `context` field carrying `outcome of STAR <n>: <STAR title>`. `c2UserMessage` renders it
+as an indented follow-on line under the evidence item, so it reads as context and never as a second
+citable ref. §2.4 stopped there, and **that is where the checklist was short of its own acceptance**:
+item 3 of §2.5 is a claim about a *bullet*, and C4 reads `originalText` off `requirement_tailoring`,
+which snapshots the evidence text and nothing around it — so the context died at C2 and the bullet
+step never saw it. Closed by adding `context` to `C4Row` and re-deriving the ref→context map in
+`generateCv` from the same `gatherEvidence` call C2 was built on. No migration: the context is
+derived from the profile, so re-deriving keeps it current and costs no column.
+
+**§2.3 check 1 — ref-code collision: none, but the note had the near-miss in the wrong place.**
+All 135 refs are unique. `star_actions` refs are `<star>-<n>` (`1-1` … `5-10`); **no action ref
+contains an `R` at all**, so the `A-R3` this note cited as a `star_actions` ref is not one — it is a
+**Responsibility**, numbered under a *position letter*. Both examples came from `Process/C2…` §B's
+kind table and were attributed here to one table. It matters, because the real adjacency is
+`Responsibility` `A-R3` against `STAR result` `1-R3`: **identical shape**, disjoint only because
+positions are lettered and stars are numbered. That is one data-entry convention away from a silent
+collision, so C2's note now says so in as many words rather than leaving it to hold by luck.
+
+**§2.3 check 2 — `cvPosition`: passed `null`, same as a STAR action, exactly as asked.** A result's
+parent STAR *does* have a derivable slot (`getCareerGraphFor`'s lane logic maps star 4 → `B2`), and
+`normalizeCvPosition(link.cvPosition || ev.cvPosition)` would have made it a harmless fallback. Left
+alone deliberately: duplicating that lane logic here would make a result better-slotted than the
+action it came out of, and slotting belongs to whichever CI fixes it for both kinds. The live run
+justified the restraint — C2 assigned `4-R3` to `B2. Transfer Pricing` on its own, correctly, and
+C7 reported `real template`, so `templateFits` was never at risk.
+
+**§2.3 check 3 — `skills`: `[]`.** `star_results` has no tags column at all (`ref_code`, `star_ref`,
+`text`, `metric`, `impact_type`), so there was nothing to inherit even if inheriting were honest.
+
+**One thing added that §2 did not ask for: `metric`.** The evidence text is
+`text — measured: <metric>` where the column is populated (15 of 22 rows). This is not decoration —
+`[2-R1]`'s sentence names the branches consolidated and **never says "EUR 1.5B"**, and `[2-R2]` never
+says "350 MEUR"; those figures exist only in `metric`. Without it, the CI would have shipped
+quantified outcomes with the quantities left in the database. Composing a node's text from its own
+columns is what `Education` and `Language` already do, so no new precedent. It earned itself on the
+live run: the delivered bullet carries "roughly GBP 1.2 million", a figure that appears nowhere in
+`4-R3`'s sentence.
+
+**Live verification (paid, approved before spending).** C2 on `ee5c72bf` (Julius Baer): `5 new · 0
+improved · 59 unchanged · 0 pruned`, one Opus call. Only 3 requirements were in the targeted subset
+(Core/Important rated Good/Weak/No Match), and one of the three drew a result — `4-R3` against
+*CtB Budgeting and Controlling*, rated Good. Approving that row and running `generateCv` produced:
+
+> **original:** Agreement review reduced annual IT cost payments to parent company by nearly 50% from
+> GBP 2.4 million. — measured: ~50% IT cost reduction; GBP ~1.2M saving
+> **bullet:** Renegotiated the intercompany IT services agreement with the parent company, cutting
+> annual IT cost payments by nearly 50% from GBP 2.4 million — a saving of roughly GBP 1.2 million.
+
+Action verb first (§B.3), outcome second, both numbers present. **The first CV bullet this system has
+ever written from a recorded result.**
+
+**What that run did NOT prove.** `4-R3`'s own text already opens on an action, so C4 correctly left
+the `context:` line out — which is the case `Process/C4…` §B.4 now explicitly tells it to. The
+context path therefore reached C4 but was never *used* live; the result that needs it most (`1-R3`,
+"Gradual branch FTE reallocation… following SCE go-live", an outcome naming no actor) was not among
+the three requirements this lead targeted. That half is pinned by unit test only. It costs another
+paid run over a lead whose weak requirements reach into STAR 1 to close, and it is not worth a call
+of its own — the next real tailoring run that cites an actor-less result will settle it.
+
+**Left alone deliberately.** `gatherB6Evidence` still omits results: B6 scores against the Master
+Bullet Bank plus education and languages by its own §A/§B.1.2, and widening it to the career graph
+would erase the distinction between the initial screen and the tailoring pass — already documented at
+`lib/pipeline/screening.ts` §198. `STEP_NOTE`'s missing C3/C7 keys and the `TAILOR_STEPS` /
+`docs/PIPELINE.md` gaps were left as they are; they belong to [[C3 Selects the CV Evidence Set]].
+
+**Side effect on the test lead.** The C2 re-run left 4 new `pending` rows on `ee5c72bf` besides
+`4-R3` (`A-R5`, `7-4`, `B-R6`, `7-2`) awaiting the owner's triage, and regenerated that lead's CV
+(ATS 78/100). No green row was pruned or reset — 63 green before, 64 after.
+
+**Verification.** `npm run typecheck` clean · `npm test` 282 passing (275 + 7 new in
+`lib/__tests__/star-result-evidence.test.ts`) · `scripts/snapshot-step-prompts.ts` moved exactly the
+two hashes whose notes were edited (C2, C4), the other nine held, and `_step-prompt-baseline.txt` is
+refreshed in this commit.
 
 ### 2026-08-24 · Opened
 
