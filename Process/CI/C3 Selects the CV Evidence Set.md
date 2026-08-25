@@ -257,10 +257,17 @@ Ranks for held-back cards are `dropped[]` ordered by `gain` descending, numbered
 1. **Move C3 out of `generateCv`** into the approve-map action. It writes `shortlist_rank` and records
    the C3 step exactly as it does today.
 2. **`generateCv` starts at C4** and requires a shortlist. If none exists — a lead approved before this
-   shipped — run C3 first rather than failing, so old leads keep working.
-3. **Re-running C3.** Changing a Keep decision after selection has run invalidates the shortlist. Decide
-   whether approving again re-runs C3 (simplest) or whether any Keep change marks it stale; either way
-   the shortlist must never be older than the Keep set it was computed from.
+   shipped — run C3 first rather than failing, so old leads keep working. **This path must exist and
+   must be tested**: the owner considered deleting and re-capturing the four legacy leads instead, and
+   decided against it (2026-08-26) because their Keep decisions are hand-made judgement that no amount
+   of model spend regenerates. Those leads stay, so this fallback carries them.
+3. **Re-running C3 — decided 2026-08-26.** Changing a Keep decision (C2's `approval_status`) after
+   selection has run invalidates the shortlist: decline a selected row and the CV would carry a bullet
+   whose evidence was just rejected; approve a new one and it never competed. **Any change to the green
+   set re-runs C3 automatically.** C3 is free and instant, so there is no reason to track staleness as
+   a state — remove the window rather than managing it. Pins survive for rows still green; a pin on a
+   row since declined is dropped, because it no longer refers to anything. This is distinct from
+   Pin/Exclude, which are C3's own controls and re-solve by design.
 4. **`MapEvidence` gains** `rank`, `gain`, `selected` and `pin`, fed from the latest C3 step output.
 5. **Map rendering**: solid outline for selected, rank badge on every approved card, the saturation
    line, and the pin / exclude controls — shown only while a shortlist exists AND no CV has been
