@@ -31,24 +31,25 @@ pr-target: "[[C3. Select the CV Evidence Set]], [[C2. Map JD Requirements to Sup
 owner approves rows one at a time in the Map, and everything approved prints. Section sizes therefore
 track how much evidence was approved, not what a two-page CV can hold.
 
-Measured across three real leads, 2026-08-24 — every generated CV overflows two pages:
+Measured across three real leads, re-measured 2026-08-25 after [[STAR Results Never Reach the Evidence
+Graph]] landed — every generated CV overflows two pages:
 
 | Lead | Green rows | Bullets | Requirement coverage | Skills printed |
 | --- | --- | --- | --- | --- |
 | `69bc2e13` ALDI | 31 | 23 | Core 8/8 · Imp 1/1 | 27 |
-| `ee5c72bf` Julius Baer | 63 | 34 | Core 13/13 · Imp 5/5 · **NtH 0/2** | 40 (capped) |
-| `a9f2307b` Aliaxis | 46 | 27 | Core 11/11 · Imp 3/3 · **NtH 0/1** | 40 (capped) |
+| `ee5c72bf` Julius Baer | 64 | 35 | Core 13/13 · Imp 5/5 · **NtH 0/2** | 40 (capped, 59 tags arrived) |
+| `a9f2307b` Aliaxis | 46 | 27 | Core 11/11 · Imp 3/3 · **NtH 0/1** | 40 (capped, 43 tags arrived) |
 
 Three things fall out of that table, and together they define the whole opportunity:
 
-**a · The excess is redundancy, not coverage.** Julius Baer spends 34 bullets covering 18 requirements
-— 63 links, 1.85 requirements per bullet. Core and Important are already at 100%. There is no
+**a · The excess is redundancy, not coverage.** Julius Baer spends 35 bullets covering 18 requirements
+— 64 links, 1.83 requirements per bullet. Core and Important are already at 100%. There is no
 coverage-versus-length trade to make here: the length is buying repetition.
 
 **b · Nice-to-Have is at zero on both new leads.** Budget freed by cutting redundancy buys fit and ATS
 score that is currently being left on the table entirely.
 
-**c · Skills follow bullets.** 31 rows → 28 tags, 46 → 43, 63 → 55. Roughly one tag per Keep row, and
+**c · Skills follow bullets.** 31 rows → 28 tags, 46 → 43, 64 → 59. Roughly one tag per Keep row, and
 nothing between C2 and the CV asks what a Skills section should hold. `SKILLS_ENVELOPE = 40` is not a
 considered number — it is C4 §B.1's ceiling (5 categories × 8) multiplied out, and it is the only
 thing standing between the reader and 55 entries.
@@ -63,7 +64,7 @@ impactful bullets which fullfils the higher amount of core, important and nice-t
 
 C2's job is **recall**: find every genuine link. You cannot select from what was never found, and a
 stingier C2 loses options permanently and invisibly. Selection is a **set** decision that needs the
-whole assembled map — structurally the same argument that puts consolidation in C4 rather than C3
+whole assembled map — structurally the same argument that puts consolidation in C5 rather than C4
 ([[Skill Name Treatment in the C4 Skills Section]] §2.5): a step called per item cannot optimise a set.
 
 So C2 stays generous and unchanged, and the new step reads the assembled, human-approved map.
@@ -135,7 +136,7 @@ the algorithm.
 
 **Open question — how to measure the real page count.** Counting pages needs the `.docx` rendered
 (LibreOffice/`soffice`), and whether that is available in this environment is unverified. Options: (a)
-render and count, if `soffice` is present; (b) a line-count proxy computed from the model C6 already
+render and count, if `soffice` is present; (b) a line-count proxy computed from the model C7 already
 builds; (c) defer measurement to the format CI entirely. Decide when the format work starts — do not
 let it block this note.
 
@@ -171,7 +172,8 @@ let it block this note.
 - [ ] No degree or language appears in the Skills section (§2.4, fixed at source).
 - [ ] Skills tags fall to roughly 25–30 before consolidation — the remainder is
       [[Skill Name Treatment in the C4 Skills Section]]'s to close, and this note does not claim it.
-- [ ] C7's ATS rating does not regress. Baseline: **88/100 on `69bc2e13`, 2026-08-24.**
+- [ ] C8's ATS rating does not regress. Baselines: **88/100 on `69bc2e13`** and **78/100 on
+      `ee5c72bf`**, both 2026-08-24, the latter re-confirmed at 78/100 after the STAR-results CI.
 - [ ] Selection is reproducible: same inputs, same set, every run.
 
 ## 3. Resources or references
@@ -179,7 +181,7 @@ let it block this note.
 - `lib/pipeline/tailoring.ts` — `generateCv`'s green-row query; `matchStrengthToScore`;
   `evidenceNeedsCvSlot`; `templateFits`.
 - `lib/pipeline/skills.ts` — the model for a pure, testable decision module.
-- `lib/db/schema.ts` §471 `requirementTailoring` — the three skill columns and `approvalStatus`.
+- `lib/db/schema.ts` §472 `requirementTailoring` — the three skill columns and `approvalStatus`.
 - Build order: [[Renumber the C-Phase to Seat Evidence Selection at C3]] →
   [[STAR Results Never Reach the Evidence Graph]] → this →
   [[Skill Name Treatment in the C4 Skills Section]].
