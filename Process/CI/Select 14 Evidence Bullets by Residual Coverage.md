@@ -3,12 +3,50 @@ ci-area: CV Tailoring (Evidence Selection)
 ci-roadmap:
 ci-title: Select 14 Evidence Bullets by Residual Coverage
 ci-status: 0 - Idea
-ci-priority: high
+ci-priority: medium
 ci-date: 2026-08-26
 ci-estimated-time: 8
 ci-time-spent: 0
-pr-source: "[[C2 matches career bullets to JD requirements]]"
-pr-target: "[[C3. Write CV bullets]], [[C4. Skills section]], [[C7. ATS / whole-score]]"
+pr-source: "[[C2. Map JD Requirements to Supporting Evidence]]"
+pr-target: "[[C4. Transform Evidence into CV Bullets]], [[C5. Build and Manage the Skills Section]], [[C8. Run Reviewed ATS Matching Rating]]"
+---
+
+> [!IMPORTANT] Read this first — the picker described below is BUILT, 2026-08-26
+> This note was written by the owner to test whether the selection rule made sense. It did its job:
+> the reasoning holds, and it surfaced one defect nothing else had. But it was drafted alongside
+> [[C3 Selects the CV Evidence Set]] rather than after it, so §1–§3 re-specify an engine that already
+> exists and runs. `lib/pipeline/selection.ts` does budgeted maximum coverage over at most 14
+> distinct evidence refs, with the per-position cap, the Education/Language exemption and pin/exclude
+> overrides. Do not build it twice.
+>
+> **What is genuinely open here is one thing: the Assessment badges.** They are
+> `jobRequirements.initialMatchStrength` — B6's verdict over the whole retrieved pile, computed
+> before C2 runs and long before selection. They answer *"how well does my history match this?"* and
+> are read as *"how well does my CV prove this?"*. The note is right that they must never enter the
+> keep-rule and should be recomputed against the printed set.
+>
+> **Measured exposure, 2026-08-26 — this is why it is `medium` and not urgent.** Comparing the best
+> match strength across all approved evidence against the best among the printed 14, per requirement:
+>
+> ```
+> ALDI        1 drop   Business-Fluent English            7.5 → 0
+> Julius Baer 2 drops  University Degree                    9 → 0
+>                      Fluency in English and German        9 → 0
+> Aliaxis     0 drops
+> ```
+>
+> All three are requirements answered **only** by Education or Language evidence, which
+> [[C3 Selects the CV Evidence Set]] §2.4 keeps out of the bullet budget on purpose because those
+> sections print regardless. For every requirement bullets are actually responsible for, the printed
+> set proves it at **exactly** the strength the badge claims — zero drift on three leads. The
+> objective's `max{s(q,e)}` term is what does that: it always keeps the strongest evidence per
+> requirement, so selection cannot trade down on strength.
+>
+> The risk is therefore real but latent — a per-position cap could force an Excellent bullet out. The
+> owner postponed implementation on 2026-08-26 to keep producing CVs, and the measurement supports
+> that. **Cheaper interim: add the drift check above to `scripts/verify-lead-run.ts`** (~10 lines, no
+> model call) so the day it stops being zero, you find out before sending the CV rather than after.
+
 ---
 
 ---
