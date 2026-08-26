@@ -277,6 +277,34 @@ Ranks for held-back cards are `dropped[]` ordered by `gain` descending, numbered
 7. **Remove `Kept but not on this CV`** from the CV card; keep *Show sources on every line*, which is
    the traceability proof and a different job.
 
+### 2b.7 · Follow-up — held-back ranks must continue from the last SELECTED rank
+
+**Opened 2026-08-26, after Part 2 landed.** `lib/selection-view.ts` §111 numbers held-back cards from
+`budget + 1`, which is exactly what §2b.3 specified and is wrong whenever C3 fills fewer places than
+the budget allows. Allianz reads **1…13, nothing at 14, then 15** — a gap a reader takes for a bug,
+because it looks like one.
+
+The spec assumed the selected set always reaches `B`. It does not: the per-position cap, exclusions
+and a small candidate pool can all close selection early. `budget` is what was *permitted*;
+`selected` is what was *taken*, and the ranking is a single sequence over the second.
+
+**The change:** continue from the highest rank actually assigned, not from the budget.
+
+```ts
+// lib/selection-view.ts §111
+let next = budget + 1;                                   // wrong when |selected| < budget
+let next = Math.max(...ranked.map((r) => r.rank)) + 1;   // continue the sequence that exists
+```
+
+Take the highest assigned rank rather than `ranked.length + 1`, so the sequence stays contiguous even
+if a selected rank were ever missing. Update the `rank` doc comment at §25, which states the
+`budget + 1` rule.
+
+- [ ] Allianz's Map reads 1…13, 14, 15… with no gap.
+- [ ] A lead whose selection fills the budget is unchanged — Julius Baer still reads 1…14, 15…
+- [ ] Pinning and excluding still renumber correctly, including when an exclusion shortens the set.
+- [ ] A test pins the case: fewer selected than budget produces contiguous ranks.
+
 ### 2b.6 · Acceptance
 
 - [ ] Approving the map produces a shortlist and **no LLM call** — compare `llm_calls` before/after.
