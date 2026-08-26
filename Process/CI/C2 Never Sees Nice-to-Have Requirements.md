@@ -20,7 +20,7 @@ pr-target: "[[C2. Map JD Requirements to Supporting Evidence]], [[C3. Select the
 ## 1. What is the problem or opportunity?
 
 `runEvidenceMapping` filters requirements to `CORE_AND_IMPORTANT` before anything else runs
-(`lib/pipeline/tailoring.ts` §771). **A Nice-to-Have requirement is therefore never mapped, never
+(`lib/pipeline/tailoring.ts` §772). **A Nice-to-Have requirement is therefore never mapped, never
 approved, and can never reach the CV** — there are no green rows for it, so no downstream step can
 choose one.
 
@@ -56,6 +56,35 @@ they added anything measurable. Those slots currently buy nothing.
 against Core's `3` means such a requirement can only ever win a slot once every Core and Important
 requirement is saturated — it is structurally last in the queue, and it displaces nothing. What is
 needed is not a change to the equation but a supply of green rows for it to consider.
+
+> [!IMPORTANT] Re-measured across the whole back catalogue, 2026-08-26 — 13× larger than §1 says
+> §1's table covers the three test leads. Across every lead in the database: **34 Nice-to-Have
+> requirements on 19 leads**, rated by B6 as `Very Strong` 11 · `Excellent` 2 · `Good` 6 · `Weak` 3 ·
+> `No Match` 5 · unrated 7.
+>
+> **13 of them are carry-tier — free to promote, evidence already found:**
+>
+> ```
+> Vestas        High Drive, Integrity and Cultural Navigation      2 evidence rows
+> Vestas        Interpersonal Style and Culture Affinity           4
+> Vestas        Willingness to Travel                              2
+> Vestas        Attention to Detail Under Pace                     3
+> papernest     Previous Successful Managerial Experience          3
+> EPAM Systems  Industry Specialization Preferred                  4
+> EPAM Systems  Distributed Multi-Disciplinary Team Leadership     4
+> Signify       Corporate Finance Experience                       3
+> Julius Baer   Meeting Preparation and Coordination               3
+> Danske Bank   Experience in Financial or Technology Sector       5
+> BCG           Global and Cross-Regional Finance Collaboration    4
+> …and two more
+> ```
+>
+> So the note's own line — *"carry-only admits exactly one requirement across all three leads"* — is
+> true of the sample and badly understates the opportunity. It is 13 requirements across nine
+> companies, every one with B6 evidence sitting unread in `requirement_evidence`, and **none of them
+> costs a model call to promote.** Those are soft requirements — culture fit, travel willingness,
+> attention to detail — which is exactly the kind a CV usually fails to answer explicitly and which
+> the ATS step rewards when it does.
 
 ### 2.2 · Carry tier only — the economical door
 
@@ -120,7 +149,7 @@ section."*
 
 ## 3. Resources or references
 
-- `lib/pipeline/tailoring.ts` §65 `CORE_AND_IMPORTANT`, §771 the filter, §188 `tierFor`, §822 where
+- `lib/pipeline/tailoring.ts` §66 `CORE_AND_IMPORTANT`, §772 the filter, §189 `tierFor`, §822 where
   tiers are assigned from `initialMatchStrength`.
 - `lib/db/schema.ts` §429 `jobRequirements.initialMatchStrength` — B6's rating, the tier's input. Note
   it is `initial_match_strength`, not `match_strength`; there is no such column.
