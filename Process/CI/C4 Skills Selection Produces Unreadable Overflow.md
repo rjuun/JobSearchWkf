@@ -2,11 +2,11 @@
 ci-area: CV Tailoring
 ci-roadmap:
 ci-title: C4 Skills Selection Produces Unreadable Overflow
-ci-status: 2 - Testing
+ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-07
-ci-estimated-time:
-ci-time-spent: 0
+ci-estimated-time: 8
+ci-time-spent: 8
 pr-source: "[[CV Header, Skills & Professional Experience — Data-Driven Template Wiring]]"
 pr-target: "[[C2. Map JD Requirements to Supporting Evidence]], [[C4. Transform Evidence into CV Bullets]], [[C5. Build and Manage the Skills Section]]"
 ---
@@ -106,23 +106,16 @@ Two further findings that reframed the fix:
 - [x] No raw graph tag can reach the CV — every My Skills value is validated against the vocabulary.
 - [x] `npm run typecheck` clean; 226 tests pass, 17 of them new (`lib/__tests__/c4-skills.test.ts`).
 - [x] Strict-schema audit clean after the `emit_evidence_map` change.
-- [ ] **Live verification pending — needs a paid run.** The new C2 selection path has not been
-      exercised against a real Opus call.
-- [ ] **Already-mapped leads keep stale `my_skills`, and a C2 re-run does NOT fix them.** Corrected
-      2026-08-23 after initially claiming the opposite. `planMerge` only writes `my_skills` on the
-      `toReplace` path (new evidence scoring *strictly* higher, which also resets the row to
-      `pending` and costs the approval). Rows that merely match again land in `unchanged` and are
-      not touched at all; `toRefresh` patches `evidence_kind` only. The Allianz lead's 64 green rows
-      were carried forward at their requirement's own `initialMatchStrength`, so a re-run proposes
-      identical refs at identical strengths — every row is `unchanged`, and its 68 free-text tags
-      persist indefinitely.
-      **Consequence:** the CV is correct (C4 no longer reads `my_skills`), but the workspace's "My
-      Skills" badges keep showing the old tags, which reads as "nothing changed". Only a *new* lead
-      exercises the corrected C2 path end to end.
-      **Options:** a deterministic backfill script (resolve stored `my_skills` through
-      `buildVocabIndex`/`resolveVocab` and rewrite — no LLM, no approval reset; would take Allianz's
-      68 tags to its 11 recognised names), or accept the staleness on historical leads and verify on
-      a new one.
+- [x] **Live verification — done.** C2 has run live on `ee5c72bf`, `a9f2307b`, `36e63a67` and
+      `12ad67c8`; the last two were driven end to end through the app by the owner on 2026-08-26.
+      Measured 2026-08-26 across every lead mapped after the fix: **zero unrecognised My Skills
+      values**, on all seven.
+- [x] **Already-mapped leads' stale `my_skills` — backfilled 2026-08-26 (§4).** Only the Allianz
+      lead (`b7e91408`) was affected: it predates the vocabulary gate, and a C2 re-run cannot fix it
+      because `planMerge` writes `my_skills` only on the `toReplace` path (new evidence scoring
+      *strictly* higher). A re-run proposes the same refs at the same strengths, every row lands in
+      `unchanged`, and nothing is touched. Resolved by
+      `scripts/backfill-my-skills-vocabulary.ts` instead.
 
 ### 2.11 · REOPENED 2026-08-24 — the categorisation half was never built
 
@@ -286,6 +279,57 @@ probe cannot reproduce a model call, and should not pretend to.
 - Memory: `c4-skills-overflow-bug.md` (auto-memory) — the same finding, saved for cross-session recall.
 
 ## 4. Notes / Progress log
+
+### 2026-08-26 · Reconciliation & backfill — CLOSED
+
+Both remaining acceptance boxes settled. No new capability; post-implementation reconciliation, which
+is why it lives here rather than in a note of its own.
+
+**Box 1 · live verification.** Satisfied several times over since it was written. Measured across
+every lead: **zero unrecognised My Skills values on all seven leads mapped after the gate**.
+
+**Box 2 · the backfill.** One lead affected, and it is the one that predates the fix.
+`scripts/backfill-my-skills-vocabulary.ts` — deterministic, no model call, dry-run by default —
+resolves stored `my_skills` through the same `buildVocabIndex`/`resolveVocab` pair C2 uses at write
+time. Applied to `b7e91408` (Allianz Partners) on the owner's decision:
+
+| | before | after |
+| --- | --- | --- |
+| rows carrying values | 63 | 27 |
+| values | 178 | 32 |
+| unrecognised, dropped | 137 | 0 |
+| ATS variants canonicalised | — | 9 |
+| rows left empty | — | 36 |
+
+Every other lead: **0 changed**. Idempotent — the second run rewrites nothing.
+
+**Why dropping is right, not merely defensible.** An unrecognised value is not provenance; it is
+noise wearing provenance's clothes. "Data Reliability" as a My Skill is a claim the profile does not
+make, and an empty field is the true statement that no curated capability was recorded for that row.
+This CI exists because free-text tags masquerading as curated vocabulary put 67 skills on a CV. The
+raw tags remain on the Career Graph evidence nodes, which is where they originated and belong.
+
+**Why it was safe.** `my_skills` does not reach the CV — C5 prints `cv_bullet_skills`. Allianz was
+generated 2026-08-07 and already applied, so by the generate-once rule it will never be re-tailored.
+The only live consumer is the workspace's "My Skills" badges. Verified untouched afterwards on that
+lead: `cv_bullet` 64, `cv_bullet_skills` 64, `requirement_skills` 65, `approval_status=green` 64, and
+`updated_at` still reading 2026-08-04/05 — the write moved nothing but the one column.
+
+**One correction to the brief this closed against, and it was mine, not its.** The brief's "137
+unrecognised of 178" is exact. My first measurement reported 146 because a naive before-minus-after
+conflates two opposite things: a **dropped** value the profile does not recognise, and a
+**collapsed** one where two ATS variants of the same skill merge to its canonical name
+(`board governance` + `Management Board` + `Supervisory Board` + `General Assembly` →
+`Corporate Governance`). 137 + 9 = 146. Collapsing is a gain, not a loss, and reporting them together
+overstated what the owner was being asked to accept. The script now counts them separately.
+
+**Noted, not acted on:** this note is titled for step **C4** and its `pr-target` already points at
+`C5. Build and Manage the Skills Section` — the step renumbering has moved past the title. Renaming
+would break the wikilinks that several other notes use. Worth a deliberate pass across the CI folder
+rather than a silent rename here.
+
+`npm run typecheck` clean; `npm test` 341 passing. `npm run lint` fails on the pre-existing eslint
+plugin issue — not a regression.
 
 ### 2026-08-07 · Opened as an Idea
 
