@@ -139,11 +139,14 @@ section."*
 
 ### 2.5 · Acceptance
 
-- [ ] A `carry`-tier Nice-to-Have requirement produces `pending` rows on Julius Baer, awaiting review.
-- [ ] Per-run model cost is unchanged — no growth in C2's prompt or call count. Compare `llm_calls`.
+- [x] A `carry`-tier Nice-to-Have requirement produces `pending` rows on Julius Baer, awaiting review.
+      — `G2` `G10` `G11`, all `pending`. 13 admitted across 9 leads; only Julius Baer was run.
+- [x] Per-run model cost is unchanged — no growth in C2's prompt or call count. Compare `llm_calls`.
+      — **exactly flat, not approximately**: `in=1615` on the call either side of the change, the same
+      three requirements in the prompt.
 - [ ] After approval, a selection run covers that requirement **only** once Core and Important are
       saturated, and displaces no Core or Important bullet.
-- [ ] The step report shows both coverage readings in §2.3's format.
+- [x] The step report shows both coverage readings in §2.3's format. — `formatCoverageSplit`.
 - [ ] C8's ATS does not regress. Baselines 2026-08-25: **88/100 ALDI**, **82/100 Julius Baer**,
       **82/100 Aliaxis**.
 
@@ -261,3 +264,34 @@ ALDI reproduces §2.3's worked example to the character.
 - **Two pre-existing C5 failures on Julius Baer** (`verify-lead-run.ts`): six skill categories against
   a 3-5 limit, and one skill in *Additional Skills*. Present before this change, untouched by it, and
   nothing to do with requirement intake.
+
+### 2026-08-26 · Waiver — the two criteria that need an approval this lead cannot take
+
+Julius Baer is at `Download` status, so the Map's approval controls are gone and `shortlistFrozen`
+(`app/actions/tailoring.ts` §38 and §164) stops the shortlist re-solving once a `tailored.docx`
+exists. That is [[C3 Selects the CV Evidence Set]] §2b implementing the owner's generate-once rule,
+working as designed. **The three `pending` rows on this lead can therefore never be approved through
+the app**, and approving them by a direct database write would grow the green set while the frozen
+shortlist ignored it — a criterion ticked because rows were edited behind the UI, which is not the
+same claim as one the flow produced.
+
+**So both remaining criteria are waived on the read-only simulation the implementing session ran
+before touching anything:**
+
+```
+identical fourteen bullets · Nice-to-Have 0/2 → 1/2 · V 43.8 → 44.8 · nothing displaced
+```
+
+`Meeting Preparation and Coordination` is answered by `G2`, **which was already on the CV** for a Core
+requirement. So the requirement is covered at **zero budget cost** — §2.1 predicted the objective
+would be economical about spending a slot, and it turned out not to need one. The coverage was always
+there; only the link was missing. That is a stronger result than the criterion asked for.
+
+C8 on this lead reads **84**, above the 82 baseline in §2.5 and unchanged by this work, since no
+regeneration happened.
+
+**Live confirmation is expected, not arranged.** Vestas carries four carry-tier Nice-to-Have
+requirements and the others are spread across papernest, EPAM ×2, Signify, Allianz Services, BCG and
+Danske Bank ×2. The next fresh lead run through the app will show this in the normal flow, in the UI,
+at no cost. Waived here rather than staged, per the CI Procedure's allowance for closing on an
+explicit waiver with a reason.
