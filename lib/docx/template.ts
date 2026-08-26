@@ -19,6 +19,21 @@
  * dashes, so we use `<<`…`>>` delimiters with a custom parser that treats the
  * whole tag as a literal key into the data map, and a nullGetter that blanks any
  * unmapped slot rather than throwing.
+ *
+ * Correction, 2026-08-27 (CI · CV Template Output Format §2.6): the data was a
+ * flat `Record<string, string>` and multi-line values were joined with `\n`.
+ * That could not work, and four of the owner's six format complaints were the
+ * one consequence: docxtemplater substitutes a value INTO the paragraph its
+ * placeholder sits in, so a `\n` is a line break *within one paragraph* — and
+ * Word applies list formatting, bold runs and tab stops PER PARAGRAPH. Three
+ * bullets rendered as one bulleted paragraph with two soft breaks (measured, not
+ * assumed: the probe put three `<w:t>` runs and two `<w:br/>` inside a single
+ * `<w:p>` carrying one `<w:numPr>`).
+ *
+ * So the template now owns the repeating paragraph and the data supplies values:
+ * `<<#tag>>` … `<</tag>>` loops, with `<<.>>` for a bare string item. The parser
+ * below gained exactly one line for it. `scripts/retag-cv-template.ts` is the
+ * record of which paragraphs were re-tagged and why.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,16 +51,28 @@ export function templateExists(): boolean {
   }
 }
 
+/**
+ * What a slot may hold. A plain string still fills a single paragraph; an array
+ * drives a `<<#slot>>` loop, one paragraph per element — of bare strings for a
+ * `<<.>>` body, or of objects whose keys are the tags inside the loop.
+ */
+export type TemplateValue = string | string[] | Record<string, string | string[]>[];
+export type TemplateData = Record<string, TemplateValue>;
+
 /** Render the real template. `data` keys are the full slot strings above. */
-export function buildCvFromTemplate(data: Record<string, string>): Buffer {
+export function buildCvFromTemplate(data: TemplateData): Buffer {
   const content = fs.readFileSync(TEMPLATE_PATH, 'binary');
   const zip = new PizZip(content);
   const doc = new Docxtemplater(zip, {
     delimiters: { start: '<<', end: '>>' },
     paragraphLoop: true,
     linebreaks: true,
-    // Raw-tag parser: the tag IS the key (no expression evaluation).
-    parser: (tag: string) => ({ get: (scope: Record<string, unknown>) => scope[tag] ?? '' }),
+    // Raw-tag parser: the tag IS the key (no expression evaluation). `<<.>>` is
+    // docxtemplater's "the loop item itself", which is how a loop over bare
+    // strings — one bullet, one language — addresses its element.
+    parser: (tag: string) => ({
+      get: (scope: Record<string, unknown>) => (tag === '.' ? scope : scope?.[tag] ?? ''),
+    }),
     nullGetter: () => '',
   });
   doc.render(data);

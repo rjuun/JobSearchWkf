@@ -37,7 +37,7 @@ import { buildCv, type CvModel } from '../docx/cv';
 import { systemPromptFor } from '../prompts';
 import { runStructured, type UserContentBlock } from '../llm/client';
 import { C2, C4, C5, C6, C8 } from '../llm/schemas';
-import { CV_SLOTS, normalizeCvPosition, slotCode, templateExists, buildCvFromTemplate } from '../docx/template';
+import { CV_SLOTS, normalizeCvPosition, slotCode, templateExists, buildCvFromTemplate, type TemplateData } from '../docx/template';
 import { evidenceNeedsCvSlot } from '../cv-slots';
 import { recordGapTips } from '../ci';
 import { matchStrengthToScore } from '../scoring';
@@ -75,9 +75,55 @@ const overlap = (a: Set<string>, b: Set<string>): number => {
   return n;
 };
 
+/**
+ * C1's D&I markets — "Not mentioned + country is UK, IE, DK, NL, CA → Do not
+ * include". Countries, because that is how C1 states the rule; the cities are
+ * kept alongside because `job_leads.city` does not always carry a country.
+ */
+const HEADSHOT_DEI_COUNTRIES = new Set([
+  'uk', 'gb', 'united kingdom', 'great britain', 'england', 'scotland', 'wales', 'northern ireland',
+  'ie', 'ireland', 'republic of ireland',
+  'dk', 'denmark',
+  'nl', 'netherlands', 'the netherlands', 'holland',
+  'ca', 'canada',
+]);
+const HEADSHOT_DEI_CITIES = new Set(['london', 'dublin', 'copenhagen', 'amsterdam', 'rotterdam', 'the hague', 'toronto', 'vancouver', 'montreal']);
+
+/**
+ * C1 · Professional Headshot — the decision C7 renders the header line from.
+ *
+ * Correction, 2026-08-27: this compared `city.toLowerCase()` against a list of
+ * bare city names, and `job_leads.city` holds "London, United Kingdom". The
+ * equality never held for any real lead, so every lead in the build's history
+ * took the "Optional" branch and the D&I rule had never once fired. It also read
+ * the rule off the wrong column: C1 decides by COUNTRY, and only mentions cities
+ * as examples.
+ *
+ * Now every comma-separated part is tested — the tail against C1's country list,
+ * the head against the cities in those countries for leads that name no country.
+ */
 function headshotDecision(city: string | null): string {
-  const dei = ['amsterdam', 'copenhagen', 'london', 'dublin', 'toronto', 'rotterdam'];
-  return city && dei.includes(city.toLowerCase()) ? 'Do not include (D&I norm)' : 'Optional (lean exclude)';
+  const parts = (city ?? '').split(',').map((p) => p.trim().toLowerCase().replace(/[^\p{L}\s.]+/gu, '').replace(/\./g, '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const dei = parts.some((p) => HEADSHOT_DEI_COUNTRIES.has(p) || HEADSHOT_DEI_CITIES.has(p));
+  return dei ? 'Do not include (D&I norm)' : 'Optional (lean exclude)';
+}
+
+/**
+ * The header line under the name — and, until now, fixed text in the template
+ * that printed on every CV regardless of what C1 decided.
+ *
+ * It prints only where the reason it states is true. "In respect to D&I best
+ * practices" is an accurate account of a CV built for London or Copenhagen, where
+ * C1 says do not include; it is not an account of a Vienna CV, where C1 says the
+ * headshot is optional and the build simply has no photo to attach. Printing it
+ * there asserts a rationale that does not hold, and costs a line of a CV already
+ * over budget.
+ *
+ * An array of nought or one, so the template's loop removes the whole paragraph
+ * rather than leaving an empty one behind.
+ */
+function headshotNote(decision: string): string[] {
+  return decision.startsWith('Do not include') ? ['Headshot not added in respect to D&I best practices.'] : [];
 }
 
 /**
@@ -609,28 +655,133 @@ function templateFits(green: (typeof requirementTailoring.$inferSelect)[]): bool
 /** Map Keep bullets into the template's 11 cv_position slots, refilling any slot
  *  the Keep set doesn't cover from the bank (projects) / responsibilities
  *  (role overviews) so the real 2-page template never renders a blank section. */
-/** "1995-08-01" → "August 1995" — full month name, matching the rest of the CV's
- *  date convention (positions' dates are e.g. "July 2018"). Passes through
- *  anything that isn't ISO-shaped. */
-function fmtEduDate(s: string | null): string {
-  const m = s?.match(/^(\d{4})-(\d{2})/);
-  if (!m) return s ?? '';
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-  return `${months[Number(m[2]) - 1]} ${m[1]}`;
+/** Vienna is Wien is Vienne. A city that a lead and a profile can plausibly write
+ *  two ways is a city the relocation clause must not print for — this is the
+ *  owner's own city and the one that decides §2.1's "not in Vienna" test, so it
+ *  earns the alias. Extend as other home cities appear; a miss only costs a line
+ *  that reads "open to relocate to the city you already live in". */
+const CITY_ALIASES: Record<string, string> = { wien: 'vienna', vienne: 'vienna' };
+
+/** "Vienna 1020, Austria" → "vienna". Everything before the first comma, with
+ *  postcodes and punctuation stripped, lowercased, aliased. Both sides of the
+ *  relocation comparison go through this, so the match is on the city alone and
+ *  not on how completely either side spelled out the country. */
+function cityKey(s: string | null | undefined): string {
+  const head = (s ?? '').split(',')[0] ?? '';
+  const cleaned = head
+    .toLowerCase()
+    .replace(/[^\p{L}\s-]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return CITY_ALIASES[cleaned] ?? cleaned;
 }
 
-async function templateSlotData(
+/** The lead's city as it should PRINT — original casing, country dropped, any
+ *  postcode trimmed off. "Munich, Germany" → "Munich". */
+function cityLabel(s: string | null | undefined): string {
+  return ((s ?? '').split(',')[0] ?? '').replace(/\b\d[\d\s-]*\b/g, '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * §2.1 — the header's relocation clause, which used to print `profiles.relocation`
+ * unconditionally and so told a Vienna employer the candidate was willing to move
+ * to somewhere else entirely.
+ *
+ * Three gates, and silence is the default whenever one cannot be answered:
+ *   • the candidate must have stated a willingness at all (`profiles.relocation`
+ *     is the fact, and stays the owner's to set — an empty one means never print);
+ *   • the lead must actually name a city (no city, no claim);
+ *   • that city must differ from the candidate's own.
+ *
+ * When it does print, it names THIS lead's city rather than repeating the stored
+ * free text, which is what the owner asked for. The consequence worth knowing: the
+ * stored `profiles.relocation` now GATES the clause instead of being its wording.
+ * The wording lives here, in one place, on purpose.
+ *
+ * Returns the leading separator with it — the template concatenates
+ * `<<Location>><<Relocation>>` directly, so a suppressed clause must leave no gap.
+ */
+function relocationClause(candidateLocation: string | null | undefined, relocation: string | null | undefined, leadCity: string | null | undefined): string {
+  if (!relocation?.trim()) return '';
+  const label = cityLabel(leadCity);
+  if (!label) return '';
+  const there = cityKey(leadCity);
+  if (!there || there === cityKey(candidateLocation)) return '';
+  return ` · Open to relocate to ${label}`;
+}
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** U+00A0, built from its code point rather than typed — a literal non-breaking
+ *  space is invisible in a diff and one stray normalisation removes it silently. */
+const NBSP = String.fromCharCode(0xa0);
+
+/**
+ * Every date the CV prints, in one abbreviated form: `"Aug 2009"`.
+ *
+ * One function because the owner asked for one format ("the same format and
+ * colour should be used for all dates"), and the two families of date reaching
+ * the template are stored differently — `positions` holds display strings
+ * ("August 2009", or a bare "2003" for the early roles), `education` holds ISO
+ * ("1995-08-01"). Both land here.
+ *
+ * Abbreviating is a space decision as much as a consistency one: "September 2016
+ * — Present" is the longest date on the CV and the one that was pushing an
+ * Education entry's date onto a second line.
+ *
+ * Anything it does not recognise — a bare year, "Present" — passes through
+ * untouched rather than being guessed at.
+ */
+function fmtCvDate(s: string | null | undefined): string {
+  const raw = (s ?? '').trim();
+  if (!raw) return '';
+  const iso = raw.match(/^(\d{4})-(\d{2})/);
+  if (iso) return `${MONTHS[Number(iso[2]) - 1]?.slice(0, 3) ?? ''} ${iso[1]}`.trim();
+  const named = raw.match(/^([A-Za-z]+)\s+(\d{4})$/);
+  if (named) {
+    const i = MONTHS.findIndex((m) => m.toLowerCase() === named[1].toLowerCase());
+    if (i >= 0) return `${MONTHS[i].slice(0, 3)} ${named[2]}`;
+  }
+  return raw;
+}
+
+/** "Aug 2009 — Jul 2011", from whatever shape the two ends were stored in. */
+function fmtDateRange(from: string | null | undefined, to: string | null | undefined): string {
+  return [fmtCvDate(from), fmtCvDate(to)].filter(Boolean).join(' — ');
+}
+
+/**
+ * The same range, made unbreakable.
+ *
+ * Every date sits after a right tab stop, so when the text before it fills the
+ * line Word takes its wrap at the last opportunity — which is inside the date.
+ * The IMD entry printed "Mar 2025 — Apr" on one line and "2025" on the next,
+ * which reads worse than the wrap it was supposed to be degrading into. Non-
+ * breaking spaces make the range one unit: it moves whole or not at all.
+ *
+ * Used on EDUCATION dates only, and the restriction is the point. `pandoc -t
+ * plain` was checked and does NOT fold U+00A0 back to a space — it survives into
+ * extracted text, and a `\s` that does not match it is a real ATS parser (Java's
+ * does not; JavaScript's and Python's do). Employment dates are the ones an ATS
+ * most wants to read, and the four position headers all fit on one line anyway
+ * (measured), so they gain nothing from this and keep ordinary spaces. Education
+ * heads are the ones long enough to wrap, and are parsed less and less strictly.
+ */
+function fmtDateRangeAtomic(from: string | null | undefined, to: string | null | undefined): string {
+  return fmtDateRange(from, to).replace(/ /g, NBSP);
+}
+
+/**
+ * Exported for `scripts/render-cv-from-stored.ts`, which re-renders a lead's CV
+ * from data a paid run already stored. Every template change costs a look at a
+ * real page, and a look at a real page must not cost a run — that script is how
+ * this CI measured its own output, and how the bullet budget gets re-checked the
+ * next time the template moves.
+ */
+export async function templateSlotData(
   ownerId: string,
   /** C3's chosen set — what fills the eleven Professional Experience slots. */
   selected: (typeof requirementTailoring.$inferSelect)[],
-  /** The whole Keep set. Education and Language rows never reach `selected`
-   *  (they are exempt from the bullet budget, CI · C3 §2.4), but their sections
-   *  still print their detail only when the row was Kept as evidence for THIS
-   *  job — so that decision keeps reading the Keep gate, not the selection. */
-  green: (typeof requirementTailoring.$inferSelect)[],
   bulletByRef: Map<string, { bullet: string; skills: string[] }>,
   profileText: string,
   profile?: {
@@ -642,9 +793,9 @@ async function templateSlotData(
     relocation: string | null;
     travel: string | null;
   } | null,
-  lead?: { jdGroupPrimary: string | null; jdGroupSecondary: string | null } | null,
+  lead?: { jdGroupPrimary: string | null; jdGroupSecondary: string | null; city: string | null } | null,
   skillsModel?: { category: string; items: string[] }[]
-): Promise<Record<string, string>> {
+): Promise<TemplateData> {
   const [bank, resps, eduRows, langRows, posRows] = await Promise.all([
     db.select().from(bulletBank).where(eq(bulletBank.ownerId, ownerId)),
     db.select().from(responsibilities).where(eq(responsibilities.ownerId, ownerId)),
@@ -654,7 +805,7 @@ async function templateSlotData(
   ]);
   // The tailored C6 profile fills the template's <<Profile>> placeholder, so the
   // .docx leads with role-specific positioning rather than the static scaffold.
-  const data: Record<string, string> = {};
+  const data: TemplateData = {};
   if (profileText) data['Profile'] = profileText;
 
   // Professional Experience position headers ("<Title> at <Company>, <City,
@@ -669,9 +820,12 @@ async function templateSlotData(
     if (!p) continue;
     const companyLine = [p.company, p.cityCountry].filter(Boolean).join(', ');
     data[`Position ${letter} Header`] = [p.title, companyLine].filter(Boolean).join(' at ');
-    const dates = [p.startDate, p.endDate].filter(Boolean).join(' — ');
+    const dates = fmtDateRange(p.startDate, p.endDate);
     if (dates) data[`Position ${letter} Dates`] = dates;
   }
+  // C1 decides whether this line exists at all — it is not the template's to
+  // assert. Empty array ⇒ the template's loop drops the paragraph entirely.
+  data['Headshot Note'] = headshotNote(headshotDecision(lead?.city ?? null));
   // C5 already computes this per-tailoring (the Keep rows' Requirement Skills,
   // ordered Core → Important → Nice-to-Have) for the programmatic builder's
   // CvModel — reused here so the real template shows the same tailored skills,
@@ -684,15 +838,23 @@ async function templateSlotData(
   // first. A renderer silently truncating a section it doesn't own was hiding
   // the symptom — if the list is ever too long again, that belongs in C5's
   // selection and its step report, where it is visible.
+  //
+  // §2.3 — the category is no longer a `"Category: "` prefix on the same line.
+  // It is its own BOLD paragraph, with the skills inline beneath it, which a flat
+  // string could not express at all: bold is a run inside a paragraph, and every
+  // line of a flat value shares one paragraph. The template's `<<#Skills>>` loop
+  // owns the two paragraphs; this supplies the pair per group.
   if (skillsModel?.length) {
-    data['Skills'] = skillsModel.map((g) => `${g.category}: ${g.items.join(' · ')}`).join('\n');
+    data['Skills'] = skillsModel.map((g) => ({ Category: g.category, Items: g.items.join(' · ') }));
   }
   if (profile?.name) data['Name'] = profile.name;
   if (profile?.location) data['Location'] = profile.location;
   if (profile?.phone) data['Phone'] = profile.phone;
   if (profile?.email) data['Email'] = profile.email;
   if (profile?.citizenship) data['Citizenship'] = profile.citizenship;
-  if (profile?.relocation) data['Relocation'] = profile.relocation;
+  // §2.1 — conditional, and it names the LEAD's city. See `relocationClause`.
+  const relocation = relocationClause(profile?.location, profile?.relocation, lead?.city);
+  if (relocation) data['Relocation'] = relocation;
   if (profile?.travel) data['Travel'] = profile.travel;
   // Header's "positioning" line is this lead's own B5 classification, not
   // profiles.headline (which is only ever an internal seed for the C6 prompt
@@ -701,41 +863,51 @@ async function templateSlotData(
   if (lead?.jdGroupPrimary) data['JD Group Primary'] = lead.jdGroupPrimary;
   if (lead?.jdGroupSecondary) data['JD Group Secondary'] = lead.jdGroupSecondary;
 
-  // Education / Executive Education — each flattened into one block, same
-  // "join lines into a single tag" approach as CV_SLOTS below (the template's
-  // literal-key parser has no real loop construct to repeat per-row). `type`
-  // already distinguishes the two sections ('Executive Education' vs
-  // everything else) — confirmed against live data, no separate field needed.
+  // Education / Executive Education — one entry per row, as the template's
+  // `<<#Education>>` loop expects. `type` already distinguishes the two sections
+  // ('Executive Education' vs everything else) — confirmed against live data, no
+  // separate field needed.
   //
-  // Qualification/institution/dates are hard-mapped — always shown, like a
-  // position's title/company/dates — but `summary` is bullet-like evidence, not
-  // a fixed fact, so it's gated by the same Keep set as Professional Experience:
-  // only shown when this education row was actually cited as green evidence for
-  // THIS job's requirements (C2 cites the whole row, `evidenceKind: 'Education'`,
-  // `evidenceRef` = the row's refCode — there's no per-summary-line evidence
-  // granularity yet, so it's row-level: all of a Kept row's summary lines show,
-  // none of an un-Kept row's do).
+  // Correction, 2026-08-27: these used to flatten into a single `\n\n`-joined
+  // block "because the template's literal-key parser has no real loop construct
+  // to repeat per-row". It has one now (CI · CV Template Output Format §2.6), and
+  // the flattening was what pushed every date onto its own line — §2.5's
+  // complaint. `Head` and `Dates` are now separate tags either side of a right
+  // tab stop.
+  //
+  // The per-row `summary` notes no longer print, on the owner's instruction
+  // (2026-08-27, second review: "eliminate notes from Education and Executive
+  // Education"). They were Keep-gated evidence — shown only where C2 had cited
+  // that row for THIS job — and the gate was the reason this function took the
+  // whole `green` set. Nothing else here reads it, so the parameter went with
+  // them. The rows are still evidence; they are simply not printed under the
+  // qualification any more, which buys back four lines of a CV that is over
+  // budget. Restoring them means restoring both the loop in the template and the
+  // Keep gate here, not just a field.
   const eduSortKey = (e: (typeof eduRows)[number]) => e.dateCompleted || e.dateBegin || '';
-  const keptEduRefs = new Set(green.filter((g) => g.evidenceKind === 'Education' && g.evidenceRef).map((g) => g.evidenceRef as string));
-  const eduLine = (e: (typeof eduRows)[number]) => {
-    const head = [e.qualification, [e.institution, e.cityCountry].filter(Boolean).join(', ')].filter(Boolean).join(', ');
-    const start = fmtEduDate(e.dateBegin);
-    const end = e.dateCompleted ? fmtEduDate(e.dateCompleted) : e.dateBegin ? 'Present' : '';
-    const dates = [start, end].filter(Boolean).join(' — ');
-    const summary = e.refCode && keptEduRefs.has(e.refCode) ? e.summary ?? [] : [];
-    return [head, dates, ...summary].filter(Boolean).join('\n');
-  };
+  const eduEntry = (e: (typeof eduRows)[number]) => ({
+    Head: [e.qualification, [e.institution, e.cityCountry].filter(Boolean).join(', ')].filter(Boolean).join(', '),
+    // `||`, not `??`. `date_completed` holds an EMPTY STRING on the in-progress
+    // Master's, not null — so `??` accepted it as a completion date and the entry
+    // printed "Sep 2016" where it had read "Sep 2016 — Present". A study still
+    // under way is the one case this field exists to express; it must not turn on
+    // which flavour of empty the row happens to carry.
+    Dates: fmtDateRangeAtomic(e.dateBegin, e.dateCompleted || (e.dateBegin ? 'Present' : null)),
+  });
   const education_ = eduRows.filter((e) => e.type !== 'Executive Education').sort((a, b) => eduSortKey(b).localeCompare(eduSortKey(a)));
   const execEducation = eduRows.filter((e) => e.type === 'Executive Education').sort((a, b) => eduSortKey(b).localeCompare(eduSortKey(a)));
-  if (education_.length) data['Education'] = education_.map(eduLine).join('\n\n');
-  if (execEducation.length) data['Executive Education'] = execEducation.map(eduLine).join('\n\n');
+  if (education_.length) data['Education'] = education_.map(eduEntry);
+  if (execEducation.length) data['Executive Education'] = execEducation.map(eduEntry);
 
   if (langRows.length) {
-    // Unicode bullet per line ("•", matching the owner's original CV convention)
-    // rather than a single pipe-joined line — the template's parser has no real
-    // loop/list construct, so this is one flat run with manual line breaks
-    // (docxtemplater's `linebreaks: true` turns each `\n` into a real line break).
-    data['Languages'] = langRows.map((l) => `•  ${l.language}: ${l.displayLevel ?? l.cefrLevel ?? ''}`.trim()).join('\n');
+    // The literal `"•  "` prefix that used to sit here is gone. It was the
+    // workaround for exactly the defect §2.6 names — the parser had no loop, so
+    // one flat run with manual line breaks was the only way to get a bullet in
+    // front of each language — and it was the fingerprint that led this CI to the
+    // root cause. The template's `<<#Languages>>` loop gives each line a real
+    // bulleted paragraph, so the glyph belongs to Word's list formatting again
+    // and not to the data.
+    data['Languages'] = langRows.map((l) => `${l.language}: ${l.displayLevel ?? l.cefrLevel ?? ''}`.trim());
   }
 
   for (const slot of CV_SLOTS) {
@@ -775,9 +947,19 @@ async function templateSlotData(
         ? resps.filter((r) => (r.positionRef ?? '') === letter).slice(0, 2).map((r) => r.text ?? '').filter(Boolean)
         : bank.filter((b) => slotCode(b.cvPosition ?? '') === code).map((b) => b.text ?? '').filter(Boolean);
     }
-    // Trim a trailing period: the template already prints "<<…>>." so content
-    // ending in "." would otherwise double up.
-    data[slot] = lines.join(isOverview ? ' ' : '\n').replace(/\.\s*$/, '');
+    // A role overview is prose and stays one paragraph. A project slot is a LIST,
+    // and the template now repeats its bulleted paragraph per element — which is
+    // §2.4's fix: joining with `\n` gave Word one paragraph, so one bullet, and
+    // every line after the first was an unbulleted soft break inside it.
+    //
+    // The `.replace(/\.\s*$/, '')` that used to close this line is gone with the
+    // join. Its stated reason — "the template already prints `<<…>>.`" — was not
+    // true of any committed version of the template: no placeholder is followed by
+    // a literal period. What it actually did was strip the full stop from the LAST
+    // line of every group, so a three-bullet project printed two bullets ending in
+    // "." and a third ending in nothing. Visible in the 2026-08-26 CV the owner
+    // marked up, under every position.
+    data[slot] = isOverview ? lines.join(' ') : lines;
   }
   return data;
 }
@@ -1757,7 +1939,7 @@ export async function generateCv(
     try {
       if (!templateExists()) throw new Error('template not found');
       if (!templateFits(selected)) throw new Error('Selected set has evidence outside the template slots');
-      buf = buildCvFromTemplate(await templateSlotData(effectiveOwnerId, selected, green, bulletByRef, profileText, profile, lead, skillsModel));
+      buf = buildCvFromTemplate(await templateSlotData(effectiveOwnerId, selected, bulletByRef, profileText, profile, lead, skillsModel));
       how = 'real template';
     } catch (e) {
       buf = await buildCv(model);

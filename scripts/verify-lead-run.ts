@@ -16,6 +16,7 @@ import './_env';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { parseSkillItems, skillsBlock } from '../lib/docx/cv-skills';
 import { db } from '../lib/db';
 import { jobLeads, jobRequirements, requirementTailoring, pipelineRuns, languages, education } from '../lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
@@ -36,15 +37,15 @@ function printedSkills(leadId: string): string[] | null {
     // newlines then swallows that skill — it cost four to five entries per lead
     // when this checker was first written.
     const text = execFileSync('pandoc', ['-t', 'plain', '--wrap=none', file], { encoding: 'utf8', maxBuffer: 1 << 24 });
-    const block = text.split(/^SKILLS\s*$/m)[1]?.split(/^PROFESSIONAL EXPERIENCE\s*$/m)[0];
+    // The layout used to be one line per category, "Heading: a · b · c", and this
+    // read the items by splitting on the colon. CI · CV Template Output Format §2.3
+    // gave the category its own bold paragraph, at which point no line had a colon
+    // and this returned zero entries on every lead — reported as a mismatch against
+    // C5 rather than as a parse failure, which is the worse way to fail. The shape
+    // of the section now lives in one place that knows both layouts.
+    const block = skillsBlock(text.split('\n'));
     if (!block) return null;
-    // One line per category: "Heading: a · b · c".
-    return block
-      .split('\n')
-      .filter((line) => line.includes(':'))
-      .flatMap((line) => line.slice(line.indexOf(':') + 1).split('·'))
-      .map((s) => s.trim())
-      .filter(Boolean);
+    return parseSkillItems(block);
   } catch {
     return null;
   }
