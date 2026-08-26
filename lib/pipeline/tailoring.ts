@@ -745,6 +745,33 @@ function fmtCvDate(s: string | null | undefined): string {
   return raw;
 }
 
+/**
+ * An education entry's status qualifier — the short parenthetical that prints on
+ * its own line under the qualification, e.g. *(coursework complete, thesis not
+ * submitted)*.
+ *
+ * **The convention: a LEADING PARENTHESISED LINE in `education.notes` is the
+ * entry's status and prints; everything after it stays internal.** That is not a
+ * rule invented for the field — it is how the owner's own row is already written,
+ * with the qualifier on the first line and the internal detail below it.
+ *
+ * It exists because the qualifier could not live anywhere else that was right.
+ * Inside `qualification` it made the head too long to keep its date on the same
+ * line, which was §2.5's whole complaint. In `summary` it would have come back as
+ * one of the notes he had just asked to remove — and `summary` is Keep-gated
+ * per job, whereas "thesis not submitted" is true of the qualification whichever
+ * role the CV answers.
+ *
+ * No other row's notes begin with a bracket, so nothing else starts printing.
+ *
+ * Returns nought-or-one so the template's loop drops the whole paragraph for the
+ * entries that have no qualifier, rather than leaving each of them a blank line.
+ */
+function educationStatus(notes: string | null | undefined): string[] {
+  const first = (notes ?? '').split(/\r?\n/)[0]?.trim() ?? '';
+  return /^\(.*\)\.?$/.test(first) ? [first.replace(/\.$/, '')] : [];
+}
+
 /** "Aug 2009 — Jul 2011", from whatever shape the two ends were stored in. */
 function fmtDateRange(from: string | null | undefined, to: string | null | undefined): string {
   return [fmtCvDate(from), fmtCvDate(to)].filter(Boolean).join(' — ');
@@ -823,9 +850,21 @@ export async function templateSlotData(
     const dates = fmtDateRange(p.startDate, p.endDate);
     if (dates) data[`Position ${letter} Dates`] = dates;
   }
-  // C1 decides whether this line exists at all — it is not the template's to
-  // assert. Empty array ⇒ the template's loop drops the paragraph entirely.
-  data['Headshot Note'] = headshotNote(headshotDecision(lead?.city ?? null));
+  // C1 decides both halves of the headshot question, and they are mutually
+  // exclusive: either the photograph prints, or the line explaining its absence
+  // does. Empty arrays ⇒ the template's loops drop the drawing and the paragraph
+  // entirely, and `dropUnreferencedImages` then takes the JPEG out of the package
+  // so a no-headshot CV does not quietly carry one.
+  //
+  // The rule: include unless C1 says do not. C1's table also marks other European
+  // countries "Optional (lean towards exclude)", but the owner's own CVs for
+  // Vienna roles carry the photograph, so leaning on that would print a CV he
+  // would not send. The hard rule — UK, IE, DK, NL, CA — is the one that decides
+  // here. One line to reverse if he wants the lean honoured instead.
+  const headshot = headshotDecision(lead?.city ?? null);
+  const excludeHeadshot = headshot.startsWith('Do not include');
+  data['Headshot'] = excludeHeadshot ? [] : ['x'];
+  data['Headshot Note'] = headshotNote(headshot);
   // C5 already computes this per-tailoring (the Keep rows' Requirement Skills,
   // ordered Core → Important → Nice-to-Have) for the programmatic builder's
   // CvModel — reused here so the real template shows the same tailored skills,
@@ -887,6 +926,8 @@ export async function templateSlotData(
   const eduSortKey = (e: (typeof eduRows)[number]) => e.dateCompleted || e.dateBegin || '';
   const eduEntry = (e: (typeof eduRows)[number]) => ({
     Head: [e.qualification, [e.institution, e.cityCountry].filter(Boolean).join(', ')].filter(Boolean).join(', '),
+    // A status qualifier, not the return of the notes. See `educationStatus`.
+    Status: educationStatus(e.notes),
     // `||`, not `??`. `date_completed` holds an EMPTY STRING on the in-progress
     // Master's, not null — so `??` accepted it as a completion date and the entry
     // printed "Sep 2016" where it had read "Sep 2016 — Present". A study still
@@ -1939,7 +1980,13 @@ export async function generateCv(
     try {
       if (!templateExists()) throw new Error('template not found');
       if (!templateFits(selected)) throw new Error('Selected set has evidence outside the template slots');
-      buf = buildCvFromTemplate(await templateSlotData(effectiveOwnerId, selected, bulletByRef, profileText, profile, lead, skillsModel));
+      // The finished file says the owner wrote it, because he did — the evidence,
+      // the wording he approved and the profile are all his. What it must not say
+      // is that a template made on 2 July authored it, which is what every CV
+      // before this one claimed. `lib/docx/metadata.ts` has the full account.
+      buf = buildCvFromTemplate(await templateSlotData(effectiveOwnerId, selected, bulletByRef, profileText, profile, lead, skillsModel), {
+        author: profile?.email?.trim() || profile?.name?.trim() || 'Author',
+      });
       how = 'real template';
     } catch (e) {
       buf = await buildCv(model);

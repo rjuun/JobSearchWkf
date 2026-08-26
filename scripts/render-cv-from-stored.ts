@@ -123,7 +123,7 @@ async function main() {
   const data = await templateSlotData(ownerId, selected, bulletByRef, profileText, profile ?? null, lead, skillsModel);
   const out = (process.argv[3] && !process.argv[3].startsWith("--") ? process.argv[3] : undefined) ?? path.join('_local', `cv-${leadId.slice(0, 8)}.docx`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
-  fs.writeFileSync(out, buildCvFromTemplate(data));
+  fs.writeFileSync(out, buildCvFromTemplate(data, { author: profile?.email?.trim() || profile?.name?.trim() || "Author" }));
 
   console.log(`${lead.title} · ${lead.company ?? ''} · city ${lead.city ?? '(none)'}`);
   // Refs, not rows — the CV prints one bullet per distinct ref, and reporting the

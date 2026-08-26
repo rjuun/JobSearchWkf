@@ -56,15 +56,28 @@ export function parseSkillItems(lines: string[]): string[] {
 }
 
 /**
+ * A banner line, with whatever leads it stripped off.
+ *
+ * Each section name now has a small icon in front of it, and a text extractor
+ * renders that as a placeholder — `pandoc -t plain` writes "[] SKILLS". Matching
+ * the banner exactly stopped working the moment the icons went in, which is the
+ * second time this section's read-back has been broken by a layout change it did
+ * not know about. So the comparison is now on what the line ENDS with.
+ */
+const banner = (line: string) => line.replace(/^[\s[\]()·•*_-]+/, '').trim();
+
+/**
  * The Skills section's lines, cut out of a full plain-text rendering of the CV by
  * its two banner headings. Returns null when the section is not found, so callers
- * can report "could not read" rather than "read nothing".
+ * can report "could not read" rather than "read nothing" — the distinction that
+ * turns a parse failure into a parse failure instead of a phantom mismatch
+ * against C5.
  */
 export function skillsBlock(lines: string[]): string[] | null {
-  const trimmed = lines.map((l) => l.trim());
-  const start = trimmed.indexOf('SKILLS');
+  const names = lines.map(banner);
+  const start = names.indexOf('SKILLS');
   if (start === -1) return null;
-  const end = trimmed.indexOf('PROFESSIONAL EXPERIENCE', start + 1);
+  const end = names.indexOf('PROFESSIONAL EXPERIENCE', start + 1);
   if (end === -1) return null;
   return lines.slice(start + 1, end);
 }

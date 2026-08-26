@@ -36,6 +36,7 @@
  *   npx tsx scripts/retag-cv-template.ts [--dry-run]
  */
 import fs from 'node:fs';
+import path from 'node:path';
 import PizZip from 'pizzip';
 import { TEMPLATE_PATH } from '../lib/docx/template';
 
@@ -100,6 +101,72 @@ function dateTabPosition(xml: string): number {
   return w - left - right;
 }
 
+/**
+ * The images the template carries, lifted from the owner's own CV, in
+ * `Group CVs/assets/`.
+ *
+ * The six icons are the answer to what item 2 was originally about: his CV puts a
+ * small pictograph in front of each section banner, and they are IMAGES, not
+ * characters. That is why "the unicodes are missing" had no unicode behind it and
+ * why no font hypothesis fitted — nothing was missing from a font, the pictures
+ * had simply never been in this template.
+ *
+ * `headshot` ships as a NEUTRAL PLACEHOLDER of the same dimensions. The real
+ * photograph is gitignored and swapped in at render time
+ * (`lib/docx/render-assets.ts`), because this repository has a GitHub remote and a
+ * photograph of a person is not template data.
+ */
+const ASSETS_DIR = path.join(process.cwd(), 'Group CVs', 'assets');
+const IMAGE_PARTS: { part: string; file: string; rId: string }[] = [
+  { part: 'media/cv-icon-profile.png', file: 'icon-profile.png', rId: 'rId100' },
+  { part: 'media/cv-icon-skills.png', file: 'icon-skills.png', rId: 'rId101' },
+  { part: 'media/cv-icon-experience.png', file: 'icon-experience.png', rId: 'rId102' },
+  { part: 'media/cv-icon-education.png', file: 'icon-education.png', rId: 'rId103' },
+  { part: 'media/cv-icon-executive-education.png', file: 'icon-executive-education.png', rId: 'rId104' },
+  { part: 'media/cv-icon-languages.png', file: 'icon-languages.png', rId: 'rId105' },
+  { part: 'media/cv-headshot.jpeg', file: 'headshot.placeholder.jpeg', rId: 'rId106' },
+];
+const HEADSHOT_RID = 'rId106';
+
+/** Which icon leads which banner. */
+const SECTION_ICONS: Record<string, string> = {
+  PROFILE: 'rId100',
+  SKILLS: 'rId101',
+  'PROFESSIONAL EXPERIENCE': 'rId102',
+  EDUCATION: 'rId103',
+  'EXECUTIVE EDUCATION': 'rId104',
+  LANGUAGES: 'rId105',
+};
+
+/** An 11.1pt inline icon, as legacy VML — the form the owner's own CV uses, and
+ *  the one that sits on the text baseline inside a heading without disturbing it. */
+const iconRun = (rId: string, n: number) =>
+  `<w:r><w:pict><v:shape id="CvIcon${n}" o:spid="_x0000_i${1030 + n}" type="#_x0000_t75" ` +
+  `style="width:11.1pt;height:11.1pt;visibility:visible;mso-wrap-style:square">` +
+  `<v:imagedata r:id="${rId}" o:title=""/></v:shape></w:pict></w:r>`;
+
+/**
+ * The headshot: a floating image anchored to the name paragraph, squared off to
+ * the right margin, with rounded corners. Geometry copied from the owner's own CV
+ * so the two documents sit the photograph in the same place.
+ */
+const headshotDrawing = () =>
+  `<w:r><w:rPr><w:noProof/><w:lang w:val="en-GB"/></w:rPr><w:drawing>` +
+  `<wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" relativeHeight="251658240" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">` +
+  `<wp:simplePos x="0" y="0"/>` +
+  `<wp:positionH relativeFrom="margin"><wp:posOffset>5320665</wp:posOffset></wp:positionH>` +
+  `<wp:positionV relativeFrom="margin"><wp:posOffset>-333375</wp:posOffset></wp:positionV>` +
+  `<wp:extent cx="986155" cy="1234440"/><wp:effectExtent l="0" t="0" r="4445" b="3810"/>` +
+  `<wp:wrapSquare wrapText="bothSides"/><wp:docPr id="20389598" name="Headshot"/>` +
+  `<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>` +
+  `<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">` +
+  `<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="0" name="Headshot"/>` +
+  `<pic:cNvPicPr><a:picLocks noChangeAspect="1" noChangeArrowheads="1"/></pic:cNvPicPr></pic:nvPicPr>` +
+  `<pic:blipFill><a:blip r:embed="${HEADSHOT_RID}" cstate="print"/><a:srcRect/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
+  `<pic:spPr bwMode="auto"><a:xfrm><a:off x="0" y="0"/><a:ext cx="986155" cy="1234440"/></a:xfrm>` +
+  `<a:prstGeom prst="roundRect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></pic:spPr>` +
+  `</pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>`;
+
 function main() {
   const dryRun = process.argv.includes('--dry-run');
   const zip = new PizZip(fs.readFileSync(TEMPLATE_PATH, 'binary'));
@@ -157,11 +224,75 @@ function main() {
     done.push(what);
   }
 
-  // ── 1 · header line: drop the literal space between Location and Relocation ──
-  // The relocation clause now arrives from the pipeline carrying its own leading
-  // separator when it prints, and as '' when it does not — so the template must
-  // not contribute a space that would outlive the suppression.
-  once(`${tag('Location')} ${tag('Relocation')}`, `${tag('Location')}${tag('Relocation')}`, 'header Location/Relocation spacing');
+  // ── 0 · media parts, relationships and content types ────────────────────────
+  {
+    for (const { part, file } of IMAGE_PARTS) {
+      const src = path.join(ASSETS_DIR, file);
+      if (!fs.existsSync(src)) throw new Error(`Missing template asset: ${src}`);
+      zip.file(`word/${part}`, fs.readFileSync(src), { binary: true });
+    }
+    const relsPath = 'word/_rels/document.xml.rels';
+    let rels = zip.file(relsPath)!.asText();
+    for (const { part, rId } of IMAGE_PARTS) {
+      if (rels.includes(`Id="${rId}"`)) continue;
+      rels = rels.replace(
+        '</Relationships>',
+        `<Relationship Id="${rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${part}"/></Relationships>`
+      );
+    }
+    zip.file(relsPath, rels);
+
+    let ct = zip.file('[Content_Types].xml')!.asText();
+    for (const [ext, type] of [['png', 'image/png'], ['jpeg', 'image/jpeg']]) {
+      if (!ct.includes(`Extension="${ext}"`)) {
+        ct = ct.replace('<Default', `<Default Extension="${ext}" ContentType="${type}"/><Default`);
+      }
+    }
+    zip.file('[Content_Types].xml', ct);
+    done.push(`added ${IMAGE_PARTS.length} image parts + relationships + png/jpeg content types`);
+  }
+
+  // ── 1 · Personal Information: the owner's own header, and a headshot he can
+  //        have or not have ─────────────────────────────────────────────────────
+  // Ported from `Reginaldo_Silva_Jr_CV - CEO Associate Chief of Staff - Enpulsion.docx`,
+  // which is the layout he actually uses: name left and large, a grey positioning
+  // line under it, the contact line under that, and the photograph squared off to
+  // the right margin. The template had all three centred and no room for a photo.
+  //
+  // ONE template serves both variants. The drawing sits inside an inline
+  // `<<#Headshot>>` … `<</Headshot>>` loop, so an empty array removes it — and
+  // `dropUnreferencedImages` then removes the JPEG from the package itself, because
+  // a CV that deliberately carries no photograph must not still have one in its zip.
+  {
+    const nameP = paragraphAround(`<w:t>${tag('Name')}</w:t>`);
+    const header =
+      // Name, with the headshot anchored to it.
+      `<w:p><w:pPr><w:spacing w:after="40"/><w:rPr><w:lang w:val="en-GB"/></w:rPr></w:pPr>` +
+      `<w:r>${EN_GB}<w:t xml:space="preserve">${tag('#Headshot')}</w:t></w:r>` +
+      headshotDrawing() +
+      `<w:r>${EN_GB}<w:t xml:space="preserve">${tag('/Headshot')}</w:t></w:r>` +
+      `<w:r><w:rPr><w:b/><w:bCs/><w:color w:val="000000"/><w:sz w:val="36"/><w:szCs w:val="36"/><w:lang w:val="en-GB"/></w:rPr>` +
+      `<w:t xml:space="preserve">${tag('Name')}</w:t></w:r></w:p>` +
+      // Positioning line — this lead's own B5 classification.
+      `<w:p><w:pPr><w:spacing w:after="160"/><w:rPr><w:lang w:val="en-GB"/></w:rPr></w:pPr>` +
+      `<w:r><w:rPr><w:color w:val="595959"/><w:sz w:val="23"/><w:szCs w:val="23"/><w:lang w:val="en-GB"/></w:rPr>` +
+      `<w:t xml:space="preserve">${tag('JD Group Primary')} | ${tag('JD Group Secondary')}</w:t></w:r></w:p>` +
+      // Contact line. The email carries the Hyperlink CHARACTER STYLE but no
+      // relationship: it looks like his (blue, underlined) without baking a
+      // `mailto:` for one particular address into a template meant to outlive it.
+      `<w:p><w:pPr><w:spacing w:after="280"/><w:rPr><w:lang w:val="en-GB"/></w:rPr></w:pPr>` +
+      `<w:r>${EN_GB}<w:t xml:space="preserve">${tag('Location')}${tag('Relocation')}   |   ${tag('Phone')}   |   </w:t></w:r>` +
+      `<w:r><w:rPr><w:rStyle w:val="Hyperlink"/><w:lang w:val="en-GB"/></w:rPr><w:t xml:space="preserve">${tag('Email')}</w:t></w:r>` +
+      `<w:r>${EN_GB}<w:t xml:space="preserve">   |   ${tag('Citizenship')}</w:t></w:r></w:p>`;
+
+    // The three paragraphs the old header occupied: name, JD groups, contacts.
+    const jdP = paragraphAround(`<w:t>${tag('JD Group Primary')}`);
+    const contactP = paragraphAround(`<w:t>${tag('Location')} ${tag('Relocation')}`);
+    const from = Math.min(nameP.start, jdP.start, contactP.start);
+    const to = Math.max(nameP.end, jdP.end, contactP.end);
+    xml = xml.slice(0, from) + header + xml.slice(to);
+    done.push('Personal Information → left-aligned header with an optional headshot');
+  }
 
   // ── 2 · the ◆ section dividers come OUT ─────────────────────────────────────
   // The owner's item 2 opened as "the unicodes are missing" — read from a marked-up
@@ -183,6 +314,27 @@ function main() {
     }
     if (removed === 0) throw new Error('No ◆ divider paragraphs found — has the template changed shape?');
     done.push(`removed ${removed} ◆ divider paragraph(s)`);
+  }
+
+  // ── 2a · the section icons the banners never had ────────────────────────────
+  // Item 2, answered properly at last. The ◆ dividers came out above; these are
+  // what the owner's own CV actually puts in front of a section name, and they
+  // cost no vertical space because they sit on the heading's own line.
+  {
+    let n = 0;
+    for (const [heading, rId] of Object.entries(SECTION_ICONS)) {
+      const textEl = `<w:t>${esc(heading)}</w:t>`;
+      const p = paragraphAround(textEl);
+      const runStart = p.xml.lastIndexOf('<w:r>', p.xml.indexOf(textEl));
+      if (runStart === -1) throw new Error(`Could not find the run carrying the ${heading} banner`);
+      // Icon first, then a space in front of the banner text, exactly as his does.
+      const rebuilt =
+        p.xml.slice(0, runStart) +
+        iconRun(rId, ++n) +
+        p.xml.slice(runStart).replace(textEl, `<w:t xml:space="preserve"> ${esc(heading)}</w:t>`);
+      xml = xml.slice(0, p.start) + rebuilt + xml.slice(p.end);
+      done.push(`icon on ${heading}`);
+    }
   }
 
   // ── 2b · the headshot line is C1's to decide, not the template's ────────────
@@ -256,6 +408,16 @@ function main() {
         `<w:r><w:rPr>${HEADING_RPR}</w:rPr><w:t xml:space="preserve">${tag('Head')}</w:t></w:r>` +
         `<w:r>${EN_GB}<w:tab/></w:r>` +
         `<w:r><w:rPr>${DATE_RPR}</w:rPr><w:t xml:space="preserve">${tag('Dates')}</w:t></w:r></w:p>` +
+        // A status qualifier under the title — "(coursework complete, thesis not
+        // submitted)" — for the entries that carry one. Italic and grey: it
+        // qualifies the qualification rather than competing with it. A loop over
+        // nought-or-one, so entries without a qualifier lose the line entirely
+        // rather than each leaving a blank one.
+        marker('#Status') +
+        '<w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:ind w:left="0"/><w:rPr><w:lang w:val="en-GB"/></w:rPr></w:pPr>' +
+        `<w:r><w:rPr><w:i/><w:iCs/><w:color w:val="595959"/><w:sz w:val="19"/><w:szCs w:val="19"/><w:lang w:val="en-GB"/></w:rPr>` +
+        `<w:t xml:space="preserve">${tag('.')}</w:t></w:r></w:p>` +
+        marker('/Status') +
         marker(`/${section}`),
       `${section} → per-entry loop, right tab stop at ${tabPos}tw`
     );

@@ -32,6 +32,14 @@
 # tracked on explicit instruction, not because it's been scrubbed of personal
 # content. Revisit before this app is multi-tenant.
 !/Group CVs/CV_Template.docx
+
+# The owner's actual headshot. The template embeds a neutral placeholder of the
+# same dimensions, and `lib/docx/render-assets.ts` swaps this file's bytes in at
+# render time when it is present. That keeps a photograph of a real person out of
+# a repository with a GitHub remote, while the generated CV still carries it.
+# Drop your own here as `headshot.jpeg` to use it; without it, CVs render with the
+# placeholder or with no photo at all, depending on what C1 decided.
+/Group CVs/assets/headshot.jpeg
 # NOTE: personal *.html (e.g. Profile/Testing-R.html) is already covered by the
 # Profile/ ignore above. The docs/ review pages (.html) ARE tracked deliverables.
 

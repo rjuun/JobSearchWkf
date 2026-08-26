@@ -39,6 +39,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
+import { applyDocumentIdentity, dropUnreferencedImages, stripSharePointBindings } from './metadata';
+import { applyHeadshot } from './render-assets';
 export { CV_SLOTS, slotCode, normalizeCvPosition, type CvSlot } from '../cv-slots';
 
 export const TEMPLATE_PATH = path.join(process.cwd(), 'Group CVs', 'CV_Template.docx');
@@ -59,8 +61,13 @@ export function templateExists(): boolean {
 export type TemplateValue = string | string[] | Record<string, string | string[]>[];
 export type TemplateData = Record<string, TemplateValue>;
 
+/** Who the finished document says wrote it. Omitted, the package keeps whatever
+ *  the template carried — which is the template's author, its creation date and a
+ *  word count for a different document. See `lib/docx/metadata.ts`. */
+export type CvIdentity = { author: string };
+
 /** Render the real template. `data` keys are the full slot strings above. */
-export function buildCvFromTemplate(data: TemplateData): Buffer {
+export function buildCvFromTemplate(data: TemplateData, identity?: CvIdentity): Buffer {
   const content = fs.readFileSync(TEMPLATE_PATH, 'binary');
   const zip = new PizZip(content);
   const doc = new Docxtemplater(zip, {
@@ -76,5 +83,19 @@ export function buildCvFromTemplate(data: TemplateData): Buffer {
     nullGetter: () => '',
   });
   doc.render(data);
-  return doc.getZip().generate({ type: 'nodebuffer', compression: 'DEFLATE' }) as Buffer;
+
+  // Everything below operates on the rendered package, not the template — the
+  // headshot has to be gone from `document.xml` before its JPEG can be identified
+  // as unreferenced, and the statistics have to be counted off the filled text.
+  const out = doc.getZip() as PizZip;
+  // Order matters: the real photograph goes in only while the drawing still
+  // references it, and the unreferenced-image sweep runs after, so a CV rendered
+  // without a headshot carries no photograph in its package at all.
+  applyHeadshot(out);
+  dropUnreferencedImages(out);
+  if (identity) {
+    applyDocumentIdentity(out, identity);
+    stripSharePointBindings(out);
+  }
+  return out.generate({ type: 'nodebuffer', compression: 'DEFLATE' }) as Buffer;
 }

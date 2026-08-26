@@ -75,4 +75,11 @@ describe('skillsBlock', () => {
     expect(skillsBlock(['PROFILE', 'prose'])).toBeNull();
     expect(skillsBlock(['SKILLS', 'a · b'])).toBeNull();
   });
+
+  // The banners carry a small icon now, and `pandoc -t plain` renders an inline
+  // image as "[]" — which broke the exact match the moment the icons went in.
+  it('finds a banner behind the icon placeholder a text extractor leaves', () => {
+    const doc = ['[] PROFILE', 'prose', '[] SKILLS', ...CURRENT, '[] PROFESSIONAL EXPERIENCE', 'a job'];
+    expect(skillsBlock(doc)).toEqual(CURRENT);
+  });
 });

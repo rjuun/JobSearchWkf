@@ -6,9 +6,10 @@ ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-27
 ci-estimated-time: 4
-ci-time-spent: 4
+ci-time-spent: 7
 pr-source: "[[C7. Compile Complete CV Document]]"
 pr-target: "[[C7. Compile Complete CV Document]], [[C1. Overall Application Content and Format Guidance]]"
+ci-absorbs: "[[Eliminating Metadata from Final file]]"
 ---
 
 ---
@@ -321,3 +322,92 @@ Both fit at 10pt and wrap at 11pt, which is the size the position headers alread
 one-line change in `scripts/retag-cv-template.ts`; it also removes the size step between a heading and
 body text. Shortening either title in the database fixes it without that cost — the same move already
 made for *IMD Business School of Management*.
+
+### 2026-08-27 · Third review — the header, the output file, and item 2 answered properly
+
+A third round from the owner, this time with his own CV beside the generated one. Six more things,
+all landed, and one of them finally explained an item this note had been wrong about twice.
+
+**The section icons are IMAGES.** Item 2 opened as "the unicodes are missing" and §2.2 offered three
+hypotheses — absent from the template, stripped on render, or in a font the renderer cannot resolve.
+All three were wrong, because there was never a character involved. His CV puts a small PNG
+pictograph in front of each banner. No font could have been missing and no encoding could have been
+lost. The six icons are now lifted out of his own document into `Group CVs/assets/` and placed by the
+re-tag script. That is item 2, closed on its third reading.
+
+**Personal Information — one template, two variants.** Ported from his own header: name left and
+large, a grey positioning line, the contact line beneath, and the photograph squared off to the right
+margin. C7 §113 said "select between the word file with or without Headshots" and §115 asked whether
+one template could do both. It can. The drawing sits in an inline `<<#Headshot>>` loop, so C1's
+decision removes it — **and then `dropUnreferencedImages` removes the JPEG from the package**, because
+a CV that deliberately omits a photograph must not still be carrying one in its zip. Verified on two
+real leads: Anritsu (Vienna) ships the photo, Vestas (Copenhagen) ships no image part at all.
+
+**The photograph is not committed.** It is per-owner data, this repository has a GitHub remote, and
+the `.gitignore` opens by saying personal data is never committed. The template embeds a neutral
+placeholder of the same dimensions; `Group CVs/assets/headshot.jpeg` is gitignored and its bytes are
+swapped in at render time (`lib/docx/render-assets.ts`). It is also the right shape for more than one
+owner, which the template is meant to serve.
+
+**Education status qualifier.** "(coursework complete, thesis not submitted)" prints under the entry
+title, italic and grey. The convention: **a leading parenthesised line in `education.notes` is the
+entry's status and prints; everything after it stays internal.** That is not a rule invented for the
+field — it is how the owner had already written the row. It could not live in `qualification` (that
+was what made the head too long to keep its date, §2.5's complaint) nor in `summary` (Keep-gated per
+job, and one of the notes he had just had removed).
+
+#### The output file (absorbing CI · Eliminating Metadata from Final file)
+
+That note sat at `0 - Idea` since 2026-06-29 with a manual Word recipe. The render is the only place
+that can do it properly, so it is done here.
+
+Named `CV - Reginaldo S Junior - <Position> - <Company>.docx` on download. The stored path stays
+`cv-output/<leadId>/tailored.docx` — four call sites check for it by that name — so only the
+`Content-Disposition` changed, with an RFC 5987 form beside it so accented company names survive.
+
+**What was actually leaking, in the order it matters.** The author field was the least of it:
+
+1. **Frozen provenance.** docxtemplater copies `docProps/core.xml` from the template untouched, so
+   every CV ever generated carried the TEMPLATE's `created` (2026-07-02), its `modified` (2026-08-25)
+   and its `revision` (8). The same three values on every application, and a modified date that can
+   precede the posting the CV answers. A batch of documents sharing one frozen provenance is a far
+   louder signal than a name field, and nobody had looked at it.
+2. **Statistics describing a different document.** `app.xml` claimed 201 words, 2 pages, 10 lines for
+   a document of ~990 words over 3 pages. Word writes those on save and never recomputes them for a
+   file it did not write. A document whose own properties do not match its contents did not come out
+   of a word processor.
+3. **`dc:creator` = "Un-named"** — the thing that prompted this.
+4. **SharePoint bindings.** `docProps/custom.xml` (`ContentTypeId`, `MediaServiceImageTags`) and the
+   `customXml/` parts name the document library the template lives in.
+
+All four are handled in `lib/docx/metadata.ts`. **No editing duration is invented** — `TotalTime` of 0
+is what a document saved once genuinely looks like, and writing a plausible 47 minutes into it would
+be fabricating a record of work rather than removing a fingerprint. Opening the file in Word and
+saving once sets that honestly and recomputes the page and line counts at the same time; that is the
+one manual step still worth taking, and it is now the only one.
+
+Both variants were opened through Word itself to confirm the stripped package raises no repair prompt.
+
+#### Measured, not guessed: the IMD line
+
+The entry wraps at 87 characters. Four variants, rendered and measured in Word:
+
+| Head | chars | one line? |
+| --- | --- | --- |
+| Leading Sustainable Business Transformation, IMD Business School, Lausanne, Switzerland | 87 | no |
+| **Leading Sustainable Business Transformation, IMD Business School** | **64** | **yes** |
+| Leading Sustainable Business Change, IMD Business School, Lausanne, Switzerland | 79 | yes |
+| Leading Sustainable Business Transformation, IMD, Lausanne, Switzerland | 71 | yes |
+
+Recommended: drop `Lausanne, Switzerland` from that row's `city_country`. It keeps the official
+programme name and the school, and sheds the piece carrying least information — IMD is in Lausanne and
+nobody needs telling. Renaming "Transformation" to "Change" also fits, but it renames a credential,
+which is a worse trade than dropping a city.
+
+#### One regression caught by the checker, again
+
+Adding the icons broke the Skills read-back a second time: `pandoc -t plain` renders an inline image
+as `[]`, so the banner line became "[] SKILLS" and the exact match failed. It reported "could not read
+the .docx" rather than a phantom mismatch against C5 — the earlier fix doing its job. `skillsBlock`
+now matches on what a banner line ends with. Two layout changes have now broken this one parser; that
+is the shape of the risk, and the test file names both.
