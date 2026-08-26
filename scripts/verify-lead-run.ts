@@ -54,6 +54,8 @@ const PASS = '  PASS';
 const FAIL = '  FAIL';
 const INFO = '  ----';
 
+const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
 let failures = 0;
 const check = (ok: boolean, label: string, detail: string) => {
   if (!ok) failures++;
@@ -162,7 +164,11 @@ async function main() {
   // ── C7 / C8 ───────────────────────────────────────────────────────────────
   const c7 = out('C7');
   check(c7.how === 'real template', 'CV rendered through the real Word template', String(c7.how ?? '(unknown)'));
-  const rating = /(\d{2,3})\/100/.exec(String(JSON.stringify(out('C8'))))?.[1];
+  // C8 stores `atsRating` as a number. Older runs carry only a prose summary with
+  // the score inside it, so both shapes are read — the regex alone reported "?"
+  // on every run made after the field was added.
+  const c8 = out('C8');
+  const rating = num(c8.atsRating) ?? /(\d{2,3})\/100/.exec(String(JSON.stringify(c8)))?.[1];
   info('ATS rating', `${rating ?? '?'}/100`);
 
   console.log('='.repeat(78));
