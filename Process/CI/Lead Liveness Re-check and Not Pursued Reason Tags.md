@@ -2,7 +2,7 @@
 ci-area: Screening (B1) / Lead lifecycle
 ci-roadmap:
 ci-title: Lead Liveness Re-check and Not Pursued Reason Tags
-ci-status: 2 - Testing
+ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-23
 ci-estimated-time: 4
@@ -307,3 +307,8 @@ with the evidence; the manual answer survives only as the fallback for the 117 l
 
 Scoping it also turned up §1.4 — nothing in the running app writes `postedDays` at all — which makes
 the re-fetch worth more than the closure flag alone.
+
+### 2026-08-26 · Delivered — owner confirmed in use
+
+Closed on the owner's verdict. Reported working on 2026-08-24 and used since; outside the C-phase
+epic, so nothing in that work bears on it either way.

@@ -2,7 +2,7 @@
 ci-area: CV Tailoring
 ci-roadmap:
 ci-title: Split cv_bullet_skills from requirement_skills
-ci-status: 2 - Testing
+ci-status: 3 - Delivered
 ci-priority: medium
 ci-date: 2026-08-23
 ci-estimated-time: 2
@@ -189,3 +189,10 @@ corrected that and he is right:** the *(requirement, evidence)* row is preserved
 tag because it appears once on the CV, and C4 compiles and dedupes across rows regardless. The per-row
 comparison is exact. That objection is withdrawn and should not resurface — the case for the column
 rests entirely on the overloading in §1.
+
+### 2026-08-26 · Delivered — owner confirmed in use
+
+Closed on the owner's verdict, not on a fresh test. The column has been exercised on every tailoring
+run since it shipped: `cv_bullet_skills` is what C5 reads to build the Skills section, what
+`scripts/verify-lead-run.ts` checks, and what the whole C-phase epic (CI-048/050/051/052) was built on
+top of. Two leads were driven end to end through the app on 2026-08-26 with it in the path.
