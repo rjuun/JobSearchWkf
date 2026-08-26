@@ -2,7 +2,7 @@
 ci-area: CV Tailoring (C-Phase)
 ci-roadmap:
 ci-title: Renumber the C-Phase to Seat Evidence Selection at C3
-ci-status: 2 - Testing
+ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-24
 ci-estimated-time: 3
@@ -320,3 +320,33 @@ evidence-graph addition should leave it.
 So the epic's remaining click test is no longer about this note at all: what is still unexercised is
 the *selection* step, which does not exist yet. This CI has nothing outstanding, and moves to
 `3 - Delivered` with the rest of the epic only because the owner chose to close the four together.
+
+### 2026-08-26 · Click test passed — epic closed
+
+Two leads driven end to end **by the owner, in the app**, which is the one thing no script could
+supply and the reason all four notes sat at `2 - Testing`:
+
+| Lead | Bullets | Skills | Coverage as printed | ATS |
+| --- | --- | --- | --- | --- |
+| `36e63a67` Anritsu · General Manager AEH | 14 | **19** | Core 11/11 · Imp 2/2 | 72 |
+| `12ad67c8` Allianz Services · Senior/Principal Consultant | 14 | 25 | Core 12/13 · Imp 4/5 | 72 |
+
+**Anritsu is the first CV inside the 16–20 skills benchmark** — 19 entries, against 21 / 28 / 26 on the
+three leads that preceded the epic. Allianz Services was driven a second time specifically to exercise
+Pin, which had never been touched by a person.
+
+Verified with `scripts/verify-lead-run.ts`. Two things it reports that are **not** regressions and were
+waived deliberately:
+
+- **Allianz Services shows Core 12/13, Important 4/5.** Present on the very first C3 run, before any
+  pin, and identical across all six re-solves — one requirement on that lead has no evidence that can
+  cover it. Selection did not cost it.
+- **A stray `Additional Skills` sixth category** appears on some leads when C5's grouping call leaves
+  one skill unplaced. `reconcileSkillGroups` catches it rather than losing it, which is the intended
+  behaviour of the guard. The owner's decision, 2026-08-26: live with it and remove the entry by hand
+  when reading the .docx, rather than spend on it now.
+
+Also opened rather than fixed: three display defects in `lib/selection-view.ts` — rank showing
+insertion order as merit, held-back ranks starting at `budget + 1`, and the Pin label on an
+already-selected card. All are in [[Select 14 Evidence Bullets by Residual Coverage]] §5. None makes a
+CV wrong; all make the Map say something untrue.

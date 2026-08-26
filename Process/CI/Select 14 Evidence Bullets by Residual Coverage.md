@@ -366,3 +366,70 @@ Per-card gain as the keep-rule is better than a horizontal cut on unsorted rank,
 “8 of 14” is not a constant. It is the count of cards added before \(g < \varepsilon\). ALDI and Julius Baer will differ. Do not copy a saturation count from one lead onto another.
 
 When a correction lands, check whether the next proposal is the same mistake in different clothes: inherited claim, un-read line, badge treated as a property of a row rather than of a set.
+
+---
+
+## 5. Absorbed from CI-050, 2026-08-26 — the display layer
+
+Three defects, all in `lib/selection-view.ts`, all cosmetic in the sense that no CV is wrong because
+of them and all misleading in the sense that the Map says things that are not true. Folded here rather
+than left open in [[C3 Selects the CV Evidence Set]], because they are one problem — **the Map presents
+add-order as if it were value-order** — and because this note already owns how selection is presented.
+
+### 5.1 · Rank is insertion order, and it is displayed as merit
+
+Measured on lead `12ad67c8` (Allianz Services), 2026-08-26, after the owner pinned one card:
+
+```
+rank  1   L2    gain  9.20    <-- pinned by the owner
+rank  2   S1    gain 14.35
+rank  3   G11   gain  8.05
+```
+
+Pinned rows enter `S` before greedy runs, so a pin always lands at rank 1 whatever it is worth. `S1`
+is the most valuable card in the set and reads as second-best. The owner's own words: *"when I pin a
+lead, it becomes number 1 in the rank and every other bullet is pushed 1+ rank down."*
+
+The swap pass compounds it by appending its result at the end regardless of gain — Allianz carries a
+0.3-gain item at rank 13 beneath six zeroes. [[C3 Selects the CV Evidence Set]] §2b already had to
+work around this once, deciding saturation per card by its own gain rather than by rank.
+
+**Fix: order the displayed rank by gain, and mark the pinned card as pinned rather than as first.**
+The selection itself is correct and does not change — only what the number means.
+
+### 5.2 · Held-back ranks start at `budget + 1`, leaving a hole
+
+`selection-view.ts` numbers held-back cards from `budget + 1`. When selection closes early — a
+per-position cap, exclusions, or a thin pool — the sequence gains a gap: Allianz reads **1…13, nothing
+at 14, then 15**, which a reader takes for a bug.
+
+`budget` is what was *permitted*; the selected set is what was *taken*. Continue from the highest rank
+actually assigned:
+
+```ts
+let next = budget + 1;                                   // wrong when |selected| < budget
+let next = Math.max(...ranked.map((r) => r.rank)) + 1;   // continue the sequence that exists
+```
+
+Take the highest assigned rank rather than `ranked.length + 1`, so a missing rank cannot silently
+compact the sequence. The `rank` doc comment at §25 states the old rule and needs updating too.
+
+### 5.3 · "Pin to CV" on a card already going to the CV
+
+The control has a real meaning on a selected card — a selection is provisional, and pinning protects
+it from being displaced when a later pin or exclude re-solves the set. But the label describes an
+action that appears to have already happened, so it reads as a no-op. The owner: *"it does not make
+sense to me that the 1-14 initially selected bullets have a 'Pin to CV' button… the Pin button should
+not be clickable, unless there is a reason for that which I am not clearly thinking of."*
+
+There is a reason; the label hides it. **Fix the label for the selected state — *Lock* or *Keep
+regardless* — rather than removing the control.** Removing it would take away the only way to protect
+a card you want kept while you experiment with others.
+
+### 5.4 · Acceptance
+
+- [ ] Displayed rank follows gain; a pinned card is marked as pinned, not shown as rank 1.
+- [ ] Held-back ranks are contiguous with the selected ones on a lead that fills fewer than `budget`.
+- [ ] The control on a selected card says what it does, and still protects that card across a re-solve.
+- [ ] No change to which cards are selected — `lib/pipeline/selection.ts` is untouched, and
+      `scripts/verify-lead-run.ts` reports the same set before and after.

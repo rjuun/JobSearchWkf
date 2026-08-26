@@ -2,7 +2,7 @@
 ci-area: CV Tailoring (C3 / C4)
 ci-roadmap:
 ci-title: C3 Writes CV-Grade Skill Tags
-ci-status: 2 - Testing
+ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-24
 ci-estimated-time: 4
@@ -201,7 +201,7 @@ improve itself. Not required for v1; do not let it block.
 - `Process/C3…md` §B.5 — the instruction to reverse. `Process/C4…md` §B.1/§B.3/§B.4 — current rules.
 - `lib/__tests__/c4-skills.test.ts` — 25 tests; the guard tests are the ones §2.4 changes.
 - `scripts/audit-c4-skills-density.ts` — read-only, stops at prioritisation.
-- [[Skill Name Treatment in the C5 Skills Section (Consolidation)]] — **reconciled 2026-08-24, no
+- [[Skill Name Treatment in the C5 Skills Section]] — **reconciled 2026-08-24, no
   overlap remains.** That CI is now the consolidation half and nothing else; its language item shipped
   and its JD-phrasing item moved here. Build this one first (it changes what arrives), then that one.
   **They share one dependency: the guard replacement in §2.4. Build it once, here, and let the other
@@ -330,3 +330,33 @@ capabilities rather than re-expressing them.
 **Environment:** dev server is `https://localhost:3000` (self-signed; the in-app browser refuses it,
 so browser verification needs the real Chrome or a minted session cookie). `Process/*.md` notes are
 the live prompts and are cached per-process — **restart the dev server after editing one.**
+
+### 2026-08-26 · Click test passed — epic closed
+
+Two leads driven end to end **by the owner, in the app**, which is the one thing no script could
+supply and the reason all four notes sat at `2 - Testing`:
+
+| Lead | Bullets | Skills | Coverage as printed | ATS |
+| --- | --- | --- | --- | --- |
+| `36e63a67` Anritsu · General Manager AEH | 14 | **19** | Core 11/11 · Imp 2/2 | 72 |
+| `12ad67c8` Allianz Services · Senior/Principal Consultant | 14 | 25 | Core 12/13 · Imp 4/5 | 72 |
+
+**Anritsu is the first CV inside the 16–20 skills benchmark** — 19 entries, against 21 / 28 / 26 on the
+three leads that preceded the epic. Allianz Services was driven a second time specifically to exercise
+Pin, which had never been touched by a person.
+
+Verified with `scripts/verify-lead-run.ts`. Two things it reports that are **not** regressions and were
+waived deliberately:
+
+- **Allianz Services shows Core 12/13, Important 4/5.** Present on the very first C3 run, before any
+  pin, and identical across all six re-solves — one requirement on that lead has no evidence that can
+  cover it. Selection did not cost it.
+- **A stray `Additional Skills` sixth category** appears on some leads when C5's grouping call leaves
+  one skill unplaced. `reconcileSkillGroups` catches it rather than losing it, which is the intended
+  behaviour of the guard. The owner's decision, 2026-08-26: live with it and remove the entry by hand
+  when reading the .docx, rather than spend on it now.
+
+Also opened rather than fixed: three display defects in `lib/selection-view.ts` — rank showing
+insertion order as merit, held-back ranks starting at `budget + 1`, and the Pin label on an
+already-selected card. All are in [[Select 14 Evidence Bullets by Residual Coverage]] §5. None makes a
+CV wrong; all make the Map say something untrue.

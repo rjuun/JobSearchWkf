@@ -2,7 +2,7 @@
 ci-area: CV Tailoring (C-Phase)
 ci-roadmap:
 ci-title: C3 Selects the CV Evidence Set
-ci-status: 2 - Testing
+ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-24
 ci-estimated-time: 7
@@ -277,33 +277,12 @@ Ranks for held-back cards are `dropped[]` ordered by `gain` descending, numbered
 7. **Remove `Kept but not on this CV`** from the CV card; keep *Show sources on every line*, which is
    the traceability proof and a different job.
 
-### 2b.7 · Follow-up — held-back ranks must continue from the last SELECTED rank
+### 2b.7 · Follow-up — moved out 2026-08-26
 
-**Opened 2026-08-26, after Part 2 landed.** `lib/selection-view.ts` §111 numbers held-back cards from
-`budget + 1`, which is exactly what §2b.3 specified and is wrong whenever C3 fills fewer places than
-the budget allows. Allianz reads **1…13, nothing at 14, then 15** — a gap a reader takes for a bug,
-because it looks like one.
-
-The spec assumed the selected set always reaches `B`. It does not: the per-position cap, exclusions
-and a small candidate pool can all close selection early. `budget` is what was *permitted*;
-`selected` is what was *taken*, and the ranking is a single sequence over the second.
-
-**The change:** continue from the highest rank actually assigned, not from the budget.
-
-```ts
-// lib/selection-view.ts §111
-let next = budget + 1;                                   // wrong when |selected| < budget
-let next = Math.max(...ranked.map((r) => r.rank)) + 1;   // continue the sequence that exists
-```
-
-Take the highest assigned rank rather than `ranked.length + 1`, so the sequence stays contiguous even
-if a selected rank were ever missing. Update the `rank` doc comment at §25, which states the
-`budget + 1` rule.
-
-- [ ] Allianz's Map reads 1…13, 14, 15… with no gap.
-- [ ] A lead whose selection fills the budget is unchanged — Julius Baer still reads 1…14, 15…
-- [ ] Pinning and excluding still renumber correctly, including when an exclusion shortens the set.
-- [ ] A test pins the case: fewer selected than budget produces contiguous ranks.
+The held-back numbering hole, and the rank-display and pin-label defects found with it, are
+**[[Select 14 Evidence Bullets by Residual Coverage]] §5**. They are one problem — the Map presenting
+add-order as value-order — and none of them makes a CV wrong. Moved so this note could close on what
+it actually delivered.
 
 ### 2b.6 · Acceptance
 
@@ -588,3 +567,33 @@ no CV has been generated live since it landed. `Process/Development/Click Test -
 End to End.md` is updated for the new shape — the pin/exclude pass is now §D, its own phase between
 Approve map and Generate, and Tailor moved to §E — so the epic's click test is ready to run. Status
 `2 - Testing` until it has been.
+
+### 2026-08-26 · Click test passed — epic closed
+
+Two leads driven end to end **by the owner, in the app**, which is the one thing no script could
+supply and the reason all four notes sat at `2 - Testing`:
+
+| Lead | Bullets | Skills | Coverage as printed | ATS |
+| --- | --- | --- | --- | --- |
+| `36e63a67` Anritsu · General Manager AEH | 14 | **19** | Core 11/11 · Imp 2/2 | 72 |
+| `12ad67c8` Allianz Services · Senior/Principal Consultant | 14 | 25 | Core 12/13 · Imp 4/5 | 72 |
+
+**Anritsu is the first CV inside the 16–20 skills benchmark** — 19 entries, against 21 / 28 / 26 on the
+three leads that preceded the epic. Allianz Services was driven a second time specifically to exercise
+Pin, which had never been touched by a person.
+
+Verified with `scripts/verify-lead-run.ts`. Two things it reports that are **not** regressions and were
+waived deliberately:
+
+- **Allianz Services shows Core 12/13, Important 4/5.** Present on the very first C3 run, before any
+  pin, and identical across all six re-solves — one requirement on that lead has no evidence that can
+  cover it. Selection did not cost it.
+- **A stray `Additional Skills` sixth category** appears on some leads when C5's grouping call leaves
+  one skill unplaced. `reconcileSkillGroups` catches it rather than losing it, which is the intended
+  behaviour of the guard. The owner's decision, 2026-08-26: live with it and remove the entry by hand
+  when reading the .docx, rather than spend on it now.
+
+Also opened rather than fixed: three display defects in `lib/selection-view.ts` — rank showing
+insertion order as merit, held-back ranks starting at `budget + 1`, and the Pin label on an
+already-selected card. All are in [[Select 14 Evidence Bullets by Residual Coverage]] §5. None makes a
+CV wrong; all make the Map say something untrue.
