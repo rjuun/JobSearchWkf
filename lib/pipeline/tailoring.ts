@@ -58,12 +58,15 @@ import {
   selectEvidence,
   coverageOf,
   formatCoverage,
+  formatCoverageSplit,
+  type ExemptGroup,
   DEFAULT_SELECTION_PARAMS,
   type SelectionCandidate,
   type SelectionLink,
 } from './selection';
 
 export const CORE_AND_IMPORTANT: string[] = ['Core', 'Important'];
+export const NICE_TO_HAVE = 'Nice-to-Have';
 
 const tokens = (s: string): Set<string> => new Set((s || '').toLowerCase().match(/[a-z]{4,}/g) ?? []);
 const overlap = (a: Set<string>, b: Set<string>): number => {
@@ -190,6 +193,30 @@ export function tierFor(matchStrength: string | null): MatchTier {
   if (matchStrength === 'Excellent' || matchStrength === 'Very Strong') return 'carry';
   if (matchStrength === 'Good') return 'improve';
   return 'dig'; // 'Weak' | 'No Match' | null (never judged by B6)
+}
+
+/**
+ * CI · C2 Never Sees Nice-to-Have Requirements §2.2 — what C2 is allowed to look
+ * at. Core and Important unconditionally, as they always were; a Nice-to-Have
+ * requirement joins them ONLY where `tierFor` says `carry`, i.e. B6 already
+ * rated it Excellent or Very Strong and already chose its evidence.
+ *
+ * That is the one intake path with no model call behind it — the carry pass in
+ * `runEvidenceMapping` is a direct transposition of `requirement_evidence` — so
+ * the door opens exactly as far as costs nothing. `improve` and `dig`, the two
+ * tiers that do reach the model, stay gated to Core/Important, which is what
+ * keeps C2's prompt and per-run call count where they were.
+ *
+ * Before this the filter was Core/Important full stop, so a Nice-to-Have
+ * requirement was never mapped, never approved and could never reach the CV —
+ * the Nice-to-Have term in C3's objective was structurally zero on every lead
+ * ever run. Nothing about that objective changes here: at w=1 against Core's 3,
+ * such a requirement can still only win a slot once every Core and Important one
+ * is saturated. It now merely has rows to be considered from.
+ */
+export function c2AdmitsRequirement(rank: string | null, initialMatchStrength: string | null): boolean {
+  if (CORE_AND_IMPORTANT.includes(rank ?? '')) return true;
+  return rank === NICE_TO_HAVE && tierFor(initialMatchStrength) === 'carry';
 }
 
 /**
@@ -764,15 +791,14 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
   if (!lead) throw new Error('Lead not found');
   const effectiveOwnerId = ownerId ?? lead.ownerId;
   const reports: StepReport[] = [];
-  const reqs = (
-    await db
-      .select()
-      .from(jobRequirements)
-      .where(and(eq(jobRequirements.jobLeadId, leadId), eq(jobRequirements.ownerId, effectiveOwnerId)))
-  ).filter((r) => CORE_AND_IMPORTANT.includes(r.rank ?? ''));
-  if (reqs.length === 0) {
+  const allReqs = await db
+    .select()
+    .from(jobRequirements)
+    .where(and(eq(jobRequirements.jobLeadId, leadId), eq(jobRequirements.ownerId, effectiveOwnerId)));
+  if (!allReqs.some((r) => CORE_AND_IMPORTANT.includes(r.rank ?? ''))) {
     throw new Error('No Core or Important requirements have been extracted for this lead yet. Re-run screening first, then map evidence.');
   }
+  const reqs = allReqs.filter((r) => c2AdmitsRequirement(r.rank, r.initialMatchStrength));
 
   // C1 — format & headshot decision
   {
@@ -822,6 +848,13 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
     const tiers = new Map<number, MatchTier>();
     for (const [order, req] of reqByOrder) tiers.set(order, tierFor(req.initialMatchStrength));
 
+    // The Nice-to-Have requirements admitted by §2.2 above, which are here on
+    // the carry ticket alone. Tracked so the "carry with nothing behind it"
+    // fallback below can send a Core/Important requirement to the deep pass
+    // without doing the same to one of these — see the comment there.
+    const carryOnlyReqIds = new Set(reqs.filter((r) => r.rank === NICE_TO_HAVE).map((r) => r.id));
+    const unmappedReqIds = new Set<string>();
+
     const proposed: ProposedLink[] = [];
 
     // Carry EVERY requirement's B6 evidence forward first, regardless of tier —
@@ -855,7 +888,22 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
       }
       // A requirement B6 rated Excellent/Very Strong but left with nothing
       // behind it has no claim to carry — treat it as unscored instead.
-      if (tiers.get(order) === 'carry' && rows.length === 0) tiers.set(order, 'dig');
+      //
+      // A Nice-to-Have requirement is the one exception. It is in this run
+      // *because* it carries for free; with no rows to carry there is nothing
+      // free left, and demoting it would hand it to the model, growing the
+      // prompt by exactly the amount §2.2 rules out of scope. So it leaves the
+      // run instead — unmapped, as it was before this CI — rather than
+      // becoming a paid deep search nobody asked for.
+      if (tiers.get(order) === 'carry' && rows.length === 0) {
+        if (carryOnlyReqIds.has(req.id)) {
+          reqByOrder.delete(order);
+          tiers.delete(order);
+          unmappedReqIds.add(req.id);
+        } else {
+          tiers.set(order, 'dig');
+        }
+      }
     }
 
     // Improve/dig tier — only the requirements B6 rated Good, Weak or No Match
@@ -947,7 +995,11 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
     // whether this run mentions it. §2.3 addendum — an untouched row that is
     // STILL PENDING (nobody has decided anything about it) is fair game for
     // pruning; see planMerge's docstring.
-    const processedReqIds = new Set(reqById.keys());
+    // A carry-only requirement that turned out to have nothing to carry was
+    // never evaluated by this run, so it is out of the merge's scope too —
+    // leaving it in would let the prune arm delete pending rows for a
+    // requirement this run deliberately said nothing about.
+    const processedReqIds = new Set([...reqById.keys()].filter((id) => !unmappedReqIds.has(id)));
     const { toInsert, toReplace, toRefresh, toDelete, unchanged } = planMerge(dedupedProposed, existingRows, processedReqIds);
 
     if (toInsert.length) {
@@ -1034,7 +1086,14 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
       ...existingRows.filter((r) => !deletedIds.has(r.id)).map((r) => r.requirementId).filter((id): id is string => !!id),
       ...dedupedProposed.map((p) => p.requirementId),
     ]);
-    const gapCount = reqs.filter((q) => !coveredReqIds.has(q.id)).length;
+    // A carry-only Nice-to-Have that turned out to have nothing to carry left
+    // this run above; it is not a gap C2 has any intention of digging into, so
+    // reporting it as one would ask the reader to chase something out of scope.
+    const gapCount = reqs.filter((q) => !coveredReqIds.has(q.id) && !unmappedReqIds.has(q.id)).length;
+    // §2.2's whole claim is that this number can rise while the model spend
+    // does not, so it is worth being able to read it off the step rather than
+    // out of the database.
+    const niceToHaveCarried = reqs.filter((q) => q.rank === NICE_TO_HAVE && coveredReqIds.has(q.id)).length;
     reports.push(
       await recordStep(leadId, {
         step: 'C2',
@@ -1042,8 +1101,21 @@ export async function runEvidenceMapping(leadId: string, ownerId?: string | null
         model: modelUsed,
         summary:
           `${toInsert.length} new · ${toReplace.length} improved · ${unchanged} unchanged · ${toDelete.length} pruned · ` +
-          `${gapCount} gap${gapCount === 1 ? '' : 's'} · pending review`,
-        output: { inserted: toInsert.length, replaced: toReplace.length, unchanged, pruned: toDelete.length, gaps: gapCount },
+          `${gapCount} gap${gapCount === 1 ? '' : 's'}` +
+          (niceToHaveCarried ? ` · ${niceToHaveCarried} nice-to-have carried` : '') +
+          ` · pending review`,
+        output: {
+          inserted: toInsert.length,
+          replaced: toReplace.length,
+          unchanged,
+          pruned: toDelete.length,
+          gaps: gapCount,
+          requirementsMapped: reqs.length - unmappedReqIds.size,
+          niceToHaveCarried,
+          // What the model was actually asked about — the number §2.2 promises
+          // does not move when a Nice-to-Have requirement is admitted.
+          targeted: targeted.length,
+        },
         ms,
       }, effectiveOwnerId)
     );
@@ -1181,18 +1253,35 @@ export async function runEvidenceSelection(leadId: string, ownerId?: string | nu
   // even though no bullet carries it, and reporting only the first number
   // would score C3 down for obeying §2.4.
   const universe = reqs.map((r) => ({ id: r.id, rank: r.rank }));
-  const exemptCandidates: SelectionCandidate[] = exemptRows.map((g) => ({
+  const asExemptCandidate = (g: (typeof exemptRows)[number]): SelectionCandidate => ({
     ref: g.evidenceRef ?? '',
     links: g.requirementId
       ? [{ requirementId: g.requirementId, rank: rankByReqId.get(g.requirementId) ?? null, matchStrength: storedMatchStrength(g.connectionToExpertise), requirementSkills: g.requirementSkills ?? [] }]
       : [],
     cvPosition: null,
     text: g.originalText ?? '',
-  }));
+  });
+  const exemptCandidates: SelectionCandidate[] = exemptRows.map(asExemptCandidate);
   const chosen = candidates.filter((c) => rankByRef.has(c.ref));
   const before = coverageOf([...candidates, ...exemptCandidates], universe);
   const afterBullets = coverageOf(chosen, universe);
   const afterPrinted = coverageOf([...chosen, ...exemptCandidates], universe);
+  // CI · C2 Never Sees Nice-to-Have Requirements §2.3 — the headline reading.
+  // The exempt rows are split by which section prints them, because "Core 7/8
+  // + 1 LAN" says something "Core 8/8" cannot: the eighth is answered, and it
+  // is answered by the Languages section rather than by a bullet.
+  const exemptGroups: ExemptGroup[] = (
+    [
+      ['EDU', 'Education'],
+      ['LAN', 'Language'],
+    ] as const
+  )
+    .map(([label, kind]) => ({
+      label,
+      set: exemptRows.filter((g) => g.evidenceKind === kind).map(asExemptCandidate),
+    }))
+    .filter((g) => g.set.length > 0);
+  const split = formatCoverageSplit(afterBullets, universe, exemptGroups);
   // How far into the budget the objective still discriminates. Measured at
   // ~6 on all three real leads against a budget of 14, which is the fact
   // §2.6 says must stay visible rather than settle in as a constant.
@@ -1206,7 +1295,7 @@ export async function runEvidenceSelection(leadId: string, ownerId?: string | nu
         model: 'code',
         summary:
           `${result.selected.length} of ${candidates.length} candidates · budget ${DEFAULT_SELECTION_PARAMS.budget} · ` +
-          `V ${result.objective.total.toFixed(1)} · ${formatCoverage(afterPrinted)}` +
+          `V ${result.objective.total.toFixed(1)} · ${split}` +
           (informative < result.selected.length ? ` · ${result.selected.length - informative} filled past saturation` : ''),
         output: {
           budget: DEFAULT_SELECTION_PARAMS.budget,
@@ -1220,6 +1309,11 @@ export async function runEvidenceSelection(leadId: string, ownerId?: string | nu
             beforeAllKeep: formatCoverage(before),
             afterBulletsOnly: formatCoverage(afterBullets),
             afterAsPrinted: formatCoverage(afterPrinted),
+            // Both readings in one line — the one a human should be shown.
+            // The two above are kept as they were: they are what the acceptance
+            // checker parses, and each is still the right answer to its own
+            // narrower question.
+            split,
           },
           selected: result.selected.map((s) => ({ rank: s.rank, ref: s.ref, position: s.position, gain: Number(s.gain.toFixed(3)), newlyCovered: s.newlyCovered.length, pinned: s.pinned })),
           // The WHOLE dropped list, not the first ten it used to store. The Map

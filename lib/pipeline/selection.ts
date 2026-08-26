@@ -612,7 +612,58 @@ export function coverageOf(set: readonly SelectionCandidate[], universe: Require
 
 /** `Core 8/8 · Important 1/1 · Nice-to-Have 0/0`, in the CI note's own order. */
 export function formatCoverage(report: CoverageReport): string {
+  return rankOrder(report).map((k) => `${k} ${report.byRank[k].covered}/${report.byRank[k].total}`).join(' · ');
+}
+
+function rankOrder(report: CoverageReport): string[] {
   const order = ['Core', 'Important', 'Nice-to-Have'];
-  const keys = [...order.filter((k) => report.byRank[k]), ...Object.keys(report.byRank).filter((k) => !order.includes(k))];
-  return keys.map((k) => `${k} ${report.byRank[k].covered}/${report.byRank[k].total}`).join(' · ');
+  return [...order.filter((k) => report.byRank[k]), ...Object.keys(report.byRank).filter((k) => !order.includes(k))];
+}
+
+/** A group of requirements answered by a CV section that prints regardless of
+ *  selection — `label` is what it is called in the coverage line ("EDU", "LAN"). */
+export type ExemptGroup = { label: string; set: readonly SelectionCandidate[] };
+
+/**
+ * CI · C2 Never Sees Nice-to-Have Requirements §2.3 — the two coverage readings
+ * in one line, in the format the owner agreed on 2026-08-25:
+ *
+ * ```
+ * Core 7/8 + 1 LAN · Important 11/13 + 1 EDU + 1 LAN
+ * ```
+ *
+ * Bullet-borne coverage first, because that is the part selection actually
+ * controls, then what the fixed sections answer on top of it. Reporting only
+ * the first number scores C3 down for obeying its own §2.4 — Education and
+ * Language evidence is deliberately kept out of the bullet budget, so a Core
+ * requirement answered only by a degree reads as uncovered even though the CV
+ * plainly answers it. Reporting only the combined number hides the same fact
+ * from the other side. Neither reading is wrong; publishing one of them alone is.
+ *
+ * A requirement that several exempt groups answer is attributed to the first
+ * group listed, so the `+` terms sum to the difference between the readings
+ * rather than double-counting it.
+ */
+export function formatCoverageSplit(
+  bullets: CoverageReport,
+  universe: RequirementUniverse,
+  exempt: readonly ExemptGroup[]
+): string {
+  const attributed = new Set(bullets.covered);
+  const extra: Record<string, Record<string, number>> = {};
+  for (const group of exempt) {
+    const covered = coveredIds(group.set);
+    for (const q of universe) {
+      if (!covered.has(q.id) || attributed.has(q.id)) continue;
+      attributed.add(q.id);
+      const key = q.rank ?? 'Unranked';
+      (extra[key] ??= {})[group.label] = ((extra[key] ?? {})[group.label] ?? 0) + 1;
+    }
+  }
+  return rankOrder(bullets)
+    .map((k) => {
+      const adds = Object.entries(extra[k] ?? {}).map(([label, n]) => ` + ${n} ${label}`).join('');
+      return `${k} ${bullets.byRank[k].covered}/${bullets.byRank[k].total}${adds}`;
+    })
+    .join(' · ');
 }

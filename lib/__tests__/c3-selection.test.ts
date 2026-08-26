@@ -13,6 +13,7 @@ import {
   objective,
   coverageOf,
   formatCoverage,
+  formatCoverageSplit,
   impact,
   matchQuality,
   requirementWeight,
@@ -337,5 +338,60 @@ describe('degenerate inputs', () => {
     // row with a null requirement_id is real data and must not crash the step.
     const res = selectEvidence([cand('ORPHAN', A1, [])], P({ budget: 2 }));
     expect(res.selected.map((s) => s.ref)).toEqual(['ORPHAN']);
+  });
+});
+
+/**
+ * CI · C2 Never Sees Nice-to-Have Requirements §2.3 — the coverage line.
+ *
+ * Education and Language evidence is deliberately outside the bullet budget
+ * (it prints from the profile tables regardless), so a requirement answered
+ * only by a degree reads as uncovered when coverage is measured over the
+ * selected set alone. Both readings are true; publishing one of them alone is
+ * what misleads, and this is the format that publishes both.
+ */
+describe('formatCoverageSplit', () => {
+  const universe = [
+    { id: 'q1', rank: 'Core' },
+    { id: 'q2', rank: 'Core' },
+    { id: 'q3', rank: 'Important' },
+    { id: 'q4', rank: 'Important' },
+    { id: 'q5', rank: 'Important' },
+  ];
+  const bullets = [cand('E1', A1, [['q1', 'Core', 'Excellent']]), cand('E2', A1, [['q3', 'Important', 'Good']])];
+  const edu = [cand('EDU-1', null, [['q4', 'Important', 'Very Strong']])];
+  const lan = [cand('LANG-2', null, [['q2', 'Core', 'Very Strong']])];
+
+  it('reads bullets first, then what the fixed sections answer on top', () => {
+    expect(
+      formatCoverageSplit(coverageOf(bullets, universe), universe, [
+        { label: 'EDU', set: edu },
+        { label: 'LAN', set: lan },
+      ])
+    ).toBe('Core 1/2 + 1 LAN · Important 1/3 + 1 EDU');
+  });
+
+  it('is the plain reading again when no fixed section answers anything', () => {
+    const plain = coverageOf(bullets, universe);
+    expect(formatCoverageSplit(plain, universe, [])).toBe(formatCoverage(plain));
+  });
+
+  it('attributes a requirement both sections answer to one of them, not to both', () => {
+    // Otherwise the `+` terms overstate the difference between the two readings
+    // — the number after the slash would appear to be exceeded.
+    const both = [cand('LANG-3', null, [['q4', 'Important', 'Very Strong']])];
+    expect(
+      formatCoverageSplit(coverageOf(bullets, universe), universe, [
+        { label: 'EDU', set: edu },
+        { label: 'LAN', set: both },
+      ])
+    ).toBe('Core 1/2 · Important 1/3 + 1 EDU');
+  });
+
+  it('never counts a requirement the bullets already cover as a fixed-section add', () => {
+    const dupe = [cand('EDU-9', null, [['q1', 'Core', 'Very Strong']])];
+    expect(formatCoverageSplit(coverageOf(bullets, universe), universe, [{ label: 'EDU', set: dupe }])).toBe(
+      'Core 1/2 · Important 1/3'
+    );
   });
 });

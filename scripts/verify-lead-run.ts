@@ -102,6 +102,10 @@ async function main() {
   check(bullets >= 13 && bullets <= 16, 'bullets within the 13-16 budget', `${bullets} bullets from ${green.length} green rows`);
   const cov = (c3.coverage ?? {}) as Record<string, string>;
   info('coverage · all Keep evidence', cov.beforeAllKeep ?? '(not reported)');
+  // CI-054 §2.3's reading — bullets first, then what the fixed sections answer.
+  // The two narrower readings stay below it: `afterAsPrinted` is what the two
+  // checks underneath parse, and a run from before this shipped has no `split`.
+  info('coverage · bullets + fixed sections', cov.split ?? '(not reported)');
   info('coverage · as printed', cov.afterAsPrinted ?? '(not reported)');
   info('coverage · bullets only', cov.afterBulletsOnly ?? '(not reported)');
   const asPrinted = cov.afterAsPrinted ?? '';
