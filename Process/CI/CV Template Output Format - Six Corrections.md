@@ -6,7 +6,7 @@ ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-27
 ci-estimated-time: 4
-ci-time-spent: 7
+ci-time-spent: 8
 pr-source: "[[C7. Compile Complete CV Document]]"
 pr-target: "[[C7. Compile Complete CV Document]], [[C1. Overall Application Content and Format Guidance]]"
 ci-absorbs: "[[Eliminating Metadata from Final file]]"
@@ -411,3 +411,44 @@ as `[]`, so the banner line became "[] SKILLS" and the exact match failed. It re
 the .docx" rather than a phantom mismatch against C5 — the earlier fix doing its job. `skillsBlock`
 now matches on what a banner line ends with. Two layout changes have now broken this one parser; that
 is the shape of the risk, and the test file names both.
+
+### 2026-08-27 · Re-templating the back catalogue
+
+The template changed under a set of CVs that were already finished and, in several cases, already
+sent. Their content was paid for and has not changed; only the layout moved. `scripts/regenerate-cvs.ts`
+re-renders the catalogue in one pass at no cost, on top of `lib/pipeline/rerender-cv.ts` — the
+single-lead script and the batch now share one implementation rather than two copies of the seam.
+
+**Dry run is the default.** It overwrites deliverables, some of which have gone to employers, so
+writing takes `--apply`, and `--out <dir>` renders somewhere harmless for review first.
+
+**`--apply` always backs up, and that is not politeness.** C5's step report records category names and
+counts but NOT the items, so a rendered `.docx` is the only surviving record of that lead's merged
+Skills section. Overwrite one with no copy and the grouping is gone — only a paid re-run brings it
+back. Each file is copied to `tailored.<ISO-timestamp>.bak.docx` beside itself first.
+
+Surveyed against the twenty stored CVs:
+
+| | leads | |
+| --- | --- | --- |
+| re-renderable now | 6 | Anritsu · Vestas · Allianz Services · ALDI SÜD · Aliaxis · Julius Baer |
+| orphaned storage folders | 11 | no `job_leads` row — the lead was deleted, the folder was not |
+| never reached C7 | 2 | both `not_pursued` |
+| **blocked** | 1 | **Allianz Partners** |
+
+**Allianz Partners predates C3.** Its run history goes C2 → C4 with no C3 at all: 64 green rows
+carrying C4 bullets, `shortlist_rank` null on every one, and a C4 that wrote 30 bullets under the old
+un-budgeted behaviour. There is no selected set to re-render. `rerenderCv` refuses rather than
+inventing one, because choosing here would mean running C3 as a side effect of a re-render — and C3
+clears the `cv_bullet` of every row it drops, which is a destructive write to the lead's evidence
+state dressed up as a formatting pass. It needs a deliberate C3 (free) or a full re-run (paid), and
+that is the owner's call, not a batch script's.
+
+All six re-render clean: three pages each, opened through Word without a repair prompt, and **zero
+wrapped Education lines** — the owner's own database edits (shortening the FH des BFI qualification
+and the IMD course to "…Change, IMD Business School, Lausanne, Switzerland") closed the last gap §2.5
+had left open.
+
+One thing the header still shows: `profiles.citizenship` is "Austrian Citizen - EU Work
+Authorization", long enough to wrap the contact line onto a second line. His own CV says "Austrian
+Passport". That is profile data, so it stays his to change.
