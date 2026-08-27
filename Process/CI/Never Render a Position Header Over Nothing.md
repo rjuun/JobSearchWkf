@@ -1,0 +1,141 @@
+---
+ci-area: CV Tailoring (C7 / template)
+ci-roadmap:
+ci-title: Never Render a Position Header Over Nothing
+ci-status: 0 - Idea
+ci-priority: medium
+ci-date: 2026-08-28
+ci-estimated-time: 2
+ci-time-spent: 0
+pr-source: "[[C7 Space Rules Are Specified and Never Enforced]]"
+pr-target: "[[C7. Compile Complete CV Document]]"
+---
+
+---
+```simple-time-tracker
+{"entries":[]}
+```
+---
+
+## 1. What is the problem or opportunity?
+
+[[C7 Space Rules Are Specified and Never Enforced]] removed the slot refill: a `cv_position` slot the
+selection does not cover now renders nothing, instead of being topped up from the bullet bank. That
+was the largest single lever on CV length and it works.
+
+**It also makes a state reachable that was previously impossible: a position whose slots are ALL
+empty — a job title and its dates with nothing underneath.**
+
+Measured across the six leads with a current shortlist, filled slots per position:
+
+```
+                   A    B    C    D
+ALDI               4    3    2    1
+Vestas             2    3    2    1
+Aliaxis            3    2    2    1
+Julius Baer        2    3    2    1
+Allianz Services   2    2    2    1
+Anritsu            3    3    2    1
+```
+
+Positions A, B and C hold two or more on every lead. **Position D holds exactly one, on all six** — it
+is one selection away from rendering as a header over white space, and it is the last thing on the CV.
+
+### 1.1 · Why an empty role overview is NOT the problem
+
+An earlier draft of this reasoning proposed exempting the four role overviews (`A0` `B0` `C0` `D0`)
+from the bullet budget, on the grounds that they are structure rather than evidence. **The owner
+corrected it, and the correction is the design:**
+
+> *"I don't see any problem when the 0's positions do not come to the CV because they do not
+> contribute. They are written in this way because sometimes some experience is required running X and
+> Y, and then the 0's bullets come to play. It is also the reason you will see no 'Responsibilities'
+> headings in the CV as you see 'Key Projects'. Since they come right under the Name of the Position,
+> it is clear for the reader that this is a description of the role."*
+
+Role overviews are evidence with a different *shape* — written at role level so they can answer a JD
+that asks about running a function. They compete on merit like everything else, and dropping out when
+they do not contribute is the system working. Nothing is lost when one is absent, because no heading
+announced it was coming. **`D0` empty on all six leads is correct behaviour, not a defect.**
+
+The owner also names `D0`'s specific purpose: for the Lisbon Project Manager role it is *"meant to be
+displayed as a short description of what I did, in case none of the Project Bullets are relevant."* So
+it is the fallback — which is precisely why the failure case is `D0` **and** `D1` together, not either
+alone.
+
+## 2. What would the improvement look like?
+
+### 2.1 · The rule, and the constraint that shapes it
+
+An empty position may be **omitted**, but only where omitting it cannot leave a gap in the record. The
+owner's constraint, 2026-08-28:
+
+> *"The guard can only be applied if the empty Role is the last one, otherwise it could create a 'Hole
+> in the CV'. It is okay for me to privilege the most recent 2 or 3 positions because they span
+> somewhere between 11 to 13 years of experience already, but to have a blank in Role A or B or C
+> would be a real problem."*
+
+A missing position in the middle is not a formatting flaw — it reads as concealed time. Positions A and
+B alone span July 2018–December 2024 and February 2013–June 2018, close to twelve years; adding C
+reaches roughly thirteen. That is what makes dropping a *trailing* position acceptable and dropping an
+interior one unacceptable.
+
+**So the rule is about position in the sequence, not about which letter:**
+
+- A position with zero filled slots that has **any non-empty position after it** must not be omitted —
+  force its role overview back in, and let it cost a line.
+- A **trailing** run of empty positions may be omitted entirely; the CV simply ends earlier.
+
+Expressed over sequence rather than hard-coded to `D`, so it still holds if `CV_SLOTS` ever changes.
+
+### 2.2 · Two things to decide while implementing
+
+**What "force the overview back in" draws on.** The text has to come from somewhere when selection did
+not choose it — the `responsibilities` table is the natural source, and is what the old refill used for
+role overviews. Confirm before building.
+
+**Whether a forced overview consumes budget.** It is one line, in a state that has not yet occurred.
+Simplest is to render it outside the budget, like Education and Languages, since by construction the
+position contributed nothing else.
+
+### 2.3 · Implementation checklist
+
+1. Group filled slots by position at render time, in `CV_SLOTS` order.
+2. Identify positions with zero filled slots, and which of those are trailing.
+3. Trailing empties: omit the whole position — header, dates, everything.
+4. Interior empties: render the role overview, sourced per §2.2.
+5. A test over a constructed selection that empties an interior position and a trailing one, asserting
+   the two are treated differently. **This state does not occur on live data, so a unit test is the
+   only thing that will ever exercise it.**
+
+### 2.4 · Acceptance
+
+- [ ] An interior position with zero selected slots renders its header and a role overview — never a
+      header alone, never nothing.
+- [ ] A trailing empty position is omitted entirely: no header, no dates, no gap.
+- [ ] The six current leads render **byte-identical** to today — none is in this state, so a correct
+      implementation changes nothing about them.
+- [ ] Page count unchanged on all six.
+- [ ] The rule is expressed over sequence position, not hard-coded to `D`.
+
+## 3. Resources or references
+
+- `lib/cv-slots.ts` — `CV_SLOTS`, the eleven slots and their order; `slotCode`.
+- `lib/pipeline/tailoring.ts` — `templateSlotData`, where slots are filled and where the refill was
+  removed; `positions` for the display strings.
+- [[C7 Space Rules Are Specified and Never Enforced]] — the CI that removed the refill and made this
+  state reachable, and whose page rule already sheds bullets at render time.
+
+## 4. Notes / Progress log
+
+### 2026-08-28 · Opened
+
+Found by mapping empty slots per position after the refill came out. The measurement is the argument:
+position D sits at one filled slot of two on every lead, so the failure is one selection away rather
+than theoretical.
+
+Recorded because the first version of this guard was wrong in an instructive way. It proposed making
+role overviews render unconditionally, treating them as structure like Education. They are not — they
+are role-level evidence that competes, and the absent `Responsibilities` heading is the deliberate
+design that makes their absence invisible. The real risk was never an empty overview; it is an empty
+*position*, and only where omitting it would leave a hole.
