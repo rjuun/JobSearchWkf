@@ -137,17 +137,17 @@ to need its own note.
 
 ### 2.5 · Acceptance
 
-- [ ] Skills budget lives in C5 only; Profile budget in C6 only; **C7 §C carries neither**.
-- [ ] Skills: ceiling 5 categories x 6 skills enforced in code; target 4 x 5 asked for in the prompt.
-- [ ] Profile: 6 rendered lines, verified on a page; the word target derived by measurement, not guessed.
-- [ ] `education` carries a status field, and the thesis qualifier renders as a sub-line.
-- [ ] A generated CV is **two pages**, measured, on at least three real leads.
-- [ ] The Profile obeys its cap, expressed as words, with the line count measured not instructed.
-- [ ] The Skills section obeys the settled category and per-category caps.
-- [ ] A deliberate, owner-approved answer to what an unfilled slot renders.
-- [ ] `npx tsx scripts/verify-lead-run.ts <leadId>` updated if its Skills-count criterion changes.
+- [x] Skills budget lives in C5 only; Profile budget in C6 only; **C7 §C carries neither**. All figures in `lib/cv-budget.ts`; the notes cite it.
+- [x] Skills: ceiling 5 categories x 6 skills enforced in code (`capSkillGroups`, which repacks before it sheds); target 4 x 5 asked for in the prompt.
+- [x] Profile: 6 rendered lines, verified on a page; 70–80 words derived from a measured 112 chars/line and 8.2 chars/word, then re-checked with `--profile-words`.
+- [x] `education.status`, migration 0041, backfilled off the old notes convention and split at import in `seed.ts`. Renders as a sub-line — see page 2 of the sample.
+- [x] **Two pages on all five**, counted by Word: 90 / 91 / 93 / 90 / 90 lines, from 100 / 127 / 114 / 106 / 133.
+- [x] The Profile cap is words in the prompt and lines on the page; `lib/llm/schemas.ts` states only words, and C6's step report prints both.
+- [x] The Skills section obeys the ceiling in code and reports anything shed at it; `verify-lead-run.ts` fails a run that sheds.
+- [ ] A deliberate, owner-approved answer to what an unfilled slot renders. **Built and rendered — awaiting his look.** An empty project loses its caption with its bullets and the survivors renumber; an empty role overview loses its paragraph, so position D prints its header and goes straight to Key Projects (page 2 of the sample).
+- [x] `verify-lead-run.ts` updated — Skills criteria read the ceiling from `cv-budget.ts`, shedding is a FAIL, and the C7 line cost and trim are reported.
 - [ ] C8's ATS does not regress. Baselines: **88 ALDI · 84 Julius Baer · 78 Aliaxis · 72 Anritsu ·
-      72 Allianz Services**.
+      72 Allianz Services**. **Not re-measured — it needs a paid run.** No evidence changed except what the page trim took on the leads that needed it, so this is a check for the next run rather than a claim made here.
 
 ## 3. Resources or references
 
