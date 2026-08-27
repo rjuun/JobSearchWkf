@@ -50,18 +50,50 @@ caps, and neither is enforced.**
 
 ## 2. What would the improvement look like?
 
-### 2.1 · The decision only the owner can make
+### 2.1 · Decided by the owner, 2026-08-27 — including where the decision lives
 
-He asked (2026-08-27) for a **6-line profile** and **max 6 skills per category**. C7 §C already says
-**5 lines**, **5 per category**, **4 categories**. His numbers are looser than the ones already
-written down.
+Shown the arithmetic (C7 §C's 4x5 would shed 1 / 5 / 7 skills on the three measured leads; 6 per
+category sheds 0 / 2 / 1), he settled all three questions:
 
-**Resolve the conflict before building.** Either C7 §C's numbers stand and C5/C6 are brought to them,
-or the owner's new numbers supersede C7 §C and it is rewritten. What must not survive is two live
-prompts carrying different budgets. Bring the resolved numbers to one place and have the others cite
-it.
+**Skills — ceiling 5 categories x 6 skills, target 4 x 5.** A ceiling and a target, not one number:
+*"it feels like a 5x6 is the max this section can bear, ideal being a 4x5."* The ceiling is what the
+code enforces; the target is what the prompt asks for.
 
-### 2.2 · Words are the lever; lines are the outcome
+**Profile — maximum 6 lines, and the line is the truth.** *"Regardless of the number of words,
+crossing the 6 lines feels already too long for the attention span of a Headhunter/Talent Acquisition
+Manager."* So the constraint is the rendered outcome, not the word count — see §2.2 for how a model
+that cannot see the rendering is made to hit it.
+
+**And the budgets move to the steps that own them.** His framing, which supersedes this note's own
+proposal of "one number in one place":
+
+> *"In terms of Process design, I would set the decision where it belongs (Skills at C5 and Profile at
+> C6), leaving C7 as much as possible as a simple compiler and orchestrator of the 2 page CV."*
+
+That is better than picking a winner between two prompts. **C7 §C should not carry section budgets at
+all.** Move the Skills numbers into `Process/C5…md` §B.1 and the Profile cap into `Process/C6…md`, and
+reduce C7 §C to what only C7 can enforce: the two-page outcome, and what gives way when it is
+exceeded. A compiler does not decide how big a section may be; it decides whether the document fits
+and what to do when it does not.
+
+This also removes the class of defect rather than the instance. Two prompts disagreeing about the
+Skills section was possible because both claimed authority over it. After this, only one can.
+
+### 2.2 · The line cap is the truth; the word target is how the model hits it
+
+The owner's constraint is **6 rendered lines**. A model cannot see the rendering, so it cannot obey
+that directly — it can only control words. So:
+
+- **6 lines is the acceptance criterion**, checked against a rendered page.
+- **The word target is the instruction**, and it is *derived* by measuring how many words fill six
+  lines in the current template. Not estimated — measured, with `scripts/render-cv-from-stored.ts`.
+- When the template changes, the word target is re-derived. The line cap does not move.
+
+C6's spec currently pins both independently (`Process/C6…md` §39 and §81, `lib/llm/schemas.ts` §689),
+which is how they came to disagree. After this, one is derived from the other.
+
+**Never state a rendered-output limit as a model instruction.** That rule is what this whole CI is
+about.
 
 C6's spec pins **both** lines and words (`Process/C6` §39 and §81, `lib/llm/schemas.ts` §689). The
 model cannot see the rendering, so a line count is not something it can obey — it can only control
@@ -89,9 +121,26 @@ as the working method and left `scripts/render-cv-from-stored.ts`, which rebuild
 data **with no paid run**. Every measurement here is free. There is no excuse for a number nobody
 checked — which is how `SKILLS_ENVELOPE = 40` and the 70–110 word target both came to be wrong.
 
+### 2.4a · Education needs a status field (added 2026-08-27)
+
+The owner shortened two Education titles in the database so their dates fit on one line, and one of
+them now needs a qualifier rendered **beneath** the entry:
+
+> *Master's Quantitative Asset & Risk Management* — "(coursework complete, thesis not submitted)"
+
+`education` carries `refCode`, `institution`, `qualification`, `type`, `year`, `cityCountry` and **no
+notes or status column**. Folding the text into `qualification` would push the title length back up —
+the exact problem he just fixed by shortening it. **Add a column** and render it as a sub-line.
+
+In scope here because it touches the same Education rendering the line budget does; small enough not
+to need its own note.
+
 ### 2.5 · Acceptance
 
-- [ ] One budget, in one place, cited by C5, C6 and C7 rather than restated differently in each.
+- [ ] Skills budget lives in C5 only; Profile budget in C6 only; **C7 §C carries neither**.
+- [ ] Skills: ceiling 5 categories x 6 skills enforced in code; target 4 x 5 asked for in the prompt.
+- [ ] Profile: 6 rendered lines, verified on a page; the word target derived by measurement, not guessed.
+- [ ] `education` carries a status field, and the thesis qualifier renders as a sub-line.
 - [ ] A generated CV is **two pages**, measured, on at least three real leads.
 - [ ] The Profile obeys its cap, expressed as words, with the line count measured not instructed.
 - [ ] The Skills section obeys the settled category and per-category caps.
