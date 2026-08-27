@@ -14,7 +14,7 @@
 import './_env';
 import { db } from '../lib/db';
 import { requirementTailoring, jobRequirements, jobLeads, languages } from '../lib/db/schema';
-import { prioritiseSkills, dropLanguageSkills, SKILLS_ENVELOPE } from '../lib/pipeline/skills';
+import { prioritiseSkills, dropLanguageSkills, SKILLS_CEILING } from '../lib/pipeline/skills';
 import { eq, sql } from 'drizzle-orm';
 
 const RANKS = ['Core', 'Important', 'Nice-to-Have'];
@@ -50,7 +50,7 @@ async function measure(idOrPrefix: string) {
   const selected = dropLanguageSkills(
     prioritiseSkills(
       green.map((r) => ({ rank: (r.requirementId && rankById.get(r.requirementId)) ?? null, cvBulletSkills: r.cvBulletSkills ?? [] })),
-      SKILLS_ENVELOPE + 8
+      SKILLS_CEILING + 8
     ),
     langRows.map((l) => l.language ?? '')
   );
@@ -63,7 +63,7 @@ async function measure(idOrPrefix: string) {
   console.log(`  links/bullet  : ${(green.length / Math.max(refs.size, 1)).toFixed(2)}`);
   console.log(`  coverage      : ${cov}`);
   console.log(`  reqs/bullet   : ${(covered.size / Math.max(refs.size, 1)).toFixed(2)}`);
-  console.log(`  skills        : ${selected.length} after language strike -> ${Math.min(selected.length, SKILLS_ENVELOPE)} printed (envelope ${SKILLS_ENVELOPE})`);
+  console.log(`  skills        : ${selected.length} after language strike -> ${Math.min(selected.length, SKILLS_CEILING)} printed (ceiling ${SKILLS_CEILING})`);
 }
 
 async function main() {

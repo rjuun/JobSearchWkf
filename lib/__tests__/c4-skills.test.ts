@@ -15,7 +15,7 @@ import {
   auditBulletTags,
   declaredMerges,
   absorbContainedSkills,
-  SKILLS_ENVELOPE,
+  SKILLS_CEILING,
   type VocabEntry,
 } from '../pipeline/skills';
 
@@ -86,16 +86,21 @@ describe('C5 §A · prioritiseSkills decides WHICH skills print', () => {
     expect(out).toEqual(['Core Skill', 'Unranked Skill']);
   });
 
-  it('cuts to the envelope — "as the number of declared skills allows"', () => {
+  it('cuts to the ceiling — "as the number of declared skills allows"', () => {
+    // Sized off `SKILLS_CEILING` rather than in literals, so the property under
+    // test — Core survives whole, Nice-to-Have is what gets shed (§B.3) — stays
+    // exercised when the ceiling moves. It moved on 2026-08-27 (40 → 5 × 6), and
+    // the literals this used to carry made the arithmetic degenerate: 30 Core
+    // against a ceiling of 30 left nothing for the Nice-to-Have half to prove.
+    const core = SKILLS_CEILING - 5;
     const rows = [
-      { rank: 'Core', cvBulletSkills: Array.from({ length: 30 }, (_, i) => `Core ${i}`) },
-      { rank: 'Nice-to-Have', cvBulletSkills: Array.from({ length: 30 }, (_, i) => `Nice ${i}`) },
+      { rank: 'Core', cvBulletSkills: Array.from({ length: core }, (_, i) => `Core ${i}`) },
+      { rank: 'Nice-to-Have', cvBulletSkills: Array.from({ length: 20 }, (_, i) => `Nice ${i}`) },
     ];
     const out = prioritiseSkills(rows);
-    expect(out).toHaveLength(SKILLS_ENVELOPE);
-    // Core survives whole; Nice-to-Have is what gets shed (§B.3).
-    expect(out.filter((s) => s.startsWith('Core'))).toHaveLength(30);
-    expect(out.filter((s) => s.startsWith('Nice'))).toHaveLength(10);
+    expect(out).toHaveLength(SKILLS_CEILING);
+    expect(out.filter((s) => s.startsWith('Core'))).toHaveLength(core);
+    expect(out.filter((s) => s.startsWith('Nice'))).toHaveLength(5);
   });
 
   it('ignores blank and missing skill lists', () => {

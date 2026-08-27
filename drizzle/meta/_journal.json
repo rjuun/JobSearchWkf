@@ -288,6 +288,13 @@
       "when": 1787678325284,
       "tag": "0040_powerful_caretaker",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1787678325285,
+      "tag": "0041_education_status_line",
+      "breakpoints": true
     }
   ]
 }

@@ -44,3 +44,32 @@ export function normalizeCvPosition(value: string | null | undefined): CvSlot | 
 export function evidenceNeedsCvSlot(kind: string | null): boolean {
   return kind !== 'Education' && kind !== 'Language';
 }
+
+/** Which position a slot belongs to — the `A`–`D` of its code. */
+export function slotPositionLetter(slot: string): string {
+  return slotCode(slot)[0] ?? '';
+}
+
+/** A role-overview slot (`A0`) rather than a project slot (`A1`). The two render
+ *  differently — an overview is prose in one paragraph, a project is a list. */
+export function isRoleOverviewSlot(slot: string): boolean {
+  return slotCode(slot).endsWith('0');
+}
+
+/**
+ * The project's own name, without the slot's code — `"Outsourcing Framework
+ * Project"`.
+ *
+ * The caption printed above a project's bullets used to be STATIC text in the
+ * template ("1. Outsourcing Framework Project"), which is why an empty project
+ * slot could not simply render nothing: the caption stayed, announcing a project
+ * with no bullets under it. That is the whole reason `templateSlotData` refilled
+ * empty slots from the bullet bank, and therefore the reason the CV could not be
+ * shortened. The caption is now supplied as data and numbered over the projects
+ * that actually have content, so a slot with no selected evidence disappears
+ * whole — caption included. See CI · C7 Space Rules Are Specified and Never
+ * Enforced §2.3.
+ */
+export function slotProjectName(slot: string): string {
+  return slot.replace(/^.*?[A-D][0-9]\.\s*/, '').trim();
+}

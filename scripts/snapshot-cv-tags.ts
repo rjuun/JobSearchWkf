@@ -20,7 +20,7 @@
 import './_env';
 import { db } from '../lib/db';
 import { requirementTailoring, jobRequirements, jobLeads, languages } from '../lib/db/schema';
-import { prioritiseSkills, dropLanguageSkills, absorbContainedSkills, SKILLS_ENVELOPE } from '../lib/pipeline/skills';
+import { prioritiseSkills, dropLanguageSkills, absorbContainedSkills, SKILLS_CEILING } from '../lib/pipeline/skills';
 import { eq } from 'drizzle-orm';
 
 const list = (v: readonly string[] | null | undefined): string => (v?.length ? v.join(' · ') : '—');
@@ -55,10 +55,10 @@ async function snapshot(leadId: string) {
   const selected = dropLanguageSkills(
     prioritiseSkills(
       rows.map((r) => ({ rank: (r.requirementId && rankById.get(r.requirementId)) ?? null, cvBulletSkills: r.cvBulletSkills ?? [] })),
-      SKILLS_ENVELOPE + 8
+      SKILLS_CEILING + 8
     ),
     langRows.map((l) => l.language ?? '')
-  ).slice(0, SKILLS_ENVELOPE);
+  ).slice(0, SKILLS_CEILING);
   // The containment strike runs before the grouping call, so the probe shows the
   // set the model is actually handed. The merges it declares on top of this are a
   // model judgement and are not reproduced here, for the same reason the

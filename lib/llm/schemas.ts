@@ -4,6 +4,7 @@
  * tool definition; zod drives runtime validation (+ one retry on mismatch).
  */
 import { z } from 'zod';
+import { PROFILE_WORDS, PROFILE_MAX_LINES, SKILL_CATEGORIES, SKILLS_PER_CATEGORY, SKILLS_TARGET } from '../cv-budget';
 
 export type ToolDef = {
   name: string;
@@ -603,8 +604,11 @@ export const C4 = {
 };
 
 // ── C5 · Group the selected skills into the CV's Skills categories ──────────
-// C5 §B.1: 3-5 logical categories reflecting "the main capability areas relevant
-// to the Job Lead", 4-8 skills each, most Core-aligned first. This is the one
+// C5 §B.1's categories — "the main capability areas relevant to the Job Lead",
+// most Core-aligned first. The COUNTS come from `lib/cv-budget.ts`, which is the
+// one place they live now: this description used to hard-code "3-5" and "4-8"
+// while `Process/C7…` §C said 4 and 5, and nothing reconciled the two. This is
+// the one
 // part of C5 a model has to do: naming a category is a judgement over THIS
 // lead's actual skill set, and no lookup produces "Governance, Risk & Compliance"
 // from a list of strings. Selection and prioritisation stay in code either side
@@ -641,7 +645,12 @@ export const C5 = {
     name: 'emit_skill_groups',
     strict: true,
     description:
-      'Group the supplied skills into 3-5 logical categories for the CV Skills section, most relevant to this role first, CONSOLIDATING near-duplicates as you go. Category names are short capability areas in the candidate\'s professional register (e.g. "Governance, Risk & Compliance", "Transformation & Process Excellence"), never the requirement ranks and never a generic label like "Other". Aim for 4-8 skills per category and 16-20 entries in total. Every supplied skill must be accounted for exactly once: either placed in a category copied VERBATIM, or named in the `mergedFrom` of the one entry that replaces it. Merge only skills that are genuinely the same capability, and never reword, split or invent a skill for any other reason.',
+      `Group the supplied skills into ${SKILL_CATEGORIES.min}-${SKILL_CATEGORIES.target} logical categories for the CV Skills section, most relevant to this role first, ` +
+      'CONSOLIDATING near-duplicates as you go. Category names are short capability areas in the candidate\'s professional register ' +
+      '(e.g. "Governance, Risk & Compliance", "Transformation & Process Excellence"), never the requirement ranks and never a generic label like "Other". ' +
+      `Aim for at most ${SKILLS_PER_CATEGORY.target} skills per category and ${SKILLS_TARGET} entries in total. ` +
+      'Every supplied skill must be accounted for exactly once: either placed in a category copied VERBATIM, or named in the `mergedFrom` of the one entry that replaces it. ' +
+      'Merge only skills that are genuinely the same capability, and never reword, split or invent a skill for any other reason.',
     input_schema: {
       type: 'object', additionalProperties: false,
       properties: {
@@ -685,8 +694,16 @@ export const C6 = {
   tool: {
     name: 'emit_profile',
     strict: true,
+    // The length is stated in WORDS and only in words. It used to read "4–7
+    // lines (70–110 words)", which asked for two different things — 110 words is
+    // eight rendered lines at this template's column width, not seven — and one
+    // of them was unobeyable: the model never sees the rendering, so a line count
+    // is not something it can act on. The rendered ceiling
+    // (`PROFILE_MAX_LINES`) is checked on the page, by `scripts/cv-pages.ps1`.
     description:
-      'Write a tailored CV profile of 4–7 lines (70–110 words): lead with seniority and scope, mirror this role\'s core requirements, use senior leadership language, and stay fully supportable by the evidence. No first person, no fabrication.',
+      `Write a tailored CV profile of ${PROFILE_WORDS.min}–${PROFILE_WORDS.max} words: lead with seniority and scope, mirror this role's core requirements, ` +
+      'use senior leadership language, and stay fully supportable by the evidence. No first person, no fabrication. ' +
+      `Stay within ${PROFILE_WORDS.max} words — a ceiling, not a guide: beyond it the profile spills past the ${PROFILE_MAX_LINES} lines the CV allows it.`,
     input_schema: {
       type: 'object', additionalProperties: false,
       properties: { profile: { type: 'string' } },

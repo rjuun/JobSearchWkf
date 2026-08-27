@@ -37,8 +37,9 @@ import { buildCv, type CvModel } from '../docx/cv';
 import { systemPromptFor } from '../prompts';
 import { runStructured, type UserContentBlock } from '../llm/client';
 import { C2, C4, C5, C6, C8 } from '../llm/schemas';
-import { CV_SLOTS, normalizeCvPosition, slotCode, templateExists, buildCvFromTemplate, type TemplateData } from '../docx/template';
-import { evidenceNeedsCvSlot } from '../cv-slots';
+import { CV_SLOTS, normalizeCvPosition, slotCode, templateExists, buildCvFromTemplate, type TemplateData, type TemplateValue } from '../docx/template';
+import { evidenceNeedsCvSlot, isRoleOverviewSlot, slotProjectName } from '../cv-slots';
+import { PROFILE_WORDS, PROFILE_MAX_LINES, SKILL_CATEGORIES, SKILLS_PER_CATEGORY, CONTENT_LINE_ALLOWANCE, MAX_PAGES, profileLines, renderedLines } from '../cv-budget';
 import { recordGapTips } from '../ci';
 import { matchStrengthToScore } from '../scoring';
 import { candidateFactsSummary } from '../profile-context';
@@ -47,7 +48,9 @@ import {
   resolveVocab,
   prioritiseSkills,
   dropLanguageSkills,
-  SKILLS_ENVELOPE,
+  SKILLS_CEILING,
+  SKILLS_TARGET,
+  capSkillGroups,
   absorbContainedSkills,
   reconcileSkillGroups,
   ungroupedSkills,
@@ -533,16 +536,38 @@ export function missingC4Refs(
  * key holding `""` — schema-valid, `status='ok'`, and from there the empty
  * string reaches the .docx (blank Profile section) and C8 (rating a CV whose
  * profile section says nothing). `Process/C6...md` and the tool description
- * both specify 4–7 lines / 70–110 words; `MIN_PROFILE_WORDS` sits well under
- * that target so ordinary variation never trips it, while still catching a
+ * both specify a word target (`PROFILE_WORDS`); `MIN_PROFILE_WORDS` sits well
+ * under it so ordinary variation never trips it, while still catching a
  * one-line stub. Unlike C4's floor, a profile is a single value rather than a
  * set keyed by ref, so nothing needs to accumulate across re-asks — the last
  * attempt either clears the bar or it doesn't.
  */
 export const MIN_PROFILE_WORDS = 40;
 
+export function profileWordCount(profile: string): number {
+  return profile.trim().split(/\s+/).filter(Boolean).length;
+}
+
 export function isProfileTooShort(profile: string): boolean {
-  return profile.trim().split(/\s+/).filter(Boolean).length < MIN_PROFILE_WORDS;
+  return profileWordCount(profile) < MIN_PROFILE_WORDS;
+}
+
+/**
+ * ── C6's space ceiling ───────────────────────────────────────────────────────
+ *
+ * The opposite failure, and the one this CI exists for: a profile that is fine
+ * as prose and too long on the page. The owner's rule is about **rendered
+ * lines** — *"regardless of the number of words, crossing the 6 lines feels
+ * already too long for the attention span of a Headhunter/Talent Acquisition
+ * Manager"* — but the model cannot see the rendering, so the instruction it gets
+ * is `PROFILE_WORDS.max` and this is the check that the instruction was obeyed.
+ *
+ * Retried rather than truncated. Cutting a profile at the word limit ends it
+ * mid-clause, and the Profile is the first thing on the page; a re-ask costs one
+ * cheap call and returns prose that was written to the length.
+ */
+export function isProfileTooLong(profile: string): boolean {
+  return profileWordCount(profile) > PROFILE_WORDS.max;
 }
 
 /** Map an evidence node's source to the tailoring row's provenance label (M7 proof trail). */
@@ -652,9 +677,31 @@ function templateFits(green: (typeof requirementTailoring.$inferSelect)[]): bool
   );
 }
 
-/** Map Keep bullets into the template's 11 cv_position slots, refilling any slot
- *  the Keep set doesn't cover from the bank (projects) / responsibilities
- *  (role overviews) so the real 2-page template never renders a blank section. */
+/**
+ * Map Keep bullets into the template's 11 `cv_position` slots. A slot the Keep
+ * set does not cover renders NOTHING — no caption, no "Key Projects:" line, no
+ * blank paragraph.
+ *
+ * *Superseded (2026-08-27, CI · C7 Space Rules Are Specified and Never
+ * Enforced): this used to refill an uncovered slot from the bullet bank
+ * (projects) or the position's responsibilities (role overviews), "so the real
+ * 2-page template never renders a blank section".* It had to, because the
+ * caption above each project and the "Key Projects:" line above each group were
+ * static template text: an empty slot left its caption announcing a project with
+ * no bullets under it. The refill filled the hole, and in doing so made the
+ * document's length independent of how much evidence was selected — which is why
+ * sweeping C3's budget from 14 to 9 never moved the page count.
+ *
+ * It was worse than neutral. The refill is per-slot and unbounded: a slot losing
+ * its single tailored bullet came back with up to FOUR bank bullets, so the line
+ * count went *up* as bullets came out. Measured before this change, the five
+ * reference leads carried 2 / 4 / 6 / 10 / 12 refilled lines they had not
+ * selected.
+ *
+ * `scripts/retag-cv-template-space.ts` made all three of those paragraphs loops
+ * over nought-or-one, so the hole can now be closed by leaving it empty. What
+ * fills the eleven slots is exactly what C3 selected, and nothing else.
+ */
 /** Vienna is Wien is Vienne. A city that a lead and a profile can plausibly write
  *  two ways is a city the relocation clause must not print for — this is the
  *  owner's own city and the one that decides §2.1's "not in Vienna" test, so it
@@ -750,26 +797,25 @@ function fmtCvDate(s: string | null | undefined): string {
  * its own line under the qualification, e.g. *(coursework complete, thesis not
  * submitted)*.
  *
- * **The convention: a LEADING PARENTHESISED LINE in `education.notes` is the
- * entry's status and prints; everything after it stays internal.** That is not a
- * rule invented for the field — it is how the owner's own row is already written,
- * with the qualifier on the first line and the internal detail below it.
+ * It reads `education.status`, its own column since migration 0041 (CI · C7
+ * Space Rules Are Specified and Never Enforced §2.4a). The column's comment in
+ * `lib/db/schema.ts` records why no existing field would do.
  *
- * It exists because the qualifier could not live anywhere else that was right.
- * Inside `qualification` it made the head too long to keep its date on the same
- * line, which was §2.5's whole complaint. In `summary` it would have come back as
- * one of the notes he had just asked to remove — and `summary` is Keep-gated
- * per job, whereas "thesis not submitted" is true of the qualification whichever
- * role the CV answers.
- *
- * No other row's notes begin with a bracket, so nothing else starts printing.
+ * *Superseded (2026-08-27): this used to read `education.notes` by a FORMATTING
+ * CONVENTION — a leading parenthesised line meant "print me", everything after
+ * it stayed internal — justified on the grounds that "no other row's notes begin
+ * with a bracket, so nothing else starts printing".* That was true of the five
+ * rows that existed and of nothing else: it made every future note that happens
+ * to open with a bracket into CV-facing text, with no way for whoever wrote it to
+ * know. 0041 lifts the one row that used the convention into the column and
+ * retires the rule.
  *
  * Returns nought-or-one so the template's loop drops the whole paragraph for the
  * entries that have no qualifier, rather than leaving each of them a blank line.
  */
-function educationStatus(notes: string | null | undefined): string[] {
-  const first = (notes ?? '').split(/\r?\n/)[0]?.trim() ?? '';
-  return /^\(.*\)\.?$/.test(first) ? [first.replace(/\.$/, '')] : [];
+function educationStatus(status: string | null | undefined): string[] {
+  const text = (status ?? '').trim().replace(/\.$/, '');
+  return text ? [text] : [];
 }
 
 /** "Aug 2009 — Jul 2011", from whatever shape the two ends were stored in. */
@@ -821,11 +867,17 @@ export async function templateSlotData(
     travel: string | null;
   } | null,
   lead?: { jdGroupPrimary: string | null; jdGroupSecondary: string | null; city: string | null } | null,
-  skillsModel?: { category: string; items: string[] }[]
+  skillsModel?: { category: string; items: string[] }[],
+  /** Called only when the page trim below had to shed evidence, with the refs it
+   *  took and the line cost it reached. C7's step report is what surfaces it. */
+  onTrim?: (refs: string[], lineCost: number) => void
 ): Promise<TemplateData> {
-  const [bank, resps, eduRows, langRows, posRows] = await Promise.all([
-    db.select().from(bulletBank).where(eq(bulletBank.ownerId, ownerId)),
-    db.select().from(responsibilities).where(eq(responsibilities.ownerId, ownerId)),
+  // `bullet_bank` and `responsibilities` used to be read here too — they were the
+  // refill's two sources. Nothing in this function reads them any more, so the
+  // two queries went with it. Both tables are still evidence: C2 sees them
+  // through `gatherEvidence`, which is where they belong. What they no longer do
+  // is top the rendered document back up behind C3's back.
+  const [eduRows, langRows, posRows] = await Promise.all([
     db.select().from(education).where(eq(education.ownerId, ownerId)),
     db.select().from(languages).where(eq(languages.ownerId, ownerId)),
     db.select().from(positions).where(eq(positions.ownerId, ownerId)),
@@ -926,8 +978,9 @@ export async function templateSlotData(
   const eduSortKey = (e: (typeof eduRows)[number]) => e.dateCompleted || e.dateBegin || '';
   const eduEntry = (e: (typeof eduRows)[number]) => ({
     Head: [e.qualification, [e.institution, e.cityCountry].filter(Boolean).join(', ')].filter(Boolean).join(', '),
-    // A status qualifier, not the return of the notes. See `educationStatus`.
-    Status: educationStatus(e.notes),
+    // A status qualifier, not the return of the notes — its own column since
+    // migration 0041. See `educationStatus`.
+    Status: educationStatus(e.status),
     // `||`, not `??`. `date_completed` holds an EMPTY STRING on the in-progress
     // Master's, not null — so `??` accepted it as a completion date and the entry
     // printed "Sep 2016" where it had read "Sep 2016 — Present". A study still
@@ -941,68 +994,162 @@ export async function templateSlotData(
   if (execEducation.length) data['Executive Education'] = execEducation.map(eduEntry);
 
   if (langRows.length) {
-    // The literal `"•  "` prefix that used to sit here is gone. It was the
-    // workaround for exactly the defect §2.6 names — the parser had no loop, so
-    // one flat run with manual line breaks was the only way to get a bullet in
-    // front of each language — and it was the fingerprint that led this CI to the
-    // root cause. The template's `<<#Languages>>` loop gives each line a real
-    // bulleted paragraph, so the glyph belongs to Word's list formatting again
-    // and not to the data.
-    data['Languages'] = langRows.map((l) => `${l.language}: ${l.displayLevel ?? l.cefrLevel ?? ''}`.trim());
+    // One line, entries separated by ` · ` — the same treatment the Skills
+    // entries under a category get, for the same shape of data. C7 §C has always
+    // called this "a small separate section at the bottom"; as four bulleted
+    // paragraphs it was the whole of the page-3 overflow on three of the five
+    // measured leads. See `scripts/retag-cv-template-space.ts` §4.
+    data['Languages'] = langRows.map((l) => `${l.language}: ${l.displayLevel ?? l.cefrLevel ?? ''}`.trim()).join(' · ');
   }
 
-  for (const slot of CV_SLOTS) {
-    const code = slotCode(slot);
-    const letter = code[0];
-    const isOverview = code.endsWith('0');
-    const seenLines = new Set<string>();
-    let lines = selected
-      .filter((g) => {
-        const normalized = normalizeCvPosition(g.cvPosition);
-        return normalized === slot || (normalized ? slotCode(normalized) === code : false);
-      })
-      // The `|| g.originalText` tail stays a backstop here on purpose. This is a
-      // RENDER path, not a write path: C4's floor already guarantees a real
-      // bullet for every ref-bearing Keep row before anything reaches the .docx,
-      // and throwing at render time would block a CV that is otherwise complete.
-      // Same reasoning for `bulletsForCv` in the programmatic builder below.
-      .map((g) => (g.evidenceRef && bulletByRef.get(g.evidenceRef)?.bullet) || g.cvBullet || g.originalText || '')
-      .filter(Boolean)
-      // De-dupe: requirement_tailoring is one row per JD requirement, and the
-      // same strong bullet legitimately answers several requirements — so the
-      // same evidence shows up as multiple green rows for one slot. First
-      // exposed 2026-08-07 rendering the real template for the first time
-      // (templateExists() had always been false before then, so this loop had
-      // never actually run against production data) — a lead with 64 green
-      // rows repeated its A1/A2/A3 bullets 3-7x each before this filter.
-      .filter((line) => {
-        const key = line.trim().toLowerCase();
-        if (seenLines.has(key)) return false;
-        seenLines.add(key);
-        return true;
-      });
-    if (lines.length === 0) {
-      // Fallback so the section isn't blank: curated bank bullets for a project
-      // slot, or the position's responsibilities for a role-overview slot.
-      lines = isOverview
-        ? resps.filter((r) => (r.positionRef ?? '') === letter).slice(0, 2).map((r) => r.text ?? '').filter(Boolean)
-        : bank.filter((b) => slotCode(b.cvPosition ?? '') === code).map((b) => b.text ?? '').filter(Boolean);
+  // Per-position caption numbering restarts at 1 and counts only the projects
+  // that survived, so a CV whose A1 emptied prints its A2 as "1." rather than
+  // leaving a gap in the sequence. Filled as the loop below walks CV_SLOTS,
+  // which is already in document order.
+  //
+  // `dropped` is the trim below asking for a smaller document. Everything from
+  // here to `fillSlots`' closing brace is a pure function of it, which is what
+  // lets the trim re-run the fill rather than surgically edit its output.
+  const fillSlots = (dropped: ReadonlySet<string>) => {
+    const projectsSoFar = new Map<string, number>();
+    for (const slot of CV_SLOTS) {
+      const code = slotCode(slot);
+      const letter = code[0];
+      const isOverview = isRoleOverviewSlot(slot);
+      const seenLines = new Set<string>();
+      const lines = selected
+        .filter((g) => {
+          if (g.evidenceRef && dropped.has(g.evidenceRef)) return false;
+          const normalized = normalizeCvPosition(g.cvPosition);
+          return normalized === slot || (normalized ? slotCode(normalized) === code : false);
+        })
+        // The `|| g.originalText` tail stays a backstop here on purpose. This is a
+        // RENDER path, not a write path: C4's floor already guarantees a real
+        // bullet for every ref-bearing Keep row before anything reaches the .docx,
+        // and throwing at render time would block a CV that is otherwise complete.
+        // Same reasoning for `bulletsForCv` in the programmatic builder below.
+        .map((g) => (g.evidenceRef && bulletByRef.get(g.evidenceRef)?.bullet) || g.cvBullet || g.originalText || '')
+        .filter(Boolean)
+        // De-dupe: requirement_tailoring is one row per JD requirement, and the
+        // same strong bullet legitimately answers several requirements — so the
+        // same evidence shows up as multiple green rows for one slot. First
+        // exposed 2026-08-07 rendering the real template for the first time
+        // (templateExists() had always been false before then, so this loop had
+        // never actually run against production data) — a lead with 64 green
+        // rows repeated its A1/A2/A3 bullets 3-7x each before this filter.
+        .filter((line) => {
+          const key = line.trim().toLowerCase();
+          if (seenLines.has(key)) return false;
+          seenLines.add(key);
+          return true;
+        });
+      // A role overview is prose and stays one paragraph — but a NOUGHT-OR-ONE
+      // array rather than a string, so an overview nothing was selected for loses
+      // its paragraph instead of leaving a blank line where a description was.
+      //
+      // A project slot is a LIST, and the template repeats its bulleted paragraph
+      // per element — CI · CV Template Output Format §2.4's fix: joining with `\n`
+      // gave Word one paragraph, so one bullet, and every line after the first was
+      // an unbulleted soft break inside it.
+      //
+      // The `.replace(/\.\s*$/, '')` that used to close this line is gone with the
+      // join. Its stated reason — "the template already prints `<<…>>.`" — was not
+      // true of any committed version of the template: no placeholder is followed by
+      // a literal period. What it actually did was strip the full stop from the LAST
+      // line of every group, so a three-bullet project printed two bullets ending in
+      // "." and a third ending in nothing. Visible in the 2026-08-26 CV the owner
+      // marked up, under every position.
+      data[slot] = isOverview ? (lines.length ? [lines.join(' ')] : []) : lines;
+      if (!isOverview) {
+        // The caption is data now, and it prints only for a project that has
+        // bullets. Numbered over the survivors, not over the slots.
+        if (lines.length) {
+          const n = (projectsSoFar.get(letter) ?? 0) + 1;
+          projectsSoFar.set(letter, n);
+          data[`${slot} Caption`] = [`${n}. ${slotProjectName(slot)}`];
+        } else {
+          data[`${slot} Caption`] = [];
+        }
+      }
     }
-    // A role overview is prose and stays one paragraph. A project slot is a LIST,
-    // and the template now repeats its bulleted paragraph per element — which is
-    // §2.4's fix: joining with `\n` gave Word one paragraph, so one bullet, and
-    // every line after the first was an unbulleted soft break inside it.
-    //
-    // The `.replace(/\.\s*$/, '')` that used to close this line is gone with the
-    // join. Its stated reason — "the template already prints `<<…>>.`" — was not
-    // true of any committed version of the template: no placeholder is followed by
-    // a literal period. What it actually did was strip the full stop from the LAST
-    // line of every group, so a three-bullet project printed two bullets ending in
-    // "." and a third ending in nothing. Visible in the 2026-08-26 CV the owner
-    // marked up, under every position.
-    data[slot] = isOverview ? lines.join(' ') : lines;
+    // "Key Projects:" is a heading over a list, so it prints only where there is
+    // one. A position whose projects all emptied keeps its header, its dates and
+    // its role overview — dropping the position itself would take a role off the
+    // CV, which is a truthfulness question and not a space one.
+    for (const letter of ['A', 'B', 'C', 'D']) {
+      const any = CV_SLOTS.some((s) => !isRoleOverviewSlot(s) && slotCode(s)[0] === letter && (data[`${s} Caption`] as string[] | undefined)?.length);
+      data[`Position ${letter} Key Projects`] = any ? ['Key Projects:'] : [];
+    }
+  };
+
+  // ── C7 §C · "Maximum Pages: 2, non-negotiable" ──────────────────────────────
+  //
+  // The one rule C7 keeps, and the only one it alone can enforce: does the
+  // document fit, and what gives way when it does not. Every other budget was
+  // settled upstream by the step that owns the section — but the sections are
+  // budgeted independently and a long lead can still overrun their sum, which is
+  // exactly what Aliaxis did (one line, the whole Languages block onto page 3).
+  //
+  // What gives way is the LOWEST-RANKED PROJECT BULLET, taken from the end of
+  // C3's own `shortlist_rank` order — the evidence C3 itself judged least worth
+  // its place. Two things deliberately never give way: a role overview, because a
+  // position with no description reads as a gap rather than as an edit, and the
+  // last surviving bullet of a position, because losing that empties the role's
+  // Key Projects entirely.
+  //
+  // This is a LAST RESORT and should almost never fire. Every bullet it takes is
+  // real evidence C3 selected, so it is reported on the C7 step rather than done
+  // quietly; a lead that trims more than a bullet or two is a lead whose budget
+  // is wrong somewhere upstream.
+  const dropped = new Set<string>();
+  fillSlots(dropped);
+  // Worst rank first — the reverse of the order C3 selected in.
+  const trimCandidates = [...selected]
+    .filter((g) => g.evidenceRef && !isRoleOverviewSlot(normalizeCvPosition(g.cvPosition) ?? ''))
+    .sort((a, b) => (b.shortlistRank ?? 0) - (a.shortlistRank ?? 0))
+    .map((g) => g.evidenceRef as string);
+  for (const ref of trimCandidates) {
+    if (contentLineCost(data) <= CONTENT_LINE_ALLOWANCE) break;
+    // Never empty a position: a slot whose last bullet this would take keeps it.
+    const slot = CV_SLOTS.find((s) => selected.some((g) => g.evidenceRef === ref && slotCode(normalizeCvPosition(g.cvPosition) ?? '') === slotCode(s)));
+    const letter = slot ? slotCode(slot)[0] : '';
+    const remaining = new Set(
+      selected
+        .filter((g) => g.evidenceRef && !dropped.has(g.evidenceRef) && slotCode(normalizeCvPosition(g.cvPosition) ?? '')[0] === letter && !isRoleOverviewSlot(normalizeCvPosition(g.cvPosition) ?? ''))
+        .map((g) => g.evidenceRef as string)
+    );
+    if (remaining.size <= 1) continue;
+    dropped.add(ref);
+    fillSlots(dropped);
   }
+  // Reported, never silent. `onTrim` rather than a key on `data` because
+  // `TemplateData` is what gets handed to docxtemplater, and a private field
+  // riding along in it is one rename away from being looked up as a tag.
+  if (dropped.size) onTrim?.([...dropped], contentLineCost(data));
   return data;
+}
+
+/**
+ * The rendered line cost of everything in a `TemplateData` that C3, C5 and C6
+ * decide — profile, skills, bullets, role overviews, and the captions that come
+ * and go with them.
+ *
+ * The template's fixed furniture is deliberately NOT counted: it is constant for
+ * this template and is absorbed into `CONTENT_LINE_ALLOWANCE`, which is
+ * calibrated against Word rather than derived. Counting it would mean modelling
+ * paragraph spacing, which is where a line estimate stops being checkable.
+ */
+export function contentLineCost(data: TemplateData): number {
+  const cost = (v: TemplateValue | undefined): number => {
+    if (typeof v === 'string') return v ? renderedLines(v) : 0;
+    if (!Array.isArray(v)) return 0;
+    return v.reduce<number>((n, item) => n + (typeof item === 'string' ? renderedLines(item) : Object.values(item).reduce<number>((m, x) => m + (typeof x === 'string' ? renderedLines(x) : (x as string[]).reduce((k, s) => k + renderedLines(s), 0)), 0)), 0);
+  };
+  let total = cost(data['Profile']);
+  total += cost(data['Skills']);
+  for (const slot of CV_SLOTS) total += cost(data[slot]) + cost(data[`${slot} Caption`]);
+  for (const letter of ['A', 'B', 'C', 'D']) total += cost(data[`Position ${letter} Key Projects`]);
+  return total;
 }
 
 // ── C1 + C2 ──────────────────────────────────────────────────────────────────
@@ -1797,10 +1944,10 @@ export async function generateCv(
           rank: (g.requirementId && rankByReqId.get(g.requirementId)) ?? null,
           cvBulletSkills: g.cvBulletSkills ?? [],
         })),
-        SKILLS_ENVELOPE + 8 // headroom so struck languages don't shrink the section
+        SKILLS_CEILING + 8 // headroom so struck languages don't shrink the section
       ),
       langRows.map((l) => l.language ?? '')
-    ).slice(0, SKILLS_ENVELOPE);
+    ).slice(0, SKILLS_CEILING);
     // Consolidation, deterministic half first: a name another name already
     // contains whole is struck before the grouping call ever sees it, so the
     // model spends its judgement on the duplicates that are a question of
@@ -1818,15 +1965,15 @@ export async function generateCv(
         system: await systemPromptFor('C5', effectiveOwnerId),
         user:
           `ROLE: ${lead.title}${lead.jdGroupPrimary ? ` · ${lead.jdGroupPrimary}` : ''}\n\n` +
-          `Group these ${skillNames.length} skills into 3–5 logical categories for the CV Skills section, ` +
-          `most relevant to this role first.\n\n` +
+          `Group these ${skillNames.length} skills into ${SKILL_CATEGORIES.min}–${SKILL_CATEGORIES.target} logical categories for ` +
+          `the CV Skills section, most relevant to this role first, with at most ${SKILLS_PER_CATEGORY.target} entries under each.\n\n` +
           `These skills were written one bullet at a time, so the same capability arrives more than once ` +
           `under different qualifiers. Consolidate those: print ONE entry and name every skill it replaces ` +
           `in its \`mergedFrom\`. Merge only what is genuinely one capability — two capabilities that ` +
           `share a word are not duplicates. A merged entry must stay WIDER than every skill it replaces, so ` +
           `keep the qualifier that still holds instead of collapsing to a bare capability. ` +
           `Every skill below must be either placed VERBATIM or named in exactly one \`mergedFrom\`; ` +
-          `aim for ${Math.min(20, skillNames.length)} entries in total.\n\n` +
+          `aim for ${Math.min(SKILLS_TARGET, skillNames.length)} entries in total.\n\n` +
           skillNames.map((s) => `- ${s}`).join('\n'),
         tool: C5.tool,
         zod: C5.zod,
@@ -1844,6 +1991,14 @@ export async function generateCv(
       // its Skills section — the skills themselves were never in doubt.
       if (skillsModel.length === 0) skillsModel = ungroupedSkills(skillNames);
     }
+    // The ceiling, enforced on whatever came back. The prompt asks for the
+    // TARGET (4 × 5); a call that lands at five categories or puts six under one
+    // of them has not done anything worth discarding a grouping call over, but
+    // nothing above `SKILLS_CEILING` may reach the page — that is the figure the
+    // two-page budget was built on. `capSkillGroups` repacks before it sheds, so
+    // C5 §B.5's "merge, never drop" holds as far as the grid allows.
+    const capped = capSkillGroups(skillsModel);
+    skillsModel = capped.groups;
 
     const count = skillsModel.reduce((n, s) => n + s.items.length, 0);
     const unplaced = skillsModel.find((g) => g.category === 'Additional Skills')?.items.length ?? 0;
@@ -1853,7 +2008,12 @@ export async function generateCv(
     // because merging is the judgement this step now makes — a run that merges
     // nothing has printed the near-duplicates, and a run that merges half the
     // set is one to read before trusting.
-    const absorbed = Math.max(0, prioritised.length - count);
+    // `capped.dropped` is subtracted out: a skill the ceiling shed was not
+    // merged into anything, and counting it as a merge would report the one
+    // outcome C5 §B.5 says costs the CV something as if it were the outcome §B.5
+    // prefers.
+    const absorbed = Math.max(0, prioritised.length - count - capped.dropped.length);
+    const shed = capped.dropped.length;
     reports.push(
       await recordStep(
         leadId,
@@ -1861,8 +2021,8 @@ export async function generateCv(
           step: 'C5',
           label: 'Skills section',
           model,
-          summary: `${count} skills · ${skillsModel.length} categor${skillsModel.length === 1 ? 'y' : 'ies'}${absorbed ? ` · ${absorbed} merged` : ''}${unplaced ? ` · ${unplaced} unplaced` : ''}`,
-          output: { categories: skillsModel.map((g) => ({ category: g.category, n: g.items.length })), skills: count, merged: absorbed, unplaced },
+          summary: `${count} skills · ${skillsModel.length} categor${skillsModel.length === 1 ? 'y' : 'ies'}${absorbed ? ` · ${absorbed} merged` : ''}${shed ? ` · ${shed} shed at the ceiling` : ''}${unplaced ? ` · ${unplaced} unplaced` : ''}`,
+          output: { categories: skillsModel.map((g) => ({ category: g.category, n: g.items.length })), skills: count, merged: absorbed, shed, droppedAtCeiling: capped.dropped, unplaced },
           ms: ms || Date.now() - t,
         },
         effectiveOwnerId
@@ -1907,32 +2067,62 @@ export async function generateCv(
         zod: C6.zod,
         // The mock stands in for a HEALTHY call, so it must clear the floor on
         // its own — the static tail guarantees enough words regardless of how
-        // short `coreThemes`/`headline`/`jdGroupPrimary` happen to be.
+        // short `coreThemes`/`headline`/`jdGroupPrimary` happen to be. It must
+        // now also stay under `PROFILE_WORDS.max`: a mock that a live run's own
+        // guard would reject is not standing in for a healthy call. Trimmed from
+        // 93 words to fit, 2026-08-27. `coreThemes` is capped at two rather than
+        // three for the same reason — the variable head must not be able to push
+        // the fixed tail over the ceiling.
         mock: () => ({
           profile:
             `${profile?.headline ?? 'Senior leader'}. Strong fit for this ${lead.jdGroupPrimary ?? 'senior'} role` +
-            `${coreThemes.length ? `, with proven delivery across ${coreThemes.slice(0, 3).join(', ').toLowerCase()}` : ''}. ` +
-            `An accomplished senior leader with a consistent record of translating strategy into delivery, and a ` +
-            `history of building trust with stakeholders at every level across complex, matrixed organisations. ` +
-            `Recognised for combining commercial judgement with hands-on execution, for developing high-performing ` +
-            `teams, and for consistently exceeding targets under sustained pressure while maintaining strong ` +
-            `stakeholder relationships throughout each engagement.`,
+            `${coreThemes.length ? `, with proven delivery across ${coreThemes.slice(0, 2).join(' and ').toLowerCase()}` : ''}. ` +
+            `An accomplished leader with a record of translating strategy into delivery, and of building trust with ` +
+            `stakeholders at every level across complex, matrixed organisations. Recognised for combining commercial ` +
+            `judgement with hands-on execution and for developing high-performing teams under sustained pressure.`,
         }),
         leadId,
         ownerId: effectiveOwnerId,
       });
 
+    // Both directions are re-asked, and only the SHORT one is fatal. A collapsed
+    // profile is a broken call and shipping it would put a blank section on the
+    // page; an over-long one is a real profile that spills onto a seventh line,
+    // and refusing to produce a CV over one line of Profile would cost more than
+    // it saves. So a persistent overrun is recorded as a warning on the step and
+    // caught where it is visible — `scripts/cv-pages.ps1` on the rendered page.
     let r = await draft();
-    for (let attempt = 2; attempt <= ATTEMPTS && isProfileTooShort(r.data.profile); attempt++) r = await draft();
+    for (let attempt = 2; attempt <= ATTEMPTS && (isProfileTooShort(r.data.profile) || isProfileTooLong(r.data.profile)); attempt++) r = await draft();
     if (isProfileTooShort(r.data.profile)) {
-      const words = r.data.profile.trim().split(/\s+/).filter(Boolean).length;
+      const words = profileWordCount(r.data.profile);
       throw new Error(
-        `C6 returned a ${words}-word profile after ${ATTEMPTS} attempts (target 70–110 words) — the model call ` +
+        `C6 returned a ${words}-word profile after ${ATTEMPTS} attempts (target ${PROFILE_WORDS.min}–${PROFILE_WORDS.max} words) — the model call ` +
           'degraded rather than the evidence genuinely being unusable. Nothing was written; re-run Generate CV to retry.'
       );
     }
     profileText = r.data.profile.trim();
-    reports.push(await recordStep(leadId, { step: 'C6', label: 'Tailored profile', model: r.model, summary: `${profileText.split(/\s+/).length} words`, output: { len: profileText.length, profile: profileText }, ms: r.ms }, effectiveOwnerId));
+    const profileWords = profileWordCount(profileText);
+    const over = profileWords > PROFILE_WORDS.max;
+    reports.push(
+      await recordStep(
+        leadId,
+        {
+          step: 'C6',
+          label: 'Tailored profile',
+          model: r.model,
+          // The rendered line count is what the rule is actually about, so it is
+          // reported beside the words rather than left for someone to open Word
+          // to find out. Derived, not measured here — `profileLines` converts at
+          // the column width `lib/cv-budget.ts` records.
+          summary:
+            `${profileWords} words · ~${profileLines(profileWords)} lines` +
+            (over ? ` · OVER the ${PROFILE_MAX_LINES}-line budget after ${ATTEMPTS} attempts` : ''),
+          output: { len: profileText.length, words: profileWords, lines: profileLines(profileWords), overBudget: over, profile: profileText },
+          ms: r.ms,
+        },
+        effectiveOwnerId
+      )
+    );
   }
 
   // C7 — compile the .docx. Preferred path fills the owner's real 2-page Word
@@ -1977,6 +2167,11 @@ export async function generateCv(
     // any evidence, any tenant). Nothing is ever stranded.
     let buf: Buffer;
     let how: string;
+    // What C7 §C's page rule had to take, if anything. Almost always empty — a
+    // lead that trims is a lead whose upstream budgets did not add up, and the
+    // step report is where that becomes visible instead of being absorbed.
+    let trimmed: string[] = [];
+    let lineCost = 0;
     try {
       if (!templateExists()) throw new Error('template not found');
       if (!templateFits(selected)) throw new Error('Selected set has evidence outside the template slots');
@@ -1984,7 +2179,11 @@ export async function generateCv(
       // the wording he approved and the profile are all his. What it must not say
       // is that a template made on 2 July authored it, which is what every CV
       // before this one claimed. `lib/docx/metadata.ts` has the full account.
-      buf = buildCvFromTemplate(await templateSlotData(effectiveOwnerId, selected, bulletByRef, profileText, profile, lead, skillsModel), {
+      const data = await templateSlotData(effectiveOwnerId, selected, bulletByRef, profileText, profile, lead, skillsModel, (refs, cost) => {
+        trimmed = refs;
+        lineCost = cost;
+      });
+      buf = buildCvFromTemplate(data, {
         author: profile?.email?.trim() || profile?.name?.trim() || 'Author',
       });
       how = 'real template';
@@ -1994,7 +2193,22 @@ export async function generateCv(
     }
     cvPath = `cv-output/${leadId}/tailored.docx`;
     await writeBuffer(cvPath, buf);
-    reports.push(await recordStep(leadId, { step: 'C7', label: 'Compile 2-page CV', model: 'code', summary: `${bulletsForCv.length} selected bullets · ${how}`, output: { cvPath, how }, ms: Date.now() - t }, effectiveOwnerId));
+    reports.push(
+      await recordStep(
+        leadId,
+        {
+          step: 'C7',
+          label: 'Compile 2-page CV',
+          model: 'code',
+          summary:
+            `${bulletsForCv.length - trimmed.length} bullets printed · ${how}` +
+            (trimmed.length ? ` · ${trimmed.length} trimmed to hold ${MAX_PAGES} pages (${trimmed.join(', ')})` : ''),
+          output: { cvPath, how, trimmed, lineCost, lineAllowance: CONTENT_LINE_ALLOWANCE },
+          ms: Date.now() - t,
+        },
+        effectiveOwnerId
+      )
+    );
   }
 
   // C8 — reviewed ATS rating (LLM judgment; code persists)

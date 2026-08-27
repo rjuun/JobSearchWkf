@@ -235,6 +235,21 @@ export const education = pgTable('education', {
   dateBegin: text('date_begin'),
   dateCompleted: text('date_completed'),
   notes: text('notes'),
+  // The short parenthetical that PRINTS under the qualification on the CV —
+  // "(coursework complete, thesis not submitted)". CI · C7 Space Rules Are
+  // Specified and Never Enforced §2.4a.
+  //
+  // It needed a column of its own and could not live anywhere that already
+  // existed. Inside `qualification` it makes the head too long to keep its date
+  // on one line — and the owner has just shortened two titles by hand for
+  // exactly that reason, so putting text back into them would undo his fix.
+  // Inside `summary` it would be one of the notes he asked to stop printing, and
+  // `summary` is Keep-gated per job whereas "thesis not submitted" is true of the
+  // qualification whichever role the CV answers. Inside `notes` it was a
+  // FORMATTING CONVENTION — a leading parenthesised line meant "print me" — which
+  // is the kind of rule that works until someone writes a note that happens to
+  // start with a bracket.
+  status: text('status'),
   jdGroupRelevance: jsonb('jd_group_relevance').$type<string[]>().default([]),
   // CV-facing sub-bullets under this education entry — one array item per line,
   // same shape as `responsibilities.skills`/`starActions.atsKeywords`. Distinct

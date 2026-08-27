@@ -15,7 +15,18 @@
  * the same set, and every ref that survives keeps the real bullet C4 wrote for it.
  * Sweep N, count pages in Word, and the budget stops being an estimate.
  *
+ * MEASURING THE SPACE BUDGET (CI · C7 Space Rules Are Specified and Never Enforced)
+ * `--profile-words N` truncates the stored profile to N words and `--skills CxP`
+ * re-shapes the stored Skills section to C categories of P, so the LINE COST of a
+ * budget can be measured before that budget is shipped. Neither changes anything
+ * stored; both exist because `lib/cv-budget.ts`'s figures are derived from a
+ * character width, and a derived number that has not been seen on a page is
+ * exactly the kind of number this CI exists to stop trusting.
+ *
+ * Pair either with `scripts/cv-pages.ps1`, which asks Word for the page count.
+ *
  *   npx tsx scripts/render-cv-from-stored.ts <leadId> [outPath] [--bullets N]
+ *                                            [--profile-words N] [--skills CxP]
  *
  * For the whole back catalogue at once, use `scripts/regenerate-cvs.ts`.
  */
@@ -28,11 +39,25 @@ async function main() {
   const leadId = process.argv[2];
   if (!leadId) throw new Error('usage: npx tsx scripts/render-cv-from-stored.ts <leadId> [outPath] [--bullets N]');
 
-  const capIdx = process.argv.indexOf('--bullets');
-  const bulletCap = capIdx === -1 ? undefined : Number(process.argv[capIdx + 1]);
-  if (capIdx !== -1 && (!Number.isInteger(bulletCap) || (bulletCap ?? 0) < 1)) throw new Error('--bullets needs a positive integer');
+  const intFlag = (name: string): number | undefined => {
+    const i = process.argv.indexOf(name);
+    if (i === -1) return undefined;
+    const n = Number(process.argv[i + 1]);
+    if (!Number.isInteger(n) || n < 1) throw new Error(`${name} needs a positive integer`);
+    return n;
+  };
+  const bulletCap = intFlag('--bullets');
+  const profileWords = intFlag('--profile-words');
 
-  const r = await rerenderCv(leadId, { bulletCap });
+  const shapeIdx = process.argv.indexOf('--skills');
+  let skillsShape: [number, number] | undefined;
+  if (shapeIdx !== -1) {
+    const m = /^(\d+)x(\d+)$/.exec(process.argv[shapeIdx + 1] ?? '');
+    if (!m) throw new Error('--skills needs a shape like 4x5 (categories x per category)');
+    skillsShape = [Number(m[1]), Number(m[2])];
+  }
+
+  const r = await rerenderCv(leadId, { bulletCap, profileWords, skillsShape });
   const out = (process.argv[3] && !process.argv[3].startsWith('--') ? process.argv[3] : undefined) ?? path.join('_local', `cv-${leadId.slice(0, 8)}.docx`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, r.buffer);

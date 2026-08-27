@@ -63,6 +63,19 @@ const GAP_SUMMARY_COUNT = 1; //         positions we leave without a one-line sc
 const READY_CV_LINES = 12; //           traced lines on the golden-path "ready" CV (2-page budget)
 
 // ── cell helpers ────────────────────────────────────────────────────────────
+/**
+ * Split a workbook education note into the part that PRINTS on the CV and the
+ * part that stays internal — `education.status` and `education.notes`, which the
+ * workbook holds in one cell. See migration 0041 and the call site below.
+ *
+ * A leading parenthesised line is the status. Everything after it is the note.
+ */
+function splitEducationNote(note: string | null): { status: string | null; notes: string | null } {
+  const lead = /^\s*(\([^)]*\))\.?\s*(?:\r?\n|$)/.exec(note ?? '');
+  if (!lead) return { status: null, notes: note };
+  return { status: lead[1], notes: (note ?? '').slice(lead[0].length).trim() || null };
+}
+
 function txt(v: unknown): string | null {
   if (v === null || v === undefined) return null;
   if (typeof v === 'string') {
@@ -286,7 +299,18 @@ export async function buildDemoTenant(): Promise<void> {
           dateBegin: txt(g(6)),
           dateCompleted: txt(g(7)),
           year: txt(g(7)),
-          notes: txt(g(8)),
+          // The workbook has ONE notes column; the database has two, because the
+          // status qualifier prints on the CV and the rest of the note does not
+          // (`education.status`, migration 0041). Splitting here is an import
+          // concern — the boundary is the one place a source format may differ
+          // from the stored shape — and doing it here is what stops a re-seed
+          // silently dropping the sub-line the migration just gave that row.
+          //
+          // NOT the same thing as the convention 0041 retired. That had the
+          // RENDERER re-deriving the split on every read, so any note that
+          // happened to open with a bracket became CV-facing text without its
+          // author knowing. This reads the workbook once, at the edge.
+          ...splitEducationNote(txt(g(8))),
           jdGroupRelevance: list(g(9)),
         }
       : null;

@@ -37,6 +37,8 @@
  * be imported under vitest, and this is the part worth testing directly.
  */
 
+import { SKILLS_CEILING, SKILL_CATEGORIES, SKILLS_PER_CATEGORY } from '../cv-budget';
+
 /** One name the owner's profile actually recognises, from any of the three
  *  curated tables (epic Q3 — all three count as "Skills" on a CV, even though
  *  the profile tables distinguish them). */
@@ -110,12 +112,20 @@ export type KeepRowSkills = {
 };
 
 /**
- * How many skills the section can hold: C5 §B.1's own envelope, 3–5 categories
- * × 4–8 skills. §A's prioritisation exists precisely to fit within it — "as the
- * number of declared skills allows", in the owner's words — so this is the
- * number that decides what gets shed, not a safety cap bolted on afterwards.
+ * How many skills the section can hold. §A's prioritisation exists precisely to
+ * fit within it — "as the number of declared skills allows", in the owner's
+ * words — so this is the number that decides what gets shed, not a safety cap
+ * bolted on afterwards.
+ *
+ * *Superseded (2026-08-27, CI · C7 Space Rules Are Specified and Never
+ * Enforced): this was `SKILLS_ENVELOPE = 40`, described as "C5 §B.1's own
+ * envelope, 3–5 categories × 4–8 skills".* Forty was an estimate nobody checked
+ * against a rendered page, and no measured lead has ever printed more than 28 —
+ * so the cap never bound at all, which is how the section came to spend up to 21
+ * lines of a two-page document. The real ceiling is `SKILLS_CEILING` (5 × 6),
+ * and it now lives in `lib/cv-budget.ts` with every other space figure.
  */
-export const SKILLS_ENVELOPE = 40;
+export { SKILLS_CEILING, SKILLS_TARGET } from '../cv-budget';
 
 /** Rank order for §B.3's prioritisation: Core first, then Important, then
  *  Nice-to-Have, then anything whose requirement carries no recognised rank. */
@@ -136,7 +146,7 @@ const RANK_ORDER = ['core', 'important', 'nice-to-have'];
  * — the grouping half is `reconcileSkillGroups` (the pre-split function was called
  * `buildSkillsSection`; older CI notes still cite it under that name).
  */
-export function prioritiseSkills(rows: readonly KeepRowSkills[], limit = SKILLS_ENVELOPE): string[] {
+export function prioritiseSkills(rows: readonly KeepRowSkills[], limit: number = SKILLS_CEILING): string[] {
   const out: string[] = [];
   const claimed = new Set<string>();
   const take = (row: KeepRowSkills) => {
@@ -373,6 +383,61 @@ export function reconcileSkillGroups(
  */
 export function ungroupedSkills(selected: readonly string[]): SkillGroup[] {
   return selected.length ? [{ category: 'Core Competencies', items: [...selected] }] : [];
+}
+
+/**
+ * The Skills section's **ceiling**, enforced on whatever the grouping call
+ * returned: at most `SKILL_CATEGORIES.ceiling` categories of at most
+ * `SKILLS_PER_CATEGORY.ceiling` entries each (`lib/cv-budget.ts`).
+ *
+ * WHY A CEILING AND NOT A FAILURE
+ * The C5 prompt asks for the TARGET (4 × 5). A model that lands at five
+ * categories, or puts six under one of them, has not done anything wrong enough
+ * to throw away a whole grouping call over — but nothing may reach the page above
+ * the ceiling, because the ceiling is what the two-page budget was built on. So
+ * this trims rather than rejects, and reports what it trimmed.
+ *
+ * REPACK BEFORE DROP, AND WHY THAT ORDER MATTERS
+ * C5 §B.5 is emphatic that the way down to a smaller section is **merging, never
+ * dropping** — a capability with nothing to merge into keeps its entry, because
+ * dropping it is the one way of shortening the CV that costs it something real.
+ * This runs after the merge has already happened, so it honours that as far as it
+ * can: an entry over a category's limit is first offered to the other categories
+ * that still have room, in order, and is only shed when the whole grid is full.
+ * Categories past the limit are emptied into the survivors the same way.
+ *
+ * Everything that could not be placed is returned in `dropped`, so a run that
+ * genuinely had to shed capabilities says so in its step report rather than
+ * quietly printing a shorter list.
+ */
+export function capSkillGroups(
+  groups: readonly SkillGroup[],
+  /** Overridable so a shape can be MEASURED without being shipped —
+   *  `render-cv-from-stored.ts --skills 4x5` re-renders a stored lead at the
+   *  target to see what the target costs in lines. Production passes nothing and
+   *  gets the ceiling. */
+  categories: number = SKILL_CATEGORIES.ceiling,
+  perCategory: number = SKILLS_PER_CATEGORY.ceiling
+): { groups: SkillGroup[]; dropped: string[] } {
+  const kept: SkillGroup[] = groups.slice(0, categories).map((g) => ({ category: g.category, items: [] }));
+  // Everything, in the order it arrived — categories in order, items in order —
+  // which is the priority order `prioritiseSkills` established and the model
+  // preserved. Overflow is therefore shed from the least-relevant end.
+  const queue: string[] = [];
+  groups.forEach((g, i) => {
+    const room = i < kept.length ? perCategory : 0;
+    kept[i]?.items.push(...g.items.slice(0, room));
+    queue.push(...g.items.slice(room));
+  });
+
+  const dropped: string[] = [];
+  for (const item of queue) {
+    const home = kept.find((g) => g.items.length < perCategory);
+    if (home) home.items.push(item);
+    else dropped.push(item);
+  }
+  // A category left empty by the repack would print a heading over nothing.
+  return { groups: kept.filter((g) => g.items.length > 0), dropped };
 }
 
 /**

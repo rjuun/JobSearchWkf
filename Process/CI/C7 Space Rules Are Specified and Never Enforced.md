@@ -2,11 +2,11 @@
 ci-area: CV Tailoring (C7 / template)
 ci-roadmap:
 ci-title: C7 Space Rules Are Specified and Never Enforced
-ci-status: 0 - Idea
+ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-27
 ci-estimated-time: 5
-ci-time-spent: 0
+ci-time-spent: 5
 pr-source: "[[CV Template Output Format - Six Corrections]]"
 pr-target: "[[C7. Compile Complete CV Document]], [[C5. Build and Manage the Skills Section]], [[C6. Drafting CV Profile (Per Job Lead)]]"
 ---
@@ -119,3 +119,102 @@ been contradicting each other on the Skills budget the whole time.
 Recorded so nobody re-derives it: the reason the bullet budget looked inert is the eleven-slot refill,
 not the budget. A page limit enforced on selection can never work while the renderer tops the document
 back up from the bank.
+
+### 2026-08-27 · Delivered — two pages, measured
+
+**All five reference leads render at two pages, counted by Word over COM** (`ComputeStatistics(2)`),
+against a baseline where all five were three. Line counts 100 / 127 / 114 / 106 / 133 → 90 / 91 / 93 /
+90 / 90. Nothing here is asserted: `scripts/cv-pages.ps1` is the measurement and it is committed
+alongside the change, so the claim is re-checkable in a minute at no model cost.
+
+#### What the note got wrong, and it matters for the diagnosis
+
+**§1 said C5 and C7 are "both live system prompts". C7 is not loaded as a prompt at all** — `STEP_NOTE`
+in `lib/prompts.ts` omits it deliberately, because C7 makes no model call. So the contradiction was
+worse than symmetrical: C5 §B.1 was the version the *model* was given on every run, and C7 §C was the
+version a *reader* would quote, with nothing to make them meet. That is why the fix had to be
+ownership and not just reconciliation.
+
+**§1.1's account of the refill is right that it made `B` inert, and understates it: the refill INVERTS
+`B`.** Refilling is per-slot and unbounded — an emptied slot came back with *every* bank bullet
+carrying that `cv_position`, up to four. So a slot that lost its one tailored bullet gained four bank
+ones, and the line count rose as bullets came out. That is the mechanism behind
+[[CV Template Output Format - Six Corrections]] §4's otherwise puzzling measurement that sweeping
+`B` 14 → 9 left page count flat while *raising* the line count. Measured before the change, the refill
+was contributing **2 / 4 / 6 / 10 / 12 lines** on the five leads.
+
+**§2.4a said `education` "has no notes or status column". It has `notes`.** The status line was already
+printing — out of `notes`, by a formatting convention (a leading parenthesised line means "print me").
+The instruction to add a column was right anyway, and for a better reason than the one given: the
+convention made every future note that happens to open with a bracket into CV-facing text, with no way
+for whoever wrote it to know. Migration 0041 lifts the one row that used it into `education.status` and
+retires the rule; `scripts/seed.ts` splits the workbook's single cell at import so a re-seed cannot
+silently drop it again.
+
+**The handover's "do not try to tune `B` into a page lever" was true only while the refill stood.**
+With the refill gone `B` is a lever, and a blunt one — but it stays C3's parameter and was not touched.
+
+#### The levers, and what each was worth
+
+1. **The refill is gone** (`scripts/retag-cv-template-space.ts`). It could not simply be deleted: the
+   project caption, the "Key Projects:" line and the role-overview placeholder were static or
+   unconditional template text, so an empty slot left a caption announcing a project with no bullets
+   under it. That is *why* the refill existed. All three are now loops over nought-or-one, the caption
+   is data, and the surviving projects renumber. **Worth 4–35 lines per lead** — by far the largest.
+2. **Skills caps** — §2.1's numbers, in `lib/cv-budget.ts`. Target 4 × 5 in the C5 prompt, ceiling
+   5 × 6 enforced in code by `capSkillGroups`, which **repacks before it sheds** so §B.5's "merge,
+   never drop" holds as far as the grid allows, and names anything it could not place. Worth ~4 lines
+   at the ceiling, ~6 at the target.
+3. **Profile cap as words.** Six rendered lines is the rule; **70–80 words** is the instruction, derived
+   by measuring the template's own column (112 chars/line, 8.2 chars/word — both from five real
+   profiles) and then *verified on a rendered page* with the new `--profile-words` handle rather than
+   trusted. Worth 1–2 lines.
+4. **The Core/Important bullet filter is REDUNDANT — measured, not argued.** C3's objective already
+   weights Core 3 / Important 2 / Nice-to-Have 1. Across the whole catalogue: **0 of 82 selected
+   bullets, over 174 leads, would have been dropped by it.** Retired from C7 §C with that number
+   recorded, rather than built as a second mechanism that agrees with the objective until it doesn't.
+
+Two levers the note did not anticipate, both found by looking at a rendered page:
+
+5. **Languages on one line.** Four bulleted paragraphs for four three-word facts, against a C7 §C rule
+   that has always called it "a small separate section at the bottom". On three of the five leads those
+   four lines *were* the entire page-3 overflow. Worth 3 lines on every CV, at no cost to content.
+6. **C7 now has a page rule that acts.** `contentLineCost` estimates the assembled document at the
+   measured column width and, past `CONTENT_LINE_ALLOWANCE`, sheds the lowest-ranked project bullet
+   from the end of C3's own `shortlist_rank` order — never a role overview, never a position's last
+   bullet, always reported on the C7 step. This is the §C row the owner kept with C7: *what gives way
+   when it does not fit.* The allowance is **calibrated against Word, not derived** — ten
+   estimate/page-count pairs, and 67 is the value that separates every two-page render from every
+   three-page one.
+
+#### Where the budget lives now
+
+`lib/cv-budget.ts` — every figure, each with its measurement beside it, imported by the prompt that
+states it, the validator that checks it and the renderer that spends it. The step notes **cite** it:
+Skills to C5 §B.1, Profile to C6 §B.6, and **C7 §C keeps neither**, reduced to the page limit and the
+trim rule. `SKILLS_ENVELOPE = 40` is gone; it had never bound, because no lead has ever printed more
+than 28.
+
+#### Verification
+
+- `npm run typecheck` clean. `npm test` — **382 passing, 3 failing**, all three the pre-existing
+  `capture-enrich.test.ts` fixture gap in a fresh worktree. 14 new tests in `c7-space-budget.test.ts`.
+- `scripts/snapshot-step-prompts.ts` reproduces the baseline for every step **except C5 and C6**, the
+  two notes this CI edited; both re-baselined.
+- `scripts/verify-lead-run.ts` updated: its Skills criteria now read the ceiling from `cv-budget.ts`,
+  shedding at the ceiling is a FAIL rather than a note, and the C7 line cost and any trim are reported.
+- ATS baselines are untouched by this work — no C8 re-run was spent. The change is compilation and
+  budget, and the evidence C8 rates is the same evidence, minus what the page trim took on the leads
+  that needed it. **Worth re-checking on the next paid run**, since a trimmed bullet is one fewer for
+  the rating to see.
+
+#### Still open
+
+- The bullets under **D1. Servicing Center Project** print at a shallower indent than every other
+  project's (`w:ind left="426"` against 567, and `numId=7` against 2–6). **Pre-existing** — identical in
+  the template at `HEAD` — so left alone rather than folded into this CI. Flagged separately.
+- A **paid end-to-end run** has not been spent. Every measurement here is a re-render of stored content
+  through the new code, which exercises C7 and the template completely but takes C5's and C6's new
+  instructions on trust. The five two-page renders above hold with the *old* budgets' content
+  (93–106-word profiles, 19–28 skills), so the page limit does not depend on the new prompts landing —
+  but that they land is the one thing still unmeasured.

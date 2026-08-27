@@ -20,6 +20,7 @@ import { parseSkillItems, skillsBlock } from '../lib/docx/cv-skills';
 import { db } from '../lib/db';
 import { jobLeads, jobRequirements, requirementTailoring, pipelineRuns, languages, education } from '../lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { SKILL_CATEGORIES, SKILLS_PER_CATEGORY, SKILLS_TARGET, SKILLS_CEILING, CONTENT_LINE_ALLOWANCE, MAX_PAGES } from '../lib/cv-budget';
 
 /**
  * The Skills entries as they appear in the generated document — the only place
@@ -129,12 +130,25 @@ async function main() {
   const c5 = out('C5');
   const cats = (c5.categories ?? []) as { n: number; category: string }[];
   const skills = Number(c5.skills ?? 0);
-  check(cats.length >= 3 && cats.length <= 5, 'Skills section has 3-5 categories', `${cats.length}: ${cats.map((c) => `${c.category} (${c.n})`).join(' · ')}`);
+  // The CEILING is what these check, not the target. C5 §B.1 asks the grouping
+  // call for 4 × 5 and code enforces 5 × 6 on what comes back, so a run landing
+  // between the two is within budget and must not be reported as a failure. The
+  // target is reported as INFO beside it, because drifting to the ceiling every
+  // time is worth seeing even though it is not a breach.
+  check(
+    cats.length >= SKILL_CATEGORIES.min && cats.length <= SKILL_CATEGORIES.ceiling,
+    `Skills categories within ${SKILL_CATEGORIES.min}-${SKILL_CATEGORIES.ceiling} (C5 §B.1)`,
+    `${cats.length}: ${cats.map((c) => `${c.category} (${c.n})`).join(' · ')}`
+  );
   check(Number(c5.unplaced ?? 0) === 0, 'no skill fell into Additional Skills', `unplaced=${c5.unplaced ?? '?'}`);
-  info('skills printed', `${skills}   (benchmark 16-20; merging is what closes the gap)`);
+  info('skills printed', `${skills}   (target ${SKILLS_TARGET}, ceiling ${SKILLS_CEILING}; merging is what closes the gap)`);
   info('entries merged by C5', String(c5.merged ?? '(not reported)'));
+  // Shedding is the one way of reaching a smaller section that costs the CV a
+  // capability (C5 §B.5), so it is a FAILURE here rather than a note: a run that
+  // sheds has a merge that did not do its work.
+  check(Number(c5.shed ?? 0) === 0, 'no skill was shed at the section ceiling', c5.shed ? String((c5.droppedAtCeiling as string[] ?? []).join(' · ')) : 'none');
   const biggest = cats.reduce((m, c) => Math.max(m, c.n), 0);
-  check(biggest <= 8, 'no category exceeds 8 skills (C5 §B.1)', `largest category = ${biggest}`);
+  check(biggest <= SKILLS_PER_CATEGORY.ceiling, `no category exceeds ${SKILLS_PER_CATEGORY.ceiling} skills (C5 §B.1)`, `largest category = ${biggest}`);
 
   // ── What actually PRINTED, read out of the .docx ──────────────────────────
   //
@@ -169,6 +183,17 @@ async function main() {
   // ── C7 / C8 ───────────────────────────────────────────────────────────────
   const c7 = out('C7');
   check(c7.how === 'real template', 'CV rendered through the real Word template', String(c7.how ?? '(unknown)'));
+  // C7 §C's page rule. The estimate is what the pipeline acted on; `cv-pages.ps1`
+  // is what proves it, and this checker cannot run Word — so the line it prints
+  // says which of the two it is reporting.
+  const lineCost = num(c7.lineCost);
+  const allowance = num(c7.lineAllowance) ?? CONTENT_LINE_ALLOWANCE;
+  if (lineCost !== null) check(lineCost <= allowance, `content fits the ${MAX_PAGES}-page line allowance`, `${lineCost}/${allowance} estimated lines`);
+  const trimmed = (c7.trimmed ?? []) as string[];
+  // Not a failure: trimming is C7 doing its job. It IS a signal that an upstream
+  // budget did not add up, which is why it prints rather than staying in the log.
+  info('bullets trimmed to hold the page limit', trimmed.length ? `${trimmed.length} · ${trimmed.join(', ')}` : 'none');
+  info('page count', 'run  powershell -File scripts/cv-pages.ps1 .storage/cv-output/' + leadId + '/tailored.docx');
   // C8 stores `atsRating` as a number. Older runs carry only a prose summary with
   // the score inside it, so both shapes are read — the regex alone reported "?"
   // on every run made after the field was added.

@@ -30,6 +30,7 @@ import { db } from '../db';
 import { jobLeads, profiles, requirementTailoring, pipelineRuns } from '../db/schema';
 import { buildCvFromTemplate, templateExists, TEMPLATE_PATH } from '../docx/template';
 import { parseSkillGroups, skillsBlock, type SkillGroup } from '../docx/cv-skills';
+import { capSkillGroups } from './skills';
 import { templateSlotData } from './tailoring';
 
 export type RerenderResult = {
@@ -85,7 +86,23 @@ export function storedCvPath(leadId: string): string {
   return path.resolve(process.cwd(), process.env.STORAGE_DIR ?? '.storage', 'cv-output', leadId, 'tailored.docx');
 }
 
-export async function rerenderCv(leadId: string, opts: { bulletCap?: number } = {}): Promise<RerenderResult> {
+export async function rerenderCv(
+  leadId: string,
+  opts: {
+    bulletCap?: number;
+    /** Truncate the stored profile to N words before rendering. A MEASUREMENT
+     *  handle, not a shipping feature: `PROFILE_WORDS.max` is derived from a
+     *  character width, and a derived number has to be checked against a real
+     *  page before it is believed. Truncation ends the prose mid-clause, which
+     *  is fine — the question being asked is how many LINES N words occupy. */
+    profileWords?: number;
+    /** Re-shape the stored Skills section to `[categories, perCategory]` before
+     *  rendering, so the line cost of a shape can be measured without a paid run
+     *  producing it. Defaults to `SKILLS_CEILING`'s shape, which is what a
+     *  re-rendered back-catalogue CV must obey like any other. */
+    skillsShape?: [number, number];
+  } = {}
+): Promise<RerenderResult> {
   if (!templateExists()) throw new NotRerenderable(`Template not found at ${TEMPLATE_PATH}`);
 
   const [lead] = await db.select().from(jobLeads).where(eq(jobLeads.id, leadId));
@@ -132,14 +149,26 @@ export async function rerenderCv(leadId: string, opts: { bulletCap?: number } = 
     .filter((r) => r.step === 'C6')
     .sort((a, b) => (a.finishedAt?.getTime() ?? 0) - (b.finishedAt?.getTime() ?? 0))
     .pop();
-  const profileText = String((c6?.output as { profile?: string } | null)?.profile ?? '');
+  let profileText = String((c6?.output as { profile?: string } | null)?.profile ?? '');
   if (!profileText) throw new NotRerenderable('no stored C6 profile — nothing to put in the Profile section');
+  if (opts.profileWords) profileText = profileText.trim().split(/\s+/).filter(Boolean).slice(0, opts.profileWords).join(' ');
 
   const previous = storedCvPath(leadId);
-  const skillsModel = fs.existsSync(previous) ? skillsFromRenderedCv(previous) : [];
-  if (!skillsModel.length) warnings.push('Skills unreadable from the previous render — the section will be EMPTY');
+  const parsedSkills = fs.existsSync(previous) ? skillsFromRenderedCv(previous) : [];
+  if (!parsedSkills.length) warnings.push('Skills unreadable from the previous render — the section will be EMPTY');
+  // The stored section was produced under whatever budget was live when the run
+  // was paid for, and several of the back catalogue predate any budget at all —
+  // 28 skills in 6 categories, on a document that is supposed to be two pages.
+  // The ceiling applies to what REACHES THE PAGE, so it applies here too.
+  const shaped = capSkillGroups(parsedSkills, ...(opts.skillsShape ?? []));
+  const skillsModel = shaped.groups;
+  if (shaped.dropped.length) warnings.push(`${shaped.dropped.length} skill(s) shed at the section ceiling: ${shaped.dropped.join(' · ')}`);
 
-  const data = await templateSlotData(ownerId, selected, bulletByRef, profileText, profile ?? null, lead, skillsModel);
+  let trimmed: string[] = [];
+  const data = await templateSlotData(ownerId, selected, bulletByRef, profileText, profile ?? null, lead, skillsModel, (refs, cost) => {
+    trimmed = refs;
+    warnings.push(`C7's page rule trimmed ${refs.length} bullet(s) to hold two pages — ${refs.join(', ')} (line cost now ${cost})`);
+  });
   const buffer = buildCvFromTemplate(data, { author: profile?.email?.trim() || profile?.name?.trim() || 'Author' });
 
   return {
@@ -148,7 +177,7 @@ export async function rerenderCv(leadId: string, opts: { bulletCap?: number } = 
     title: lead.title ?? '',
     company: lead.company ?? '',
     city: lead.city ?? '',
-    bullets: new Set(selected.map((g) => g.evidenceRef).filter(Boolean)).size,
+    bullets: new Set(selected.map((g) => g.evidenceRef).filter(Boolean)).size - trimmed.length,
     skills: skillsModel.reduce((n, g) => n + g.items.length, 0),
     skillGroups: skillsModel.length,
     relocation: String(data['Relocation'] ?? '').trim(),
