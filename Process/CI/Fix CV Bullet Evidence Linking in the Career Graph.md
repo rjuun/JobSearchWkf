@@ -345,7 +345,7 @@ Designing the `cv_structure` data model (which table/field feeds which CV sectio
 `Group CVs/CV_Template.docx` didn't exist anywhere findable, so C6 had always used the programmatic
 fallback, never the real template — a discovery that grew into its own substantial CI rather than staying
 a footnote here: `[[CV Header, Skills & Professional Experience - Data-Driven Template Wiring]]` (delivered
-same day), plus three parked Ideas it surfaced (`[[C4 Skills Selection Produces Unreadable Overflow]]`,
+same day), plus three parked Ideas it surfaced (`[[C5 Skills Selection Produces Unreadable Overflow]]`,
 `[[Generalize CV_SLOTS Beyond a Single Profile]]`, `[[Areas of Expertise and JD Groups - Persistent Data
 Model]]`). This CI's own scope and delivered status are unaffected — noted here only for the cross-link.
 

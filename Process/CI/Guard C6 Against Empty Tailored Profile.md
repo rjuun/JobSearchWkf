@@ -1,7 +1,8 @@
 ---
 ci-area: LLM tool schemas / pipeline reliability
 ci-roadmap:
-ci-title: Guard C5 against an empty tailored profile
+ci-title: Guard C6 against an empty tailored profile
+pr-previous-code: C5
 ci-status: 3 - Delivered
 ci-priority: medium
 ci-date: 2026-08-04

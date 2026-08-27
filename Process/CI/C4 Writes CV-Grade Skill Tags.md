@@ -1,13 +1,14 @@
 ---
-ci-area: CV Tailoring (C3 / C4)
+ci-area: CV Tailoring (C4 / C5)
 ci-roadmap:
-ci-title: C3 Writes CV-Grade Skill Tags
+ci-title: C4 Writes CV-Grade Skill Tags
+pr-previous-code: C3
 ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-24
 ci-estimated-time: 4
 ci-time-spent: 2
-pr-source: "[[C4 Skills Selection Produces Unreadable Overflow]]"
+pr-source: "[[C5 Skills Selection Produces Unreadable Overflow]]"
 pr-target: "[[C4. Transform Evidence into CV Bullets]], [[C5. Build and Manage the Skills Section]]"
 ---
 

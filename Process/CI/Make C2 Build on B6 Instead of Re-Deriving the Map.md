@@ -23,7 +23,7 @@ pr-target:
 > Read §1 and §2.1 before touching code — §2.1 is the owner's design and it is not negotiable plumbing,
 > it is the point of the CI.
 >
-> **Do `[[Guard C5 Against Empty Tailored Profile]]` first** — it is an hour and independent.
+> **Do `[[Guard C6 Against Empty Tailored Profile]]` first** — it is an hour and independent.
 
 ---
 
@@ -96,7 +96,7 @@ merge; preserving `approvalStatus`; the stale-row rule in §2.4; and the measure
 - **C2's collapse floor** — `[[Guard C2 Against Silent Evidence-Map Collapse]]`. Do it *after* this;
   the floor's design depends on whether C2 is incremental. Note that CI's "delete-after-validate" item
   becomes moot once there is no wholesale delete.
-- **C5's floor** — `[[Guard C5 Against Empty Tailored Profile]]`. Independent, do it first.
+- **C5's floor** — `[[Guard C6 Against Empty Tailored Profile]]`. Independent, do it first.
 - **Retiring `job_requirements.requirement_group`** — pre-existing duplicate column.
 
 ### 2.1 The design — B6's matchStrength decides where C2 digs
@@ -276,7 +276,7 @@ money. Both halves are measurable, and one is free.
 ## 3. Resources & references
 
 - **Sibling CIs:** `[[Guard C2 Against Silent Evidence-Map Collapse]]` (do after) ·
-  `[[Guard C5 Against Empty Tailored Profile]]` (do first) ·
+  `[[Guard C6 Against Empty Tailored Profile]]` (do first) ·
   `[[Complete Required Lists on the Remaining Strict Tool Schemas]]` (parent; the C2 measurement).
 - **B6's guard, which this design depends on:** `[[B6 Never Receives the Master Bullet Bank (Empty Evidence
   Lanes in the Map)]]`.

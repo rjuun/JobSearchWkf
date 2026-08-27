@@ -7,7 +7,7 @@ ci-priority: high
 ci-date: 2026-08-24
 ci-estimated-time: 3
 ci-time-spent: 1
-pr-source: "[[C3 Writes CV-Grade Skill Tags]]"
+pr-source: "[[C4 Writes CV-Grade Skill Tags]]"
 pr-target: "[[C4. Transform Evidence into CV Bullets]], [[C5. Build and Manage the Skills Section]], [[C6. Drafting CV Profile (Per Job Lead)]], [[C7. Compile Complete CV Document]], [[C8. Run Reviewed ATS Matching Rating]]"
 ---
 

@@ -8,7 +8,7 @@ ci-priority: high
 ci-date: 2026-08-23
 ci-estimated-time:
 ci-time-spent: 3
-pr-source: "[[C4 Skills Selection Produces Unreadable Overflow]]"
+pr-source: "[[C5 Skills Selection Produces Unreadable Overflow]]"
 pr-target: "[[C5. Build and Manage the Skills Section]]"
 ---
 
@@ -23,7 +23,7 @@ pr-target: "[[C5. Build and Manage the Skills Section]]"
 >
 > - **(b) languages — SHIPPED.** C5 §B.4 declares it and `dropLanguageSkills` enforces it against the
 >   owner's own `languages` rows. Nothing left to do.
-> - **(c) JD-phrase-shaped names — MOVED** to [[C3 Writes CV-Grade Skill Tags]]. Those names come from
+> - **(c) JD-phrase-shaped names — MOVED** to [[C4 Writes CV-Grade Skill Tags]]. Those names come from
 >   C4's tag, and the fix is a change of register at source, not a rewrite downstream.
 >
 > **What remains, and what this CI now is: (a) consolidation.** Turning
@@ -32,7 +32,7 @@ pr-target: "[[C5. Build and Manage the Skills Section]]"
 > evidence ref and never sees the assembled set**, so it cannot merge across bullets. C5 is the only
 > step with whole-set vision.
 >
-> **Sequence it after [[C3 Writes CV-Grade Skill Tags]].** C4 changes what arrives; consolidating the
+> **Sequence it after [[C4 Writes CV-Grade Skill Tags]].** C4 changes what arrives; consolidating the
 > current JD-shaped tags would be tuning against inputs that are about to change. The owner's plan
 > (2026-08-24) is that CI first, then this.
 
@@ -40,7 +40,7 @@ pr-target: "[[C5. Build and Manage the Skills Section]]"
 
 ## 1. What is the problem or opportunity?
 
-[[C4 Skills Selection Produces Unreadable Overflow]] fixed *how many* skills print and *where they come
+[[C5 Skills Selection Produces Unreadable Overflow]] fixed *how many* skills print and *where they come
 from*: the CV Skills section is now the `requirement_skills` carried by Keep-gated rows, grouped by the
 matched requirement's rank. The Allianz Partners lead went from 67 names in one line to 16 in one
 category. That CI deliberately stopped there — **selection** was its scope.
@@ -87,7 +87,7 @@ tidy-up pass that doesn't know it is making it.
 > [!NOTE] Scope addition, 2026-08-24 — the envelope comes here; education does not
 > **In: the section's size target.** `SKILLS_ENVELOPE = 40` (`lib/pipeline/skills.ts`) is not a
 > considered number — it is C5 §B.1's ceiling, 5 categories × 8 skills, multiplied out. Measured on
-> the two leads run after [[C3 Writes CV-Grade Skill Tags]] landed: 55 and 43 distinct tags arrived,
+> the two leads run after [[C4 Writes CV-Grade Skill Tags]] landed: 55 and 43 distinct tags arrived,
 > and both printed **exactly 40**, so the cap is binding and set at twice the 16–20 benchmark. Nothing
 > enforces the per-category half of the envelope either — `reconcileSkillGroups` caps categories at
 > five but not their size, which is how Aliaxis printed a 12-entry category. Both belong here, because
@@ -106,7 +106,7 @@ tidy-up pass that doesn't know it is making it.
 
 > [!IMPORTANT] Re-measured 2026-08-25, after C3 selection landed — the duplicate has CHANGED SHAPE
 > The scope note below was written against the old output and its numbers are superseded. Two CIs have
-> since reduced the section: [[C3 Writes CV-Grade Skill Tags]] raised the register, and
+> since reduced the section: [[C4 Writes CV-Grade Skill Tags]] raised the register, and
 > [[C3 Selects the CV Evidence Set]] cut the bullet count to ~14. **`SKILLS_ENVELOPE = 40` no longer
 > binds** — the leads now print 26 / 31 / 30 tags, under the cap and above the 16–20 benchmark. So the
 > size target is no longer about a cap; it is entirely about merging.
@@ -126,7 +126,7 @@ tidy-up pass that doesn't know it is making it.
 > variants; ALDI prints **Global Process Ownership & Governance** beside plain **Global Process
 > Ownership** — one literally contains the other.
 >
-> **That last case is what `subsumedSkills` was built for** ([[C3 Writes CV-Grade Skill Tags]] §2.4).
+> **That last case is what `subsumedSkills` was built for** ([[C4 Writes CV-Grade Skill Tags]] §2.4).
 > The guard already accepts a compound that contains selected skills whole and consumes them, so a
 > merge cannot print beside its own parts. It has been inert since the day it shipped because C5's
 > prompt still says copy every skill verbatim. **This CI's first job is to change what C5 is asked
@@ -162,16 +162,16 @@ may already exist. Sequence:
    CI split the old `buildSkillsSection` into those two, and left the dedupe a normalised exact match).
 
 **Explicitly out of scope:** where C4 sources from, and its categorisation — both shipped on
-[[C4 Skills Selection Produces Unreadable Overflow]] (§2.13; the categories are thematic now, built by
+[[C5 Skills Selection Produces Unreadable Overflow]] (§2.13; the categories are thematic now, built by
 a Sonnet call, not the rank labels an earlier draft of this note described). Also out of scope: the
-*register* of individual names — that is [[C3 Writes CV-Grade Skill Tags]].
+*register* of individual names — that is [[C4 Writes CV-Grade Skill Tags]].
 
 **The guard is the shared risk.** Consolidation means printing a name that is not literally one of the
 selected skills, which `reconcileSkillGroups`' identity check currently rejects — the same check
-[[C3 Writes CV-Grade Skill Tags]] §2.4 has to replace. **Do not build two different replacements.**
+[[C4 Writes CV-Grade Skill Tags]] §2.4 has to replace. **Do not build two different replacements.**
 Whichever CI lands first should establish support-plus-coverage, and the second should reuse it.
 
-> [!IMPORTANT] Landed 2026-08-24 on [[C3 Writes CV-Grade Skill Tags]] — do not rebuild it.
+> [!IMPORTANT] Landed 2026-08-24 on [[C4 Writes CV-Grade Skill Tags]] — do not rebuild it.
 > `reconcileSkillGroups` now accepts a proposed name that is not in `selected` when it **contains**
 > selected skills whole (`subsumedSkills` in `lib/pipeline/skills.ts`), and **consumes** them, so a
 > merge can never print beside the atoms it absorbed. Containment is directional on purpose:
@@ -211,7 +211,7 @@ sparser. "Corporate Governance & Regulatory Compliance (EBA)" carries three matc
 - `Process/C4. Transform Evidence into CV Bullets.md` §B.5 — "Consistency of Bracketed Tags" already
   asks for short, consistent tags across bullets; inconsistent tags are the direct upstream cause of (a).
 - `Process/B2. Extract Requirements from Job Description.md` §3.6 — why the names carry JD language.
-- [[C4 Skills Selection Produces Unreadable Overflow]] §2.4 — where this was logged as out of scope.
+- [[C5 Skills Selection Produces Unreadable Overflow]] §2.4 — where this was logged as out of scope.
 
 ## 4. Notes / Progress log
 
@@ -330,7 +330,7 @@ regression — they pass in the main tree). `scripts/snapshot-step-prompts.ts`: 
 ### 2026-08-24 · Re-scoped to consolidation only
 
 Two of the three original problems moved out (see the callout above). What is left is the one thing
-only C4 can do. Re-prioritised to `high` and sequenced after [[C3 Writes CV-Grade Skill Tags]] on the
+only C4 can do. Re-prioritised to `high` and sequenced after [[C4 Writes CV-Grade Skill Tags]] on the
 owner's plan: *"My hunch is, to implement: C3 Writes CV-Grade Skill Tags, Skill Name Treatment in C4,
 and continue testing the other CIs."*
 
@@ -340,7 +340,7 @@ exactly the gap. Do not re-run that search from scratch.
 
 ### 2026-08-23 · Opened as an Idea
 
-Split out of [[C4 Skills Selection Produces Unreadable Overflow]] at the owner's request, on seeing that
+Split out of [[C5 Skills Selection Produces Unreadable Overflow]] at the owner's request, on seeing that
 CI's verified output. His reasoning for opening it rather than accepting the names: *"it is good to have
 it declared before just letting it slip by."*
 

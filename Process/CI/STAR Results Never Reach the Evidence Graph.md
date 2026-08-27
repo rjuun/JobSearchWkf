@@ -7,7 +7,7 @@ ci-priority: high
 ci-date: 2026-08-24
 ci-estimated-time: 1
 ci-time-spent: 1.5
-pr-source: "[[C3 Writes CV-Grade Skill Tags]]"
+pr-source: "[[C4 Writes CV-Grade Skill Tags]]"
 pr-target: "[[C2. Map JD Requirements to Supporting Evidence]], [[C4. Transform Evidence into CV Bullets]]"
 ---
 
@@ -134,7 +134,7 @@ free-text graph tags were rejected as My Skills values: an identity the profile 
 - `Process/C4…md` §B.4 — the rule this unblocks.
 - [[C3 Selects the CV Evidence Set]] — comes AFTER this one; **land the present CI first.** Budgeting over a candidate pool that
   is about to gain 22 quantified outcomes is tuning against inputs that are about to change; the same
-  argument sequenced [[C3 Writes CV-Grade Skill Tags]] ahead of consolidation.
+  argument sequenced [[C4 Writes CV-Grade Skill Tags]] ahead of consolidation.
 
 ## 4. Notes / Progress log
 

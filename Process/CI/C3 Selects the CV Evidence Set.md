@@ -7,7 +7,7 @@ ci-priority: high
 ci-date: 2026-08-24
 ci-estimated-time: 7
 ci-time-spent: 5
-pr-source: "[[C3 Writes CV-Grade Skill Tags]]"
+pr-source: "[[C4 Writes CV-Grade Skill Tags]]"
 pr-target: "[[C3. Select the CV Evidence Set]], [[C2. Map JD Requirements to Supporting Evidence]]"
 ---
 

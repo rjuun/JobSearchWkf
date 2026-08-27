@@ -1,7 +1,8 @@
 ---
 ci-area: CV Tailoring
 ci-roadmap:
-ci-title: C4 Skills Selection Produces Unreadable Overflow
+ci-title: C5 Skills Selection Produces Unreadable Overflow
+pr-previous-code: C4
 ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-07

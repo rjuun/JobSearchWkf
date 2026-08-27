@@ -110,7 +110,7 @@ content. Flagged as something to revisit before this app is ever multi-tenant (s
   Exposed a real, separate bug: one lead produced 67 skill names in a single line. Added a **display-layer
   cap of 24 items** as an explicit stopgap, on the owner's instruction, while the actual cause (why C4
   produced that many) is tracked separately and deliberately left open —
-  see `[[C4 Skills Selection Produces Unreadable Overflow]]`.
+  see `[[C5 Skills Selection Produces Unreadable Overflow]]`.
 - **Position headers** (§2.4): `<<Position A–D Header>>`/`<<Position A–D Dates>>` built from the real
   `positions` table (title, company, the new `cityCountry`, `startDate`/`endDate`) — the one part of
   Professional Experience that had stayed static template text even after the CV_SLOTS bullets went fully
@@ -145,7 +145,7 @@ employment-history data, not a formatting choice.
 ## 3. Resources or references
 
 - `[[Fix CV Bullet Evidence Linking in the Career Graph]]` — the CI this branched out of.
-- `[[C4 Skills Selection Produces Unreadable Overflow]]`, `[[Generalize CV_SLOTS Beyond a Single Profile]]`,
+- `[[C5 Skills Selection Produces Unreadable Overflow]]`, `[[Generalize CV_SLOTS Beyond a Single Profile]]`,
   `[[Areas of Expertise and JD Groups - Persistent Data Model]]` — the three items explicitly parked as
   Ideas rather than folded into this CI.
 - `lib/pipeline/tailoring.ts` — `templateSlotData`, the C6/C7 blocks.

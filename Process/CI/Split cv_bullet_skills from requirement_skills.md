@@ -7,7 +7,7 @@ ci-priority: medium
 ci-date: 2026-08-23
 ci-estimated-time: 2
 ci-time-spent: 1
-pr-source: "[[C4 Skills Selection Produces Unreadable Overflow]]"
+pr-source: "[[C5 Skills Selection Produces Unreadable Overflow]]"
 pr-target: "[[C4. Transform Evidence into CV Bullets]], [[C5. Build and Manage the Skills Section]]"
 ---
 
@@ -161,7 +161,7 @@ the function so it does not get re-filed as a bug.
   the field that would be renamed; the tests pin the behaviour that must not change.
 - `components/roleproof/workspace.tsx` — the "Req. Skills" / "My Skills" badge rows.
 - `lib/llm/schemas.ts` — `C3.zod` / `emit_cv_bullets`, where the per-bullet `skills` array is defined.
-- [[C4 Skills Selection Produces Unreadable Overflow]] — established that C4 prints the bullets' skills;
+- [[C5 Skills Selection Produces Unreadable Overflow]] — established that C4 prints the bullets' skills;
   this CI makes the column say so unambiguously.
 - [[Requirement Skills vs My Skills - Two-Column Redesign (Epic)]] — the two-column design this extends
   to three. Its §3 is where "C3 write-back of its skills judgment" first landed on `requirement_skills`.
@@ -180,7 +180,7 @@ extraction. That is now the strongest input to [[Skill Name Treatment in the C5 
 
 ### 2026-08-23 · Opened as an Idea
 
-Raised by the owner immediately after [[C4 Skills Selection Produces Unreadable Overflow]] shipped, as a
+Raised by the owner immediately after [[C5 Skills Selection Produces Unreadable Overflow]] shipped, as a
 process-transparency question.
 
 An earlier framing of this note treated the per-ref/per-row multiplicity as a fidelity problem — that a
