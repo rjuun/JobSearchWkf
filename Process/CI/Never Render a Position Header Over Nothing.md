@@ -2,11 +2,11 @@
 ci-area: CV Tailoring (C7 / template)
 ci-roadmap:
 ci-title: Never Render a Position Header Over Nothing
-ci-status: 1 - Development
+ci-status: 2 - Testing
 ci-priority: medium
 ci-date: 2026-08-28
 ci-estimated-time: 2
-ci-time-spent: 2
+ci-time-spent: 3
 pr-source: "[[C7 Space Rules Are Specified and Never Enforced]]"
 pr-target: "[[C7. Compile Complete CV Document]]"
 ---
@@ -223,3 +223,61 @@ is import cost, and the comment now says so.
   `capture-enrich.test.ts` fixture gap in a fresh worktree. 382 before, plus the 13 new.
 - Six leads re-rendered from stored data at no model cost, `word/document.xml` compared pairwise:
   identical. Page counts unchanged, measured in Word over COM.
+
+### 2026-08-28 · The re-tag applied — and it did not render identical
+
+The blocker cleared: the owner's hand edit to the template (the D1 bullet indent) was committed as
+`8be3129`, so the ordering this note asked for could complete. `scripts/retag-cv-template-positions.ts`
+ran clean and wrapped all four positions — headers on A–D, plus the "Direct Reports:" line on A and B.
+
+**The acceptance this note set for itself did not hold, and that is the finding.** It predicted the six
+current leads would render byte-identical, since every one of them sets every position visible. They did
+not. `word/document.xml` was extracted and hashed before and after: all six differed, each about 500
+bytes shorter, and the diff was in exactly the paragraphs the re-tag had touched.
+
+**Every position header and every date rendered BLANK.**
+
+The cause is in `lib/docx/template.ts`, not in this CI's own code. Its raw-tag parser resolved a tag
+against the CURRENT scope and returned `''` when the key was absent:
+
+```ts
+get: (scope) => (tag === '.' ? scope : scope?.[tag] ?? '')   // before
+get: (scope) => (tag === '.' ? scope : scope?.[tag])          // after
+```
+
+Inside `<<#Position A Visible>>` the scope is the marker element `'x'`. `<<Position A Header>>` therefore
+looked up a property of a string, found nothing, and resolved to the empty string **instead of looking
+outward to the enclosing scope**. Returning `undefined` is docxtemplater's signal to walk out; `''` is a
+found value and stops the search. `nullGetter` still blanks a tag that is unmapped everywhere, so the
+behaviour for genuinely missing tags is unchanged.
+
+This is the second time a defect in this template path has been invisible for the same reason: **a
+missing value and an empty one are indistinguishable to a renderer.** Nothing threw, no test failed, and
+the six CVs would have gone out with no job titles on them. It was caught only by comparing rendered XML
+against the previous version — the check this note wrote down as its acceptance, which is the argument
+for writing that kind of acceptance down.
+
+After the fix, all six render **textually identical** to before, verified by `pandoc -t plain` diff. The
+only XML delta is two `xml:space="preserve"` attributes docxtemplater adds; no text moved, and page
+counts are unchanged at two.
+
+`lib/__tests__/template-scope.test.ts` pins it — four tests against the REAL template, because the defect
+lived in the seam between the template and the parser and a hand-built fixture would not have had the
+loop in it. Confirmed to fail against the old parser before being kept.
+
+#### Why `2 - Testing` and not `3 - Delivered`
+
+Both halves are now live and machine-verified. What cannot be done is the thing the procedure asks for:
+**no current lead can reach the guarded state**, so there is nothing for a human to click through. The
+trailing case fires only when a position's last project bullet is dropped, and C3 does not currently do
+that to any of the six.
+
+That is a waiver, not a pass, and it is recorded here rather than assumed: the guard is proven by
+thirteen unit tests over `applyPositionGuard` and by four render tests, and it will be observed in the
+wild the first time a lead selects nothing under position D. Move to `3 - Delivered` when that happens,
+or when the owner is content to close it on the test evidence alone.
+
+#### Verification
+
+- `npm run typecheck` clean. `npm test` — **407 passing**, up from 403: the four new render tests.
+- Six leads re-rendered and rewritten in place; headers confirmed present in Word over COM, two pages each.

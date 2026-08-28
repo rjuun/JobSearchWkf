@@ -86,8 +86,18 @@ export function buildCvFromTemplate(data: TemplateData, identity?: CvIdentity, o
     // Raw-tag parser: the tag IS the key (no expression evaluation). `<<.>>` is
     // docxtemplater's "the loop item itself", which is how a loop over bare
     // strings — one bullet, one language — addresses its element.
+    //
+    // `undefined` when the key is not in THIS scope, never `''`. That is what
+    // makes docxtemplater walk out to the enclosing scope, and it is not a
+    // nicety: this returned `?? ''` until the position guard wrapped each header
+    // in `<<#Position A Visible>>`. Inside that loop the scope is the marker
+    // element `'x'`, so `<<Position A Header>>` looked up a property of a string,
+    // found nothing, and resolved to the empty string INSTEAD OF looking outward.
+    // Every position header and date on every CV rendered blank — and because a
+    // missing value is indistinguishable from an empty one, nothing failed.
+    // `nullGetter` still blanks a tag that is genuinely unmapped anywhere.
     parser: (tag: string) => ({
-      get: (scope: Record<string, unknown>) => (tag === '.' ? scope : scope?.[tag] ?? ''),
+      get: (scope: Record<string, unknown>) => (tag === '.' ? scope : scope?.[tag]),
     }),
     nullGetter: () => '',
   });
