@@ -14,7 +14,7 @@ pr-target: "[[C5. Build and Manage the Skills Section]]"
 
 ---
 ```simple-time-tracker
-{"entries":[]}
+{"entries":[{"name":"Delivered","startTime":"2026-08-26T17:44:54+02:00","endTime":"2026-08-26T17:44:54+02:00"}]}
 ```
 ---
 

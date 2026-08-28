@@ -13,6 +13,10 @@ pr-target: "[[C2. Map JD Requirements to Supporting Evidence]], [[C4. Transform 
 ---
 
 ---
+```simple-time-tracker
+{"entries":[{"name":"Delivered","startTime":"2026-08-27T11:20:57+02:00","endTime":"2026-08-27T11:20:57+02:00"}]}
+```
+---
 
 ## 1. What is the problem or opportunity?
 

@@ -13,7 +13,7 @@ pr-target: "[[C2. Map JD Requirements to Supporting Evidence]], [[C3. Select the
 
 ---
 ```simple-time-tracker
-{"entries":[]}
+{"entries":[{"name":"Delivered","startTime":"2026-08-26T19:09:10+02:00","endTime":"2026-08-26T19:09:10+02:00"}]}
 ```
 ---
 

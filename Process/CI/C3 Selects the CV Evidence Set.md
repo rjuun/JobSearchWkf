@@ -13,7 +13,7 @@ pr-target: "[[C3. Select the CV Evidence Set]], [[C2. Map JD Requirements to Sup
 
 ---
 ```simple-time-tracker
-{"entries":[]}
+{"entries":[{"name":"Delivered","startTime":"2026-08-26T17:44:54+02:00","endTime":"2026-08-26T17:44:54+02:00"}]}
 ```
 ---
 

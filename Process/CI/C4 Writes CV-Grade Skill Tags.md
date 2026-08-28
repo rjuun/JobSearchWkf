@@ -14,7 +14,7 @@ pr-target: "[[C4. Transform Evidence into CV Bullets]], [[C5. Build and Manage t
 
 ---
 ```simple-time-tracker
-{"entries":[]}
+{"entries":[{"name":"Delivered","startTime":"2026-08-27T11:20:57+02:00","endTime":"2026-08-27T11:20:57+02:00"}]}
 ```
 ---
 

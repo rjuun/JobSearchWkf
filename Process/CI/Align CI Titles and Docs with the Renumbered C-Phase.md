@@ -13,7 +13,7 @@ pr-target: "[[+ Continuous Improvement Dashboard]]"
 
 ---
 ```simple-time-tracker
-{"entries":[]}
+{"entries":[{"name":"Delivered","startTime":"2026-08-27T11:20:57+02:00","endTime":"2026-08-27T11:20:57+02:00"}]}
 ```
 ---
 

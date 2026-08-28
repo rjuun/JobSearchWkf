@@ -14,7 +14,7 @@ ci-absorbs: "[[Eliminating Metadata from Final file]]"
 
 ---
 ```simple-time-tracker
-{"entries":[]}
+{"entries":[{"name":"Delivered","startTime":"2026-08-26T23:13:16+02:00","endTime":"2026-08-26T23:13:16+02:00"}]}
 ```
 ---
 

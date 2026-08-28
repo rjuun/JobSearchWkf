@@ -13,7 +13,7 @@ pr-target: "[[B1. Capture Posting Freshness and Market Saturation]]"
 
 ---
 ```simple-time-tracker
-{"entries":[]}
+{"entries":[{"name":"Delivered","startTime":"2026-08-26T17:58:08+02:00","endTime":"2026-08-26T17:58:08+02:00"}]}
 ```
 ---
 

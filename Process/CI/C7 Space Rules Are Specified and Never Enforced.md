@@ -13,7 +13,7 @@ pr-target: "[[C7. Compile Complete CV Document]], [[C5. Build and Manage the Ski
 
 ---
 ```simple-time-tracker
-{"entries":[]}
+{"entries":[{"name":"Delivered","startTime":"2026-08-27T16:52:09+02:00","endTime":"2026-08-27T16:52:09+02:00"}]}
 ```
 ---
 
