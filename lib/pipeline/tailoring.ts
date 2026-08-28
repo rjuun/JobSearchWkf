@@ -845,6 +845,96 @@ function fmtDateRangeAtomic(from: string | null | undefined, to: string | null |
 }
 
 /**
+ * The positions the CV renders, in the order they appear on the page — most
+ * recent first. Derived from `CV_SLOTS` rather than written out, so the position
+ * guard below is expressed over SEQUENCE and keeps working if the slots change.
+ */
+const POSITION_LETTERS = [...new Set(CV_SLOTS.map((s) => slotCode(s)[0]))];
+
+/**
+ * ── The position guard ───────────────────────────────────────────────────────
+ *
+ * CI · Never Render a Position Header Over Nothing.
+ *
+ * Removing the slot refill (CI · C7 Space Rules Are Specified and Never
+ * Enforced) made one state reachable that could not happen before: a position
+ * whose every slot is empty — a job title and its dates over white space.
+ * Measured across the six leads with a live shortlist, the last position holds
+ * exactly ONE filled slot on all six, so this is one selection away rather than
+ * theoretical.
+ *
+ * **What is NOT the problem: an empty role overview.** The owner, 2026-08-28:
+ * *"I don't see any problem when the 0's positions do not come to the CV because
+ * they do not contribute… it is also the reason you will see no
+ * 'Responsibilities' headings in the CV as you see 'Key Projects'."* Role
+ * overviews are evidence with a different shape — written at role level so they
+ * can answer a JD that asks about running a function — and they compete on merit
+ * like everything else. No heading announces one, so nothing shows when it loses.
+ * An empty overview beside filled projects is the system working.
+ *
+ * **The rule turns on where the empty position sits, not on which one it is:**
+ *
+ *   • Empty with something after it → **keep it**, and force the role overview
+ *     back in so the header is never bare. A position missing from the middle of
+ *     a career does not read as formatting; it reads as concealed time. The
+ *     owner: *"to have a blank in Role A or B or C would be a real problem."*
+ *   • Empty and TRAILING → **omit it whole** — header, dates, the lot. The CV
+ *     simply ends earlier, and the two or three most recent positions already
+ *     span eleven to thirteen years.
+ *
+ * Expressed over `POSITION_LETTERS` order rather than hard-coded to the last
+ * letter, so it survives `CV_SLOTS` changing.
+ *
+ * **Where a forced overview draws its text (§2.2, decided).** `responsibilities`
+ * — the same source the old refill used for role-overview slots, and the only
+ * table holding role-level prose. The FIRST row for the position, not the two the
+ * refill took: the rule promises one line to stop a bare header, not a
+ * reconstruction of the role. Rows are in the owner's own authored order.
+ *
+ * **Whether it costs budget (§2.2, decided the other way from the note's
+ * suggestion).** It counts. §2.2 suggested keeping it outside the budget "like
+ * Education and Languages" because the position contributed nothing else — but
+ * those two are outside it for a different reason: they are fixed furniture,
+ * present on every CV, and therefore already absorbed into the calibrated
+ * allowance. A forced overview is not fixed. It appears only in this state, and
+ * it occupies a real line when it does, so an estimator that ignored it would be
+ * wrong exactly when the guard fires. It is cheap to count and the page rule can
+ * afford it: by construction the position contributed nothing else, so the
+ * document is already short.
+ */
+export function applyPositionGuard(
+  data: TemplateData,
+  resps: readonly { positionRef: string | null; text: string | null }[]
+): void {
+  const slotsOf = (letter: string) => CV_SLOTS.filter((s) => slotCode(s)[0] === letter);
+  const isFilled = (letter: string) => slotsOf(letter).some((s) => ((data[s] as string[] | undefined) ?? []).length > 0);
+
+  const filled = POSITION_LETTERS.map(isFilled);
+  // The last position with anything under it. Everything after it is trailing.
+  let lastFilled = -1;
+  filled.forEach((f, i) => { if (f) lastFilled = i; });
+
+  POSITION_LETTERS.forEach((letter, i) => {
+    if (filled[i]) {
+      data[`Position ${letter} Visible`] = ['x'];
+      return;
+    }
+    if (i > lastFilled) {
+      // Trailing and empty: omit the whole position. The header, its dates and
+      // its "Direct Reports" line are wrapped in this loop in the template, so an
+      // empty array removes all three rather than leaving a blank paragraph.
+      data[`Position ${letter} Visible`] = [];
+      return;
+    }
+    // Interior and empty: it must not vanish, and it must not print bare.
+    data[`Position ${letter} Visible`] = ['x'];
+    const overview = slotsOf(letter).find(isRoleOverviewSlot);
+    const fallback = resps.find((r) => (r.positionRef ?? '') === letter && (r.text ?? '').trim())?.text?.trim();
+    if (overview && fallback) data[overview] = [fallback];
+  });
+}
+
+/**
  * Exported for `scripts/render-cv-from-stored.ts`, which re-renders a lead's CV
  * from data a paid run already stored. Every template change costs a look at a
  * real page, and a look at a real page must not cost a run — that script is how
@@ -872,12 +962,19 @@ export async function templateSlotData(
    *  took and the line cost it reached. C7's step report is what surfaces it. */
   onTrim?: (refs: string[], lineCost: number) => void
 ): Promise<TemplateData> {
-  // `bullet_bank` and `responsibilities` used to be read here too — they were the
-  // refill's two sources. Nothing in this function reads them any more, so the
-  // two queries went with it. Both tables are still evidence: C2 sees them
-  // through `gatherEvidence`, which is where they belong. What they no longer do
-  // is top the rendered document back up behind C3's back.
-  const [eduRows, langRows, posRows] = await Promise.all([
+  // `bullet_bank` used to be read here too — it was the refill's source for
+  // project slots, and nothing tops a project slot up any more, so that query
+  // went with the refill. The table is still evidence; C2 sees it through
+  // `gatherEvidence`, which is where it belongs.
+  //
+  // `responsibilities` came back on 2026-08-28, for a narrower job than the one
+  // it used to do. It is no longer a top-up: it is the ONE line the position
+  // guard forces into an interior position that would otherwise print a bare
+  // header (`applyPositionGuard`). That state does not occur on any current lead,
+  // so this query is nearly always read and unused — cheap insurance against the
+  // one shape of CV that would be genuinely misleading.
+  const [resps, eduRows, langRows, posRows] = await Promise.all([
+    db.select().from(responsibilities).where(eq(responsibilities.ownerId, ownerId)),
     db.select().from(education).where(eq(education.ownerId, ownerId)),
     db.select().from(languages).where(eq(languages.ownerId, ownerId)),
     db.select().from(positions).where(eq(positions.ownerId, ownerId)),
@@ -894,7 +991,7 @@ export async function templateSlotData(
   // uses the same convention) — positions E/F exist but were never part of the
   // rendered CV, so they're not given template tags here.
   const posByLetter = new Map(posRows.filter((p) => p.refCode).map((p) => [p.refCode as string, p]));
-  for (const letter of ['A', 'B', 'C', 'D']) {
+  for (const letter of POSITION_LETTERS) {
     const p = posByLetter.get(letter);
     if (!p) continue;
     const companyLine = [p.company, p.cityCountry].filter(Boolean).join(', ');
@@ -1076,10 +1173,11 @@ export async function templateSlotData(
     // one. A position whose projects all emptied keeps its header, its dates and
     // its role overview — dropping the position itself would take a role off the
     // CV, which is a truthfulness question and not a space one.
-    for (const letter of ['A', 'B', 'C', 'D']) {
+    for (const letter of POSITION_LETTERS) {
       const any = CV_SLOTS.some((s) => !isRoleOverviewSlot(s) && slotCode(s)[0] === letter && (data[`${s} Caption`] as string[] | undefined)?.length);
       data[`Position ${letter} Key Projects`] = any ? ['Key Projects:'] : [];
     }
+    applyPositionGuard(data, resps);
   };
 
   // ── C7 §C · "Maximum Pages: 2, non-negotiable" ──────────────────────────────
@@ -1148,7 +1246,7 @@ export function contentLineCost(data: TemplateData): number {
   let total = cost(data['Profile']);
   total += cost(data['Skills']);
   for (const slot of CV_SLOTS) total += cost(data[slot]) + cost(data[`${slot} Caption`]);
-  for (const letter of ['A', 'B', 'C', 'D']) total += cost(data[`Position ${letter} Key Projects`]);
+  for (const letter of POSITION_LETTERS) total += cost(data[`Position ${letter} Key Projects`]);
   return total;
 }
 

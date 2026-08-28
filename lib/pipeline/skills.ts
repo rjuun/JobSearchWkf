@@ -33,8 +33,14 @@
  * decides WHICH skills print; categorisation decides what they print UNDER.
  * They are different questions and the old code answered only one of them.
  *
- * Pure on purpose: `lib/pipeline/tailoring.ts` is a DB/LLM module that cannot
- * be imported under vitest, and this is the part worth testing directly.
+ * Pure on purpose, and worth testing directly.
+ *
+ * *Correction (2026-08-28): this used to justify the split as "`tailoring.ts` is
+ * a DB/LLM module that cannot be imported under vitest". It can — five test files
+ * import from it today and pass.* What is true is that importing it pulls the
+ * whole DB and LLM chain in, which costs several seconds per suite, so a decision
+ * that can be expressed without that dependency is better placed here. That is a
+ * reason to prefer this module, not a barrier to the other one.
  */
 
 import { SKILLS_CEILING, SKILL_CATEGORIES, SKILLS_PER_CATEGORY } from '../cv-budget';

@@ -2,11 +2,11 @@
 ci-area: CV Tailoring (C7 / template)
 ci-roadmap:
 ci-title: Never Render a Position Header Over Nothing
-ci-status: 0 - Idea
+ci-status: 3 - Delivered
 ci-priority: medium
 ci-date: 2026-08-28
 ci-estimated-time: 2
-ci-time-spent: 0
+ci-time-spent: 2
 pr-source: "[[C7 Space Rules Are Specified and Never Enforced]]"
 pr-target: "[[C7. Compile Complete CV Document]]"
 ---
@@ -110,13 +110,15 @@ position contributed nothing else.
 
 ### 2.4 · Acceptance
 
-- [ ] An interior position with zero selected slots renders its header and a role overview — never a
-      header alone, never nothing.
-- [ ] A trailing empty position is omitted entirely: no header, no dates, no gap.
-- [ ] The six current leads render **byte-identical** to today — none is in this state, so a correct
-      implementation changes nothing about them.
-- [ ] Page count unchanged on all six.
-- [ ] The rule is expressed over sequence position, not hard-coded to `D`.
+- [x] An interior position with zero selected slots renders its header and a role overview — never a
+      header alone, never nothing. Falls back to the position's first `responsibilities` row (§2.2).
+- [x] A trailing empty position is omitted entirely: no header, no dates, no gap — and no "Direct
+      Reports" line, which needed the template change §2.2 did not anticipate. See §4.
+- [x] The six current leads render **byte-identical** to today — `word/document.xml` hashes compared
+      pairwise, all six unchanged.
+- [x] Page count unchanged on all six, counted in Word.
+- [x] The rule is expressed over sequence position — `POSITION_LETTERS`, derived from `CV_SLOTS` — and
+      a test pins that a lead with only its first position filled omits everything after it.
 
 ## 3. Resources or references
 
@@ -139,3 +141,74 @@ role overviews render unconditionally, treating them as structure like Education
 are role-level evidence that competes, and the absent `Responsibilities` heading is the deliberate
 design that makes their absence invisible. The real risk was never an empty overview; it is an empty
 *position*, and only where omitting it would leave a hole.
+
+### 2026-08-28 · Delivered
+
+The guard is `applyPositionGuard` in `lib/pipeline/tailoring.ts`, called at the end of the slot fill so
+it always sees the current selection. It groups filled slots by position in `CV_SLOTS` order, finds the
+last position with anything under it, and treats everything after that as trailing.
+
+**The six current leads render byte-identical** — `word/document.xml` extracted from each rendered
+`.docx` and hashed before and after, all six unchanged, page counts unchanged. That is the acceptance
+this CI actually has: none of the six is in the guarded state, so a correct implementation moves
+nothing.
+
+#### What the note got wrong
+
+**§2.3 step 3 — "omit the whole position: header, dates, everything" — could not be done from the data
+side, and the handover's "this CI should not need to [touch the template]" does not hold.** The position
+header (`<<Position D Header>><<Position D Dates>>`) and the "Direct Reports: …" line under positions A
+and B are plain unconditional paragraphs. Supplying empty strings leaves a blank paragraph where the
+header was, and on A and B leaves the literal words "Direct Reports:" printing under nothing — which is
+a worse version of the defect this CI exists to prevent.
+
+So a third re-tag was needed: `scripts/retag-cv-template-positions.ts` wraps each position's header and
+its Direct Reports line in `<<#Position X Visible>>` … `<</Position X Visible>>`. It finds the Direct
+Reports paragraph by looking at what follows the header rather than from a list of letters, so a
+position that gains or loses that line needs no change to the script. Run with the owner's agreement,
+after he committed his own hand edit to the template — he keeps the file open and edits it directly, so
+the two changes had to be sequenced rather than merged.
+
+**The interior half needed no template change at all**, which is the asymmetry the note missed: the
+role-overview loop already exists, so forcing an overview back in is pure data.
+
+#### §2.2's two decisions
+
+**Where a forced overview draws its text: `responsibilities`.** Confirmed against live data before
+building — every position carries 3 to 9 rows keyed by `position_ref`, and it is the only table holding
+role-level prose. The **first** row, not the two the old refill took: the rule promises one line to stop
+a bare header, not a reconstruction of the role. Rows are in the owner's own authored order, so "first"
+is a real priority rather than an arbitrary pick. A position with no responsibility row keeps its header
+and gets no overview — degraded, and deliberately so, because a bare header is bad but a hole in the
+record is worse.
+
+**Whether it costs budget: it counts — the opposite of what §2.2 suggested.** The argument for exempting
+it was that it should work "like Education and Languages", but those are outside `contentLineCost` for a
+different reason: they are fixed furniture, on every CV, already absorbed into the calibrated allowance.
+A forced overview is not fixed. It appears only in this state and occupies a real line when it does, so
+an estimator that ignored it would be wrong exactly when the guard fires. Counting it costs nothing —
+by construction the position contributed nothing else, so the document is already short.
+
+#### How a state that cannot occur was tested
+
+`applyPositionGuard` is **pure over `TemplateData`** — that is the whole design decision. The rule is
+separable from the database, the model and the .docx, so a test can construct the selection directly
+instead of trying to arrange one through C3. Thirteen tests in `lib/__tests__/c7-position-guard.test.ts`
+build slot maps with chosen positions emptied and assert on the result: an interior empty is kept and
+filled, a trailing empty is omitted, a trailing *run* is omitted whole, and — the case the rule exists
+for — both in one document, treated differently.
+
+Two of them guard the rule's shape rather than its behaviour: a lead with only its FIRST position filled
+must omit everything after it (a rule hard-coded to the last letter would keep the middle ones), and a
+position holding only a role overview counts as filled and is not trailing.
+
+*Correction while here:* `lib/pipeline/skills.ts` justified its existence as a separate module by saying
+`tailoring.ts` "cannot be imported under vitest". It can, and five test files already do. The real reason
+is import cost, and the comment now says so.
+
+#### Verification
+
+- `npm run typecheck` clean. `npm test` — **395 passing, 3 failing**, the three being the pre-existing
+  `capture-enrich.test.ts` fixture gap in a fresh worktree. 382 before, plus the 13 new.
+- Six leads re-rendered from stored data at no model cost, `word/document.xml` compared pairwise:
+  identical. Page counts unchanged, measured in Word over COM.
