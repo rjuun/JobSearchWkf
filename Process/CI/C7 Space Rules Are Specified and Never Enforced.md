@@ -144,7 +144,7 @@ to need its own note.
 - [x] **Two pages on all five**, counted by Word: 90 / 91 / 93 / 90 / 90 lines, from 100 / 127 / 114 / 106 / 133.
 - [x] The Profile cap is words in the prompt and lines on the page; `lib/llm/schemas.ts` states only words, and C6's step report prints both.
 - [x] The Skills section obeys the ceiling in code and reports anything shed at it; `verify-lead-run.ts` fails a run that sheds.
-- [ ] A deliberate, owner-approved answer to what an unfilled slot renders. **Built and rendered — awaiting his look.** An empty project loses its caption with its bullets and the survivors renumber; an empty role overview loses its paragraph, so position D prints its header and goes straight to Key Projects (page 2 of the sample).
+- [x] A deliberate, owner-approved answer to what an unfilled slot renders. **Approved 2026-08-28:** *"I don't see any problem when the 0's positions do not come to the CV because they do not contribute."* An empty project loses its caption with its bullets and the survivors renumber; an empty role overview loses its paragraph, so position D prints its header and goes straight to Key Projects (page 2 of the sample).
 - [x] `verify-lead-run.ts` updated — Skills criteria read the ceiling from `cv-budget.ts`, shedding is a FAIL, and the C7 line cost and trim are reported.
 - [ ] C8's ATS does not regress. Baselines: **88 ALDI · 84 Julius Baer · 78 Aliaxis · 72 Anritsu ·
       72 Allianz Services**. **Not re-measured — it needs a paid run.** No evidence changed except what the page trim took on the leads that needed it, so this is a check for the next run rather than a claim made here.
@@ -267,3 +267,25 @@ than 28.
   instructions on trust. The five two-page renders above hold with the *old* budgets' content
   (93–106-word profiles, 19–28 skills), so the page limit does not depend on the new prompts landing —
   but that they land is the one thing still unmeasured.
+
+### 2026-08-28 · The empty-slot judgement, answered
+
+The owner approved what an unfilled slot renders, and the reasoning corrects the way this CI framed
+the question. A role overview is not structure that happens to be missing — it is evidence written at
+role level, competing on merit like everything else:
+
+> *"I don't see any problem when the 0's positions do not come to the CV because they do not
+> contribute. They are written in this way because sometimes some experience is required running X and
+> Y, and then the 0's bullets come to play. It is also the reason you will see no 'Responsibilities'
+> headings in the CV as you see 'Key Projects'."*
+
+The absent heading is the design: nothing announces a role overview, so nothing shows when one loses.
+`D0` empty on every measured lead is the system working.
+
+He also named `D0`'s particular job — for the Lisbon Project Manager role it is *"meant to be displayed
+as a short description of what I did, in case none of the Project Bullets are relevant"* — which is
+what makes `D0` **and** `D1` empty together the real failure, and that is
+[[Never Render a Position Header Over Nothing]], not this note.
+
+The D1 bullet indent flagged under "Still open" was fixed by the owner in the template by hand.
+
