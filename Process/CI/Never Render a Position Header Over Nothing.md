@@ -2,7 +2,7 @@
 ci-area: CV Tailoring (C7 / template)
 ci-roadmap:
 ci-title: Never Render a Position Header Over Nothing
-ci-status: 2 - Testing
+ci-status: 3 - Delivered
 ci-priority: medium
 ci-date: 2026-08-28
 ci-estimated-time: 2
@@ -281,3 +281,26 @@ or when the owner is content to close it on the test evidence alone.
 
 - `npm run typecheck` clean. `npm test` — **407 passing**, up from 403: the four new render tests.
 - Six leads re-rendered and rewritten in place; headers confirmed present in Word over COM, two pages each.
+
+### 2026-08-28 · Closed — live verification waived, with the reason
+
+The owner, asked whether to hold at `2 - Testing` until the guarded state occurs in the wild:
+*"this is a safety guard that I imagine will take really long to be implemented. Lets close it."*
+
+So the one open criterion is waived deliberately rather than left to lapse. What it was waiting for is a
+lead whose selection empties a trailing position — the state the guard exists to catch — and the whole
+point of the guard is that this is rare. Holding a note open against an event nobody wants to happen
+turns the status into a lie about whether anything is left to do.
+
+**What is actually verified**, so the waiver is not mistaken for a pass later:
+
+- Both halves are live. The interior case forces a role overview back in; the trailing case omits the
+  header and the Direct Reports line through the `<<#Position X Visible>>` loops the third re-tag added.
+- Thirteen unit tests over `applyPositionGuard`, which is pure over `TemplateData` — that purity is what
+  let the unreachable state be constructed directly instead of arranged through C3.
+- Four render tests against the real template, covering the visible and omitted cases.
+- The six current leads re-rendered textually identical, at two pages, headers intact.
+
+**What is not**: nobody has seen it fire on a real lead. If a position ever prints its header over
+nothing, or a role vanishes that should not have, this note is where to start — not because the rule is
+in doubt, but because that would be its first live observation.
