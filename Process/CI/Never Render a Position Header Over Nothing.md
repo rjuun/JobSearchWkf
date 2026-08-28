@@ -2,7 +2,7 @@
 ci-area: CV Tailoring (C7 / template)
 ci-roadmap:
 ci-title: Never Render a Position Header Over Nothing
-ci-status: 3 - Delivered
+ci-status: 1 - Development
 ci-priority: medium
 ci-date: 2026-08-28
 ci-estimated-time: 2
@@ -112,8 +112,10 @@ position contributed nothing else.
 
 - [x] An interior position with zero selected slots renders its header and a role overview — never a
       header alone, never nothing. Falls back to the position's first `responsibilities` row (§2.2).
-- [x] A trailing empty position is omitted entirely: no header, no dates, no gap — and no "Direct
-      Reports" line, which needed the template change §2.2 did not anticipate. See §4.
+- [ ] A trailing empty position is omitted entirely: no header, no dates, no gap — and no "Direct
+      Reports" line. **Decision logic done and tested; the template re-tag it needs is written,
+      dry-run clean and NOT YET RUN** — it waits on the owner committing his own hand edit to
+      `CV_Template.docx`. See §4.
 - [x] The six current leads render **byte-identical** to today — `word/document.xml` hashes compared
       pairwise, all six unchanged.
 - [x] Page count unchanged on all six, counted in Word.
@@ -162,15 +164,24 @@ and B are plain unconditional paragraphs. Supplying empty strings leaves a blank
 header was, and on A and B leaves the literal words "Direct Reports:" printing under nothing — which is
 a worse version of the defect this CI exists to prevent.
 
-So a third re-tag was needed: `scripts/retag-cv-template-positions.ts` wraps each position's header and
+So a third re-tag is needed: `scripts/retag-cv-template-positions.ts` wraps each position's header and
 its Direct Reports line in `<<#Position X Visible>>` … `<</Position X Visible>>`. It finds the Direct
 Reports paragraph by looking at what follows the header rather than from a list of letters, so a
-position that gains or loses that line needs no change to the script. Run with the owner's agreement,
-after he committed his own hand edit to the template — he keeps the file open and edits it directly, so
-the two changes had to be sequenced rather than merged.
+position that gains or loses that line needs no change to the script.
+
+**It has not been run.** The owner keeps `CV_Template.docx` open and edits it by hand — he fixed the D1
+bullet indent there on 2026-08-28 and that change is still uncommitted — so running a script over it
+would either clobber his work or fork the file. Asked, he chose to commit his edit first and have the
+re-tag applied on top. Until that happens the guard's data is inert on the trailing case: every
+`Position X Visible` key is written, and the template has no loop reading it yet. The interior case is
+live now, because it needs no template change.
+
+The sequencing is the point rather than an inconvenience: a tracked binary that two parties edit cannot
+be merged, only ordered.
 
 **The interior half needed no template change at all**, which is the asymmetry the note missed: the
-role-overview loop already exists, so forcing an overview back in is pure data.
+role-overview loop already exists, so forcing an overview back in is pure data. That is why the two
+halves ship at different times.
 
 #### §2.2's two decisions
 
