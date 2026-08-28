@@ -38,7 +38,7 @@ import { systemPromptFor } from '../prompts';
 import { runStructured, type UserContentBlock } from '../llm/client';
 import { C2, C4, C5, C6, C8 } from '../llm/schemas';
 import { CV_SLOTS, normalizeCvPosition, slotCode, templateExists, buildCvFromTemplate, type TemplateData, type TemplateValue } from '../docx/template';
-import { evidenceNeedsCvSlot, isRoleOverviewSlot, slotProjectName } from '../cv-slots';
+import { evidenceNeedsCvSlot, isRoleOverviewSlot, slotProjectName, KEY_PROJECTS_CAPTION } from '../cv-slots';
 import { PROFILE_WORDS, PROFILE_MAX_LINES, SKILL_CATEGORIES, SKILLS_PER_CATEGORY, CONTENT_LINE_ALLOWANCE, MAX_PAGES, profileLines, renderedLines } from '../cv-budget';
 import { recordGapTips } from '../ci';
 import { matchStrengthToScore } from '../scoring';
@@ -1169,13 +1169,17 @@ export async function templateSlotData(
         }
       }
     }
-    // "Key Projects:" is a heading over a list, so it prints only where there is
-    // one. A position whose projects all emptied keeps its header, its dates and
-    // its role overview — dropping the position itself would take a role off the
-    // CV, which is a truthfulness question and not a space one.
+    // The projects heading is over a list, so it prints only where there is one.
+    // A position whose projects all emptied keeps its header, its dates and its
+    // role overview — dropping the position itself would take a role off the CV,
+    // which is a truthfulness question and not a space one.
+    //
+    // The WORDS come from the template, inside this loop; the array is only the
+    // conditional. `KEY_PROJECTS_CAPTION` is that same string, so the line cost
+    // below is measured over what actually prints rather than over a stand-in.
     for (const letter of POSITION_LETTERS) {
       const any = CV_SLOTS.some((s) => !isRoleOverviewSlot(s) && slotCode(s)[0] === letter && (data[`${s} Caption`] as string[] | undefined)?.length);
-      data[`Position ${letter} Key Projects`] = any ? ['Key Projects:'] : [];
+      data[`Position ${letter} Key Projects`] = any ? [KEY_PROJECTS_CAPTION] : [];
     }
     applyPositionGuard(data, resps);
   };

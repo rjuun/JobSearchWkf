@@ -14,6 +14,22 @@ export const CV_SLOTS = [
 
 export type CvSlot = (typeof CV_SLOTS)[number];
 
+/**
+ * The heading above a position's project bullets.
+ *
+ * `"Key Project(s):"` on the owner's instruction, 2026-08-28 — three of his four
+ * positions carry a single project, and a plural heading over one item read
+ * wrongly on every one of them.
+ *
+ * The WORDS live in the template, inside the `<<#Position … Key Projects>>` loop
+ * that decides whether the heading prints at all; `templateSlotData` fills that
+ * loop with a one-element array purely as a conditional. This constant exists so
+ * the two cannot drift — `scripts/set-key-projects-caption.ts` writes it into the
+ * template, and the pipeline measures the same string when it costs the section
+ * in rendered lines. Change it here, then run that script.
+ */
+export const KEY_PROJECTS_CAPTION = 'Key Project(s):';
+
 const SLOT_BY_CODE = new Map(CV_SLOTS.map((slot) => [slotCode(slot), slot]));
 const SLOT_SET = new Set<string>(CV_SLOTS);
 
