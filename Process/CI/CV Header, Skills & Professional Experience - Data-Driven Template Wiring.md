@@ -1,7 +1,7 @@
 ---
 ci-area: CV Tailoring
 ci-roadmap:
-ci-title: CV Header, Skills & Professional Experience — Data-Driven Template Wiring
+ci-title: CV Header, Skills & Professional Experience - Data-Driven Template Wiring
 ci-status: 3 - Delivered
 ci-priority: high
 ci-date: 2026-08-06

@@ -7,7 +7,7 @@ ci-priority: medium
 ci-date: 2026-08-07
 ci-estimated-time:
 ci-time-spent: 0
-pr-source: "[[CV Header, Skills & Professional Experience — Data-Driven Template Wiring]]"
+pr-source: "[[CV Header, Skills & Professional Experience - Data-Driven Template Wiring]]"
 pr-target:
 ---
 
@@ -38,6 +38,75 @@ itself. `CV_SLOTS` and `CV_SLOT_STAR_REF` are unchanged.
 
 ## 2. What would the improvement look like?
 
+### 2.0 · The organising rule, set by the owner 2026-08-28
+
+> *"Only Section Headings as static, everything else should be fed from fields from the db."*
+
+One sentence, and it settles §2's third question outright. Measured against the template as it stands
+(2026-08-28), here is what that rule would remove:
+
+```
+STATIC today                                     under the rule
+-------------------------------------------------------------------
+PROFILE / SKILLS / PROFESSIONAL EXPERIENCE       stays  — section heading
+EDUCATION / EXECUTIVE EDUCATION / LANGUAGES      stays  — section heading
+"Direct Reports: 1 Sr. Analyst and 3 Analysts"   goes   — this owner's headcount, as literal text
+"Key Projects:"                                  goes   — already made data by the C7 space CI
+<<Position A Header>> … <<Position D Header>>    goes   — exactly four positions, hard-coded
+A1. Outsourcing Framework Project                goes   ─┐
+A2. Governance Transformation Project            goes    │  every one of this owner's real
+A3. BBAG Wind Down Project                       goes    ├─ projects, as a tag NAME inside
+B1. Accounting Correction Layer Project          goes    │  the document
+B2. Transfer Pricing · C1. BBSA Merger           goes    │
+D1. Servicing Center Project                     goes   ─┘
+```
+
+**The template is not a generic CV with this owner's data in it — it is this owner's CV with holes.**
+A second tenant cannot use it at all, because their projects are not called *BBAG Wind Down*.
+
+### 2.0.1 · What the rule produces, and the consequence §2 did not anticipate
+
+Section headings, plus two nested loops:
+
+```
+PROFESSIONAL EXPERIENCE
+<<#positions>>
+  <<title>> at <<company>>, <<city>>            <<dates>>
+  <<#directReports>>Direct Reports: <<.>><</directReports>>
+  <<#overview>><<.>><</overview>>
+  <<#projects>>
+    <<caption>>
+    <<#bullets>><<.>><</bullets>>
+  <</projects>>
+<</positions>>
+```
+
+Roughly **ten paragraphs where there are now about seventy**, and not one name in the document.
+
+**The consequence: one template serves every tenant.** §2 asks whether *"a second tenant needs either
+their own template or a templating layer that isn't 'edit the docx XML by hand'"*. Under this rule the
+answer is neither — nothing tenant-specific is left in the file, so one template serves everyone.
+Separate templates would then distinguish **CV formats** (a different visual methodology), never
+different people.
+
+It also removes the hazard the C7 work kept running into: a document a human edits by hand in Word,
+carrying seventy tags, where a stray edit can silently break a tag nobody notices until a render. Ten
+generic tags is a much smaller surface.
+
+### 2.0.2 · What this does not settle
+
+`CV_SLOTS` and `CV_SLOT_STAR_REF` are still code. The rule fixes the *document*; the two questions
+above it — whether slots become a per-owner table, and whether the slot↔STAR map becomes derivable —
+are unchanged and still need answering. A generic template fed from a hard-coded eleven-slot array is
+only half the move.
+
+**Related work already pointing this way.** [[Never Render a Position Header Over Nothing]] wraps four
+position headers and two `Direct Reports` lines in conditionals so an empty trailing position can be
+omitted. That is the same move — structure out of the template, into data — applied to six paragraphs.
+It is a step along this road, not a detour from it.
+
+
+
 Not scoped — this is the multi-tenant version of everything this session did for one profile. At minimum,
 the questions to answer before designing it:
 
@@ -56,7 +125,7 @@ the questions to answer before designing it:
 - `lib/career-graph-view-model.ts` — `CV_SLOT_STAR_REF`, `CV_SLOT_LETTER_POSITION`.
 - `[[Fix CV Bullet Evidence Linking in the Career Graph]]` — where `CV_SLOT_STAR_REF` was built and
   explicitly scoped to this one profile.
-- `[[CV Header, Skills & Professional Experience — Data-Driven Template Wiring]]` — the `cv_structure`
+- `[[CV Header, Skills & Professional Experience - Data-Driven Template Wiring]]` — the `cv_structure`
   proposal table and the concrete field-level additions this session made toward it.
 
 ## 4. Notes / Progress log

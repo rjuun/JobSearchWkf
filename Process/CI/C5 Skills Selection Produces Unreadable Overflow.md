@@ -8,7 +8,7 @@ ci-priority: high
 ci-date: 2026-08-07
 ci-estimated-time: 8
 ci-time-spent: 8
-pr-source: "[[CV Header, Skills & Professional Experience — Data-Driven Template Wiring]]"
+pr-source: "[[CV Header, Skills & Professional Experience - Data-Driven Template Wiring]]"
 pr-target: "[[C2. Map JD Requirements to Supporting Evidence]], [[C4. Transform Evidence into CV Bullets]], [[C5. Build and Manage the Skills Section]]"
 ---
 
@@ -275,7 +275,7 @@ probe cannot reproduce a model call, and should not pretend to.
   names read like) and [[Split cv_bullet_skills from requirement_skills]] (`requirement_skills` is
   written by C2 and then overwritten by C3, so the column means two different things at two different
   times — splitting it makes "which Requirement Skills did this bullet actually evidence" computable).
-- `[[CV Header, Skills & Professional Experience — Data-Driven Template Wiring]]` — where the cap was added
+- `[[CV Header, Skills & Professional Experience - Data-Driven Template Wiring]]` — where the cap was added
   and where this was first surfaced; that note's progress log has the exact reproduction (lead id, counts).
 - Memory: `c4-skills-overflow-bug.md` (auto-memory) — the same finding, saved for cross-session recall.
 

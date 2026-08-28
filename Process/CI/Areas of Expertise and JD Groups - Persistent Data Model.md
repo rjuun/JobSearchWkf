@@ -7,7 +7,7 @@ ci-priority: low
 ci-date: 2026-08-07
 ci-estimated-time:
 ci-time-spent: 0
-pr-source: "[[CV Header, Skills & Professional Experience — Data-Driven Template Wiring]]"
+pr-source: "[[CV Header, Skills & Professional Experience - Data-Driven Template Wiring]]"
 pr-target:
 ---
 
@@ -47,7 +47,7 @@ Not scoped in detail — parked as an Idea. At minimum:
   framework and 6 JD Group definitions, currently prose-only.
 - `lib/db/schema.ts` — `jdGroups` (stub, unpopulated), `job_leads.skillRatings`/`jdGroupPrimary`/
   `jdGroupSecondary`/`keyPatterns` (per-lead only).
-- `[[CV Header, Skills & Professional Experience — Data-Driven Template Wiring]]` — where the per-lead
+- `[[CV Header, Skills & Professional Experience - Data-Driven Template Wiring]]` — where the per-lead
   half of this (Header's JD Group line) was actually wired; this note is only the aggregation half.
 
 ## 4. Notes / Progress log
