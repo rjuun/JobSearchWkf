@@ -66,8 +66,17 @@ export type TemplateData = Record<string, TemplateValue>;
  *  word count for a different document. See `lib/docx/metadata.ts`. */
 export type CvIdentity = { author: string };
 
-/** Render the real template. `data` keys are the full slot strings above. */
-export function buildCvFromTemplate(data: TemplateData, identity?: CvIdentity): Buffer {
+/**
+ * Render the real template. `data` keys are the full slot strings above.
+ *
+ * `onNotice` reports what the package steps did — chiefly whether the owner's
+ * photograph actually went in. That it is reported at all is the lesson from the
+ * bug this file shipped silently: the headshot swap looked its media part up by
+ * filename, Word renumbered the parts on a save, the lookup missed, and the
+ * function returned quietly. Every CV rendered with a grey placeholder and nothing
+ * said so. A step that can no-op has to be able to say that it did.
+ */
+export function buildCvFromTemplate(data: TemplateData, identity?: CvIdentity, onNotice?: (notice: string) => void): Buffer {
   const content = fs.readFileSync(TEMPLATE_PATH, 'binary');
   const zip = new PizZip(content);
   const doc = new Docxtemplater(zip, {
@@ -91,11 +100,10 @@ export function buildCvFromTemplate(data: TemplateData, identity?: CvIdentity): 
   // Order matters: the real photograph goes in only while the drawing still
   // references it, and the unreferenced-image sweep runs after, so a CV rendered
   // without a headshot carries no photograph in its package at all.
-  applyHeadshot(out);
-  dropUnreferencedImages(out);
+  const notices = [...applyHeadshot(out), ...dropUnreferencedImages(out)];
   if (identity) {
-    applyDocumentIdentity(out, identity);
-    stripSharePointBindings(out);
+    notices.push(...applyDocumentIdentity(out, identity), ...stripSharePointBindings(out));
   }
+  for (const n of notices) onNotice?.(n);
   return out.generate({ type: 'nodebuffer', compression: 'DEFLATE' }) as Buffer;
 }

@@ -169,7 +169,17 @@ export async function rerenderCv(
     trimmed = refs;
     warnings.push(`C7's page rule trimmed ${refs.length} bullet(s) to hold two pages — ${refs.join(', ')} (line cost now ${cost})`);
   });
-  const buffer = buildCvFromTemplate(data, { author: profile?.email?.trim() || profile?.name?.trim() || 'Author' });
+  // Only the notices worth a human's attention. "Swapped in" is the expected path
+  // and says nothing; a PLACEHOLDER shipping in place of the owner's face is the
+  // one that has to reach the batch report, because it is invisible to every check
+  // short of looking at the page — which is exactly how it got out once.
+  const buffer = buildCvFromTemplate(
+    data,
+    { author: profile?.email?.trim() || profile?.name?.trim() || 'Author' },
+    (notice) => {
+      if (/PLACEHOLDER/.test(notice)) warnings.push(notice);
+    }
+  );
 
   return {
     buffer,

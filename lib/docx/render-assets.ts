@@ -20,10 +20,42 @@ import fs from 'node:fs';
 import path from 'node:path';
 import PizZip from 'pizzip';
 
-/** The part the template's headshot relationship points at. */
-const HEADSHOT_PART = 'word/media/cv-headshot.jpeg';
+/**
+ * How the headshot is found in the package.
+ *
+ * NOT by filename. The re-tag script wrote `word/media/cv-headshot.jpeg`, and
+ * then the template was opened and saved in Word — which renumbers every media
+ * part on its way out. The file became `word/media/image1.jpeg`, this module's
+ * lookup missed, and it returned early: no error, no warning, and every CV
+ * rendered with the grey placeholder instead of the owner's photograph. Caught by
+ * looking at a page, which is the only place it was visible.
+ *
+ * What survives a Word round trip is the drawing's own `name`, because it is
+ * authored content rather than packaging. So the lookup goes the other way:
+ * find the drawing called "Headshot", read the relationship it embeds, and
+ * resolve that to whatever part the package currently calls it.
+ */
+const HEADSHOT_DRAWING_NAME = 'Headshot';
 
 export const HEADSHOT_ASSET_PATH = path.join(process.cwd(), 'Group CVs', 'assets', 'headshot.jpeg');
+
+/** The media part the headshot drawing currently points at, or null when the
+ *  drawing is not in the document — which is what a no-headshot CV looks like. */
+function headshotPart(zip: PizZip): string | null {
+  const doc = zip.file('word/document.xml')?.asText();
+  if (!doc) return null;
+  // The `r:embed` inside the drawing whose docPr carries the name.
+  const at = doc.indexOf(`name="${HEADSHOT_DRAWING_NAME}"`);
+  if (at === -1) return null;
+  const rId = doc.slice(at).match(/r:embed="(rId\d+)"/)?.[1];
+  if (!rId) return null;
+  const rels = zip.file('word/_rels/document.xml.rels')?.asText() ?? '';
+  const rel = rels.match(new RegExp(`<Relationship[^>]*Id="${rId}"[^>]*>`))?.[0];
+  const target = rel?.match(/Target="([^"]+)"/)?.[1];
+  if (!target) return null;
+  const part = `word/${target.replace(/^\.\//, '')}`;
+  return zip.file(part) ? part : null;
+}
 
 /** Whether a real photograph is available to render with. */
 export function headshotAvailable(): boolean {
@@ -42,22 +74,13 @@ export function headshotAvailable(): boolean {
  * briefly put his face into a document that must not carry it.
  */
 export function applyHeadshot(zip: PizZip): string[] {
-  const doc = zip.file('word/document.xml');
-  if (!doc) return [];
-  if (!zip.file(HEADSHOT_PART)) return [];
-  // Not referenced any more ⇒ this is a no-headshot CV. Leave it to be dropped.
-  if (!/cv-headshot|rId106/.test(doc.asText()) && !referencesHeadshot(zip)) return [];
-  if (!headshotAvailable()) return ['headshot: no asset at Group CVs/assets/headshot.jpeg — placeholder shipped'];
-  zip.file(HEADSHOT_PART, fs.readFileSync(HEADSHOT_ASSET_PATH), { binary: true });
-  return ['headshot: owner asset swapped in over the template placeholder'];
-}
-
-/** Does the rendered document still point at the headshot relationship? */
-function referencesHeadshot(zip: PizZip): boolean {
-  const rels = zip.file('word/_rels/document.xml.rels')?.asText() ?? '';
-  const id = rels.match(/<Relationship[^>]*Target="media\/cv-headshot\.jpeg"[^>]*Id="(rId\d+)"|<Relationship[^>]*Id="(rId\d+)"[^>]*Target="media\/cv-headshot\.jpeg"/);
-  const rId = id?.[1] ?? id?.[2];
-  if (!rId) return false;
-  const doc = zip.file('word/document.xml')?.asText() ?? '';
-  return new RegExp(`r:embed="${rId}"`).test(doc);
+  // No drawing ⇒ C1 decided against a headshot and the loop already removed it.
+  // `dropUnreferencedImages` is about to delete the part; swapping real bytes in
+  // first would be pointless and would briefly put his face into a document that
+  // must not carry it.
+  const part = headshotPart(zip);
+  if (!part) return [];
+  if (!headshotAvailable()) return [`headshot: no asset at ${HEADSHOT_ASSET_PATH} — the PLACEHOLDER shipped`];
+  zip.file(part, fs.readFileSync(HEADSHOT_ASSET_PATH), { binary: true });
+  return [`headshot: owner asset swapped into ${part}`];
 }
